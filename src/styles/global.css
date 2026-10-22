@@ -1,25 +1,28 @@
 @import "tailwindcss";
+@import "@fontsource-variable/crimson-pro";
+@import "@fontsource-variable/inter";
 
 /* === Design System Tokens ===
-   Series accent: formalML is emerald, formalCalculus/Statistics their own.
-   formalRAG takes an indigo (primary) + violet (secondary) pair so it reads as
-   a distinct member of the family. To rebrand, change the four --color-accent*
-   lines below (light + dark) — everything else derives from them. */
+   "Marginalia": oxblood (primary) + manuscript gold (secondary) on warm paper,
+   set in Crimson Pro. Distinct from formalML (teal/indigo), formalRAG
+   (indigo/violet), and formalCalculus/Statistics (blue/emerald). Light values
+   are fixed by the site design; dark values are checked for WCAG AA in
+   tests/contrast.test.ts. Fonts are self-hosted via @fontsource. */
 @theme {
-  --color-bg: #FAFAF8;
-  --color-text: #1A1A1A;
-  --color-text-secondary: #6B6B6B;
-  --color-accent: #3538CD;
-  --color-accent-secondary: #7C3AED;
-  --color-surface: #FFFFFF;
-  --color-border: #E5E5E0;
-  --color-code-bg: #F5F5F0;
-  --color-muted-bg: #F5F5F0;
-  --color-muted-border: #D1D1CC;
-  --color-definition-bg: #E8E9FB;
-  --color-definition-border: #3538CD;
-  --color-theorem-bg: #F1E9FE;
-  --color-theorem-border: #7C3AED;
+  --color-bg: #FBF8F1;
+  --color-text: #211A17;
+  --color-text-secondary: #6B5F57;
+  --color-accent: #9F1D35;
+  --color-accent-secondary: #A16207;
+  --color-surface: #FFFDF8;
+  --color-border: #E6DCCB;
+  --color-code-bg: #F4EEE2;
+  --color-muted-bg: #F4EEE2;
+  --color-muted-border: #D8CCB8;
+  --color-definition-bg: #F6E7E8;
+  --color-definition-border: #9F1D35;
+  --color-theorem-bg: #F7EFDC;
+  --color-theorem-border: #A16207;
   --color-badge-green-bg: #DCFCE7;
   --color-badge-green-text: #166534;
   --color-badge-amber-bg: #FEF3C7;
@@ -30,27 +33,27 @@
   --color-badge-blue-text: #1D4ED8;
   --color-disabled-text: #9CA3AF;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'Source Serif 4', 'Charter', 'Georgia', ui-serif, serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Crimson Pro Variable', 'Georgia', ui-serif, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 
 /* === Dark theme overrides === */
 [data-theme="dark"] {
-  --color-bg: #171715;
-  --color-text: #E5E5E1;
-  --color-text-secondary: #9E9E98;
-  --color-accent: #818CF8;
-  --color-accent-secondary: #A78BFA;
-  --color-surface: #1F1F1D;
-  --color-border: #2E2E2C;
-  --color-code-bg: #222220;
-  --color-muted-bg: #222220;
-  --color-muted-border: #3A3A38;
-  --color-definition-bg: #1E1F45;
-  --color-definition-border: #818CF8;
-  --color-theorem-bg: #2A1F45;
-  --color-theorem-border: #A78BFA;
+  --color-bg: #1A1614;
+  --color-text: #EDE6DA;
+  --color-text-secondary: #B3A99B;
+  --color-accent: #E0697C;
+  --color-accent-secondary: #D9A441;
+  --color-surface: #231E1B;
+  --color-border: #3A322B;
+  --color-code-bg: #262019;
+  --color-muted-bg: #262019;
+  --color-muted-border: #463D35;
+  --color-definition-bg: #3A1E24;
+  --color-definition-border: #E0697C;
+  --color-theorem-bg: #3A2F1A;
+  --color-theorem-border: #D9A441;
   --color-badge-green-bg: #14532D;
   --color-badge-green-text: #86EFAC;
   --color-badge-amber-bg: #451A03;

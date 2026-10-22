@@ -9,7 +9,7 @@ interface Props {
   ogImage?: string;
 }
 
-const { title, description = 'The mathematics of retrieval-augmented generation', ogImage } = Astro.props;
+const { title, description = 'The mathematics of language', ogImage } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 
@@ -28,11 +28,11 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="canonical" href={canonicalURL} />
 
-    <title>{title} | formalRAG</title>
+    <title>{title} | formalNLP</title>
     <meta name="description" content={description} />
 
     <!-- OG -->
-    <meta property="og:title" content={`${title} | formalRAG`} />
+    <meta property="og:title" content={`${title} | formalNLP`} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="article" />
     <meta property="og:url" content={canonicalURL} />
