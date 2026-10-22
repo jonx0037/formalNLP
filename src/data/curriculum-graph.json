@@ -1,4 +1,348 @@
 {
-  "nodes": [],
-  "edges": []
+  "nodes": [
+    {
+      "id": "zipf-heaps-vocabulary-statistics",
+      "label": "Zipf's and Heaps' Laws: The Statistics of Vocabulary",
+      "status": "planned",
+      "domain": "text-as-data"
+    },
+    {
+      "id": "subword-tokenization-bpe-unigram",
+      "label": "Subword Tokenization as Compression: BPE, WordPiece, and Unigram LM",
+      "status": "planned",
+      "domain": "text-as-data"
+    },
+    {
+      "id": "n-gram-models-smoothing",
+      "label": "n-Gram Language Models and Smoothing: From Laplace to Kneser–Ney",
+      "status": "planned",
+      "domain": "language-modeling"
+    },
+    {
+      "id": "perplexity-cross-entropy",
+      "label": "Perplexity, Cross-Entropy, and Compression",
+      "status": "planned",
+      "domain": "language-modeling"
+    },
+    {
+      "id": "neural-language-models",
+      "label": "Neural Language Models: From Bengio's NPLM to Recurrent Networks",
+      "status": "planned",
+      "domain": "language-modeling"
+    },
+    {
+      "id": "distributional-semantics-ppmi-svd",
+      "label": "Distributional Semantics: PPMI and Truncated SVD",
+      "status": "planned",
+      "domain": "representations"
+    },
+    {
+      "id": "word2vec-implicit-factorization",
+      "label": "word2vec as Implicit Matrix Factorization",
+      "status": "planned",
+      "domain": "representations"
+    },
+    {
+      "id": "glove-embedding-geometry",
+      "label": "GloVe and the Geometry of Word Embeddings",
+      "status": "planned",
+      "domain": "representations"
+    },
+    {
+      "id": "contextual-embeddings-masked-lm",
+      "label": "Contextual Embeddings and the Masked-LM Objective",
+      "status": "planned",
+      "domain": "representations"
+    },
+    {
+      "id": "attention-as-kernel-smoothing",
+      "label": "Attention as Kernel Smoothing",
+      "status": "planned",
+      "domain": "attention-transformers"
+    },
+    {
+      "id": "positional-encodings-geometry",
+      "label": "Positional Encodings: Sinusoids, Rotations, and RoPE",
+      "status": "planned",
+      "domain": "attention-transformers"
+    },
+    {
+      "id": "transformer-block-residual-stream",
+      "label": "The Transformer Block and the Residual Stream",
+      "status": "planned",
+      "domain": "attention-transformers"
+    },
+    {
+      "id": "scaling-laws",
+      "label": "Neural Scaling Laws and Compute-Optimal Training",
+      "status": "planned",
+      "domain": "attention-transformers"
+    },
+    {
+      "id": "beam-search-decoding",
+      "label": "Decoding as Search: Greedy and Beam Search",
+      "status": "planned",
+      "domain": "decoding-generation"
+    },
+    {
+      "id": "sampling-temperature-nucleus",
+      "label": "Sampling: Temperature, Top-k, and Nucleus",
+      "status": "planned",
+      "domain": "decoding-generation"
+    },
+    {
+      "id": "language-model-calibration",
+      "label": "Calibration of Language Models",
+      "status": "planned",
+      "domain": "decoding-generation"
+    },
+    {
+      "id": "linear-text-classifiers",
+      "label": "Linear Text Classifiers: Generative vs. Discriminative",
+      "status": "planned",
+      "domain": "classification-sentiment"
+    },
+    {
+      "id": "lexicon-sentiment-loughran-mcdonald",
+      "label": "Lexicon Sentiment and the Loughran–McDonald Dictionary",
+      "status": "planned",
+      "domain": "classification-sentiment"
+    },
+    {
+      "id": "aspect-based-sentiment",
+      "label": "Aspect-Based Sentiment Analysis",
+      "status": "planned",
+      "domain": "classification-sentiment"
+    },
+    {
+      "id": "fine-tuning-low-rank-adaptation",
+      "label": "Fine-Tuning and Low-Rank Adaptation",
+      "status": "planned",
+      "domain": "classification-sentiment"
+    },
+    {
+      "id": "sequence-labeling-hmm-crf",
+      "label": "Sequence Labeling: From HMMs to Linear-Chain CRFs",
+      "status": "planned",
+      "domain": "extraction-knowledge-graphs"
+    },
+    {
+      "id": "named-entity-recognition",
+      "label": "Named Entity Recognition",
+      "status": "planned",
+      "domain": "extraction-knowledge-graphs"
+    },
+    {
+      "id": "relation-extraction-distant-supervision",
+      "label": "Relation Extraction and Distant Supervision",
+      "status": "planned",
+      "domain": "extraction-knowledge-graphs"
+    },
+    {
+      "id": "knowledge-graph-embeddings",
+      "label": "Knowledge-Graph Embeddings: TransE and RotatE",
+      "status": "planned",
+      "domain": "extraction-knowledge-graphs"
+    },
+    {
+      "id": "topic-models-lda",
+      "label": "Topic Models: Latent Dirichlet Allocation",
+      "status": "planned",
+      "domain": "text-mining"
+    },
+    {
+      "id": "collocations-keyword-extraction",
+      "label": "Collocations and Keyword Extraction",
+      "status": "planned",
+      "domain": "text-mining"
+    },
+    {
+      "id": "overlap-metrics-bleu-rouge",
+      "label": "Overlap Metrics: BLEU and ROUGE",
+      "status": "planned",
+      "domain": "nlp-evaluation"
+    },
+    {
+      "id": "significance-testing-for-nlp",
+      "label": "Significance Testing for NLP",
+      "status": "planned",
+      "domain": "nlp-evaluation"
+    },
+    {
+      "id": "capstone-earnings-call-nlp",
+      "label": "Capstone: An Earnings-Call NLP Pipeline",
+      "status": "planned",
+      "domain": "extraction-knowledge-graphs"
+    }
+  ],
+  "edges": [
+    {
+      "source": "zipf-heaps-vocabulary-statistics",
+      "target": "subword-tokenization-bpe-unigram"
+    },
+    {
+      "source": "zipf-heaps-vocabulary-statistics",
+      "target": "n-gram-models-smoothing"
+    },
+    {
+      "source": "n-gram-models-smoothing",
+      "target": "perplexity-cross-entropy"
+    },
+    {
+      "source": "perplexity-cross-entropy",
+      "target": "neural-language-models"
+    },
+    {
+      "source": "zipf-heaps-vocabulary-statistics",
+      "target": "distributional-semantics-ppmi-svd"
+    },
+    {
+      "source": "distributional-semantics-ppmi-svd",
+      "target": "word2vec-implicit-factorization"
+    },
+    {
+      "source": "neural-language-models",
+      "target": "word2vec-implicit-factorization"
+    },
+    {
+      "source": "word2vec-implicit-factorization",
+      "target": "glove-embedding-geometry"
+    },
+    {
+      "source": "neural-language-models",
+      "target": "attention-as-kernel-smoothing"
+    },
+    {
+      "source": "attention-as-kernel-smoothing",
+      "target": "positional-encodings-geometry"
+    },
+    {
+      "source": "attention-as-kernel-smoothing",
+      "target": "transformer-block-residual-stream"
+    },
+    {
+      "source": "positional-encodings-geometry",
+      "target": "transformer-block-residual-stream"
+    },
+    {
+      "source": "transformer-block-residual-stream",
+      "target": "contextual-embeddings-masked-lm"
+    },
+    {
+      "source": "word2vec-implicit-factorization",
+      "target": "contextual-embeddings-masked-lm"
+    },
+    {
+      "source": "transformer-block-residual-stream",
+      "target": "scaling-laws"
+    },
+    {
+      "source": "perplexity-cross-entropy",
+      "target": "scaling-laws"
+    },
+    {
+      "source": "neural-language-models",
+      "target": "beam-search-decoding"
+    },
+    {
+      "source": "beam-search-decoding",
+      "target": "sampling-temperature-nucleus"
+    },
+    {
+      "source": "sampling-temperature-nucleus",
+      "target": "language-model-calibration"
+    },
+    {
+      "source": "zipf-heaps-vocabulary-statistics",
+      "target": "linear-text-classifiers"
+    },
+    {
+      "source": "linear-text-classifiers",
+      "target": "lexicon-sentiment-loughran-mcdonald"
+    },
+    {
+      "source": "lexicon-sentiment-loughran-mcdonald",
+      "target": "aspect-based-sentiment"
+    },
+    {
+      "source": "attention-as-kernel-smoothing",
+      "target": "aspect-based-sentiment"
+    },
+    {
+      "source": "contextual-embeddings-masked-lm",
+      "target": "fine-tuning-low-rank-adaptation"
+    },
+    {
+      "source": "linear-text-classifiers",
+      "target": "fine-tuning-low-rank-adaptation"
+    },
+    {
+      "source": "n-gram-models-smoothing",
+      "target": "sequence-labeling-hmm-crf"
+    },
+    {
+      "source": "linear-text-classifiers",
+      "target": "sequence-labeling-hmm-crf"
+    },
+    {
+      "source": "sequence-labeling-hmm-crf",
+      "target": "named-entity-recognition"
+    },
+    {
+      "source": "contextual-embeddings-masked-lm",
+      "target": "named-entity-recognition"
+    },
+    {
+      "source": "named-entity-recognition",
+      "target": "relation-extraction-distant-supervision"
+    },
+    {
+      "source": "relation-extraction-distant-supervision",
+      "target": "knowledge-graph-embeddings"
+    },
+    {
+      "source": "glove-embedding-geometry",
+      "target": "knowledge-graph-embeddings"
+    },
+    {
+      "source": "distributional-semantics-ppmi-svd",
+      "target": "topic-models-lda"
+    },
+    {
+      "source": "zipf-heaps-vocabulary-statistics",
+      "target": "collocations-keyword-extraction"
+    },
+    {
+      "source": "n-gram-models-smoothing",
+      "target": "collocations-keyword-extraction"
+    },
+    {
+      "source": "n-gram-models-smoothing",
+      "target": "overlap-metrics-bleu-rouge"
+    },
+    {
+      "source": "beam-search-decoding",
+      "target": "overlap-metrics-bleu-rouge"
+    },
+    {
+      "source": "overlap-metrics-bleu-rouge",
+      "target": "significance-testing-for-nlp"
+    },
+    {
+      "source": "linear-text-classifiers",
+      "target": "significance-testing-for-nlp"
+    },
+    {
+      "source": "lexicon-sentiment-loughran-mcdonald",
+      "target": "capstone-earnings-call-nlp"
+    },
+    {
+      "source": "knowledge-graph-embeddings",
+      "target": "capstone-earnings-call-nlp"
+    },
+    {
+      "source": "topic-models-lda",
+      "target": "capstone-earnings-call-nlp"
+    }
+  ]
 }

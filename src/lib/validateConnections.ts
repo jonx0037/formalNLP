@@ -2,12 +2,12 @@
  * Validates that all topic connections and prerequisites reference existing topic IDs.
  * Run with: pnpm validate
  *
- * formalRAG note: curriculum-graph.json holds the FULL 50-topic roadmap, so most
+ * formalNLP note: curriculum-graph.json holds the FULL 29-node roadmap, so most
  * graph nodes have no MDX file yet — that is expected and reported as a notice,
  * not an error. Only an MDX file with no graph node, or a prerequisite/connection
  * pointing at a non-existent local topic, is a hard error. The cross-site
- * reference arrays (formalml, formalcalculus, formalstatistics prereqs and
- * connections) are ignored here; they are checked by `pnpm audit:cross-site`.
+ * reference arrays (formalml, formalcalculus, formalstatistics, formalrag prereqs
+ * and connections) are ignored here; they are checked by `pnpm audit:cross-site`.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';

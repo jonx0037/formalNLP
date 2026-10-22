@@ -3,7 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import CurriculumGraph from '../components/viz/CurriculumGraph.tsx';
 import TopicCard from '../components/ui/TopicCard.astro';
 import { getCollection } from 'astro:content';
-import { tracks } from '../data/curriculum';
+import { tracks, layerAnchorId } from '../data/curriculum';
 import graphData from '../data/curriculum-graph.json';
 import { synthesizeCrossSiteNodes } from '../lib/synthesizeCrossSiteNodes';
 
@@ -59,7 +59,7 @@ const difficultyOrder = { foundational: 0, intermediate: 1, advanced: 2 };
         // first track). Source of truth for the layer is curriculum.ts, so
         // reordering tracks there auto-relocates the header.
         const isLayerStart = idx === 0 || tracks[idx - 1].layer !== layer;
-        const layerAnchor = layer.toLowerCase().replace(/\s+/g, '-');
+        const layerAnchor = layerAnchorId(layer);
 
         return (
           <Fragment>
