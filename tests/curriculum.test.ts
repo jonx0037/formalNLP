@@ -12,10 +12,10 @@ const graph: Graph = JSON.parse(readFileSync('src/data/curriculum-graph.json', '
 const hasEdge = (source: string, target: string) =>
   graph.edges.some((e) => e.source === source && e.target === target);
 
-test('29 unique planned nodes with valid domains, every domain populated', () => {
+test('29 unique nodes, planned or published, with valid domains, every domain populated', () => {
   assert.equal(graph.nodes.length, 29);
   assert.equal(new Set(graph.nodes.map((n) => n.id)).size, 29);
-  assert.ok(graph.nodes.every((n) => n.status === 'planned'));
+  assert.ok(graph.nodes.every((n) => n.status === 'planned' || n.status === 'published'));
   assert.ok(graph.nodes.every((n) => (DOMAINS as readonly string[]).includes(n.domain)));
   for (const d of DOMAINS) assert.ok(graph.nodes.some((n) => n.domain === d), d);
 });
@@ -54,10 +54,10 @@ test('tracks cover exactly DOMAINS, in layer order', () => {
     ['Foundations', 'Representations', 'Generation', 'Tasks', 'Evaluation']);
 });
 
-test('planned titles match graph labels per domain', () => {
+test('planned titles match the still-planned graph labels per domain', () => {
   for (const t of tracks) {
     assert.deepEqual([...t.planned],
-      graph.nodes.filter((n) => n.domain === t.domain).map((n) => n.label), t.domain);
+      graph.nodes.filter((n) => n.domain === t.domain && n.status === 'planned').map((n) => n.label), t.domain);
   }
 });
 
