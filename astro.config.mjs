@@ -10,7 +10,9 @@ import rehypeExternalLinks from 'rehype-external-links';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://formalnlp.com',
-  integrations: [react(), mdx()],
+  // GFM explicitly: under Astro 6.4's deprecated `markdown.remarkPlugins` path MDX stops
+  // inheriting it, and tables render as raw pipes (found by the first topic's tables).
+  integrations: [react(), mdx({ gfm: true })],
   markdown: {
     remarkPlugins: [remarkMath],
     rehypePlugins: [
