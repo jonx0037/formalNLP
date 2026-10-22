@@ -1,0 +1,559 @@
+---
+title: "Zipf's and Heaps' Laws: The Statistics of Vocabulary"
+subtitle: "Why a vocabulary's rank–frequency curve and its growth curve are one power law seen twice — and why a straight line through a log–log plot is the wrong way to measure it"
+status: "published"
+difficulty: "foundational"
+prerequisites: []
+tags:
+  - "zipf"
+  - "heaps"
+  - "power-laws"
+  - "vocabulary-growth"
+  - "pitman-yor"
+  - "maximum-likelihood"
+domain: "text-as-data"
+financeCaseStudy: true
+rigorFlag: "Zipf's and Heaps' laws are empirical regularities, not theorems about language. What is proved here is conditional: if tokens are i.i.d. from a Zipf law with s > 1, the expected vocabulary grows like n^(1/s) (Karlin); if word types come from a Pitman–Yor process, both laws hold with s = 1/d and β = d. Real text is neither i.i.d. nor exactly Zipfian — fitted s ≈ 1 sits on the boundary where an infinite vocabulary cannot be normalized, and β = 1/s routinely fails on real corpora. Log–log least-squares slopes depend on the fitting window and are biased; the power-law MLE assumes a pure power tail above x_min, which a Pitman–Yor spectrum reaches only for large counts, and x_min is chosen by a heuristic. The Sibuya and Zipf limits of Pitman–Yor are cited, not proved, and checked numerically."
+videoId: null
+notebookPath: "notebooks/zipf-heaps-vocabulary-statistics/01_zipf_heaps_vocabulary_statistics.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/zipf-heaps-vocabulary-statistics.mdx"
+datePublished: 2026-10-22
+estimatedReadTime: 35
+abstract: "Every corpus obeys two regularities: the r-th most frequent word occurs roughly in proportion to r^(−s) (Zipf's law), and n tokens contain roughly n^β distinct word types (Heaps' law). We show they are one fact seen twice. The rank–frequency curve is the tail distribution of type counts turned sideways, which ties the rank exponent to the spectrum exponent. Zipf's law is the maximum-entropy distribution at fixed mean log-rank. Karlin's theorem proves that i.i.d. Zipf sampling with s > 1 makes the expected vocabulary grow as Γ(1 − 1/s)(Cn)^(1/s), so β = 1/s, with an error of at most about one word type. The Pitman–Yor process, the generator behind the site's finance corpus, plants both laws through a single discount d; we derive its exact expected type count, whose θ/d offset matters at corpus scale. Estimating the exponent is harder than drawing a line: log–log least-squares slopes swing with the fitting window, so we develop the discrete power-law maximum-likelihood estimator. A finance case study uses a corpus with a known answer: its full text reproduces the familiar real-text mismatch between s and β, generic estimators miss the planted discount, and the exact form of the Pitman–Yor growth law recovers it."
+connections: []
+references:
+  - type: "paper"
+    title: "Central Limit Theorems for Certain Infinite Urn Schemes"
+    authors: "Samuel Karlin"
+    year: 1967
+    url: "https://doi.org/10.1512/iumj.1968.17.17020"
+    note: "Journal of Mathematics and Mechanics 17: 373–401. The occupancy asymptotics behind Theorem 2"
+  - type: "paper"
+    title: "Notes on the Occupancy Problem with Infinitely Many Boxes: General Asymptotics and Power Laws"
+    authors: "Alexander Gnedin, Ben Hansen, and Jim Pitman"
+    year: 2007
+    url: "https://doi.org/10.1214/07-PS092"
+    note: "Probability Surveys 4: 146–71. A modern survey of Karlin's scheme"
+  - type: "paper"
+    title: "The Two-Parameter Poisson–Dirichlet Distribution Derived from a Stable Subordinator"
+    authors: "Jim Pitman and Marc Yor"
+    year: 1997
+    url: "https://doi.org/10.1214/aop/1024404422"
+    note: "Annals of Probability 25 (2): 855–900"
+  - type: "book"
+    title: "Combinatorial Stochastic Processes"
+    authors: "Jim Pitman"
+    year: 2006
+    url: "https://doi.org/10.1007/b11601500"
+    note: "Lecture Notes in Mathematics 1875. Theorem 3.8, Corollary 3.9, and Lemma 3.11 give Theorem 4"
+  - type: "paper"
+    title: "Power-Law Distributions in Empirical Data"
+    authors: "Aaron Clauset, Cosma Rohilla Shalizi, and M. E. J. Newman"
+    year: 2009
+    url: "https://doi.org/10.1137/070710111"
+    note: "SIAM Review 51 (4): 661–703. The discrete power-law MLE and the case against log–log least squares"
+  - type: "paper"
+    title: "Zipf's Law, Power Laws and Maximum Entropy"
+    authors: "Matt Visser"
+    year: 2013
+    url: "https://doi.org/10.1088/1367-2630/15/4/043021"
+    note: "New Journal of Physics 15 (4): 043021. Zipf as maximum entropy under a log constraint"
+  - type: "paper"
+    title: "Note on the Gamma Function"
+    authors: "J. G. Wendel"
+    year: 1948
+    url: "https://doi.org/10.2307/2304460"
+    note: "American Mathematical Monthly 55 (9): 563–64. Lemma 2"
+  - type: "book"
+    title: "Human Behavior and the Principle of Least Effort"
+    authors: "George Kingsley Zipf"
+    year: 1949
+    url: "https://archive.org/details/in.ernet.dli.2015.90211"
+    note: "Cambridge, MA: Addison-Wesley"
+  - type: "book"
+    title: "Information Retrieval: Computational and Theoretical Aspects"
+    authors: "H. S. Heaps"
+    year: 1978
+    url: "https://archive.org/details/informationretri0000heap"
+    note: "New York: Academic Press"
+  - type: "paper"
+    title: "A Formal Derivation of Heaps' Law"
+    authors: "D. C. van Leijenhorst and Th. P. van der Weide"
+    year: 2005
+    url: "https://doi.org/10.1016/j.ins.2004.03.006"
+    note: "Information Sciences 170: 263–72"
+  - type: "paper"
+    title: "Two Regimes in the Frequency of Words and the Origins of Complex Lexicons: Zipf's Law Revisited"
+    authors: "Ramon Ferrer i Cancho and Ricard V. Solé"
+    year: 2001
+    url: "https://doi.org/10.1076/jqul.8.3.165.4101"
+    note: "Journal of Quantitative Linguistics 8 (3): 165–73"
+  - type: "paper"
+    title: "Zipf's Word Frequency Law in Natural Language: A Critical Review and Future Directions"
+    authors: "Steven T. Piantadosi"
+    year: 2014
+    url: "https://doi.org/10.3758/s13423-014-0585-6"
+    note: "Psychonomic Bulletin & Review 21: 1112–30"
+  - type: "book"
+    title: "Word Frequency Distributions"
+    authors: "R. Harald Baayen"
+    year: 2001
+    url: "https://doi.org/10.1007/978-94-010-0844-0"
+    note: "Dordrecht: Kluwer. Large-number-of-rare-events statistics"
+  - type: "paper"
+    title: "Producing Power-Law Distributions and Damping Word Frequencies with Two-Stage Language Models"
+    authors: "Sharon Goldwater, Thomas L. Griffiths, and Mark Johnson"
+    year: 2011
+    url: "https://jmlr.org/papers/v12/goldwater11a.html"
+    note: "Journal of Machine Learning Research 12: 2335–82"
+  - type: "paper"
+    title: "A Hierarchical Bayesian Language Model Based on Pitman–Yor Processes"
+    authors: "Yee Whye Teh"
+    year: 2006
+    url: "https://aclanthology.org/P06-1124/"
+    note: "COLING/ACL 2006, 985–92. Kneser–Ney as an approximation to hierarchical Pitman–Yor"
+formalmlPrereqs:
+  - topic: "shannon-entropy"
+    site: "formalml"
+    relationship: "Zipf's law is derived as the maximum-entropy distribution at fixed mean log-rank, with optimality from Gibbs' inequality (KL divergence is nonnegative)."
+  - topic: "bayesian-nonparametrics"
+    site: "formalml"
+    relationship: "The Pitman–Yor restaurant generalizes the Chinese restaurant process of the Dirichlet process by a discount that turns logarithmic type growth into a power law."
+formalmlConnections:
+  - topic: "minimum-description-length"
+    site: "formalml"
+    relationship: "Heavy-tailed vocabularies set the cost of coding rare words, the trade-off that MDL-style subword vocabularies optimize downstream."
+formalstatisticsPrereqs:
+  - topic: "discrete-distributions"
+    site: "formalstatistics"
+    relationship: "The Zipf and discrete power laws are distributions on the positive integers; we use their probability mass functions, tails, and normalizers throughout."
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "The power-law exponent is estimated by maximum likelihood; consistency and the Fisher-information standard error come from the general MLE theory."
+formalstatisticsConnections:
+  - topic: "linear-regression"
+    site: "formalstatistics"
+    relationship: "The classical log–log least-squares fit of Zipf's exponent is a linear regression whose assumptions the rank plot violates; we measure its bias."
+formalcalculusPrereqs:
+  - topic: "series-convergence"
+    site: "formalcalculus"
+    relationship: "Whether a Zipf law can live on an infinite vocabulary is the convergence of the p-series ζ(s), settled by the integral test."
+  - topic: "improper-integrals"
+    site: "formalcalculus"
+    relationship: "Karlin's theorem reduces the expected vocabulary to an improper integral that evaluates to the Gamma function Γ(1 − 1/s)."
+formalragConnections:
+  - topic: "vector-space-model-tfidf"
+    site: "formalrag"
+    relationship: "The Zipfian head is the stopword list and the long tail is where IDF weights are largest; TF-IDF inherits this topic's distribution."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import VocabularyLawsLab from '../../components/viz/VocabularyLawsLab.tsx';
+
+## Overview & Motivation
+
+Count the words in any body of text and two shapes appear. Sort the word types from most to least frequent and plot each type's count against its rank on log–log axes: the points fall near a straight line of negative slope. That is **Zipf's law**, $f(r) \propto r^{-s}$. Now read the same text from the beginning and track how many distinct types we have seen after $n$ tokens: on log–log axes this growth curve is also nearly straight, with slope below one. That is **Heaps' law**, $V(n) \propto n^{\beta}$.
+
+The site's shared finance corpus — 300 synthetic earnings calls, MD&A sections, and 8-K filings — is a good place to look. It has $63{,}182$ tokens and $3{,}425$ types, and $54.8\%$ of those types occur exactly once. Its ten most frequent words are *and, in, the, of, for, percent, to, as, a, was*: a handful of function words carries most of the text, while most of the vocabulary is rare. The table below samples the curve at log-spaced ranks.
+
+| rank $r$ | 1 | 4 | 19 | 84 | 372 | 779 | 1634 | 3425 |
+|---|---|---|---|---|---|---|---|---|
+| count $f(r)$ | 3362 | 1060 | 363 | 160 | 29 | 6 | 1 | 1 |
+
+These two laws are the first fact about text as data, and almost everything later on this site leans on them. A vocabulary that keeps growing is why subword tokenizers exist; the mass of once-seen words is why language models need smoothing; the heavy head is why stopword lists and IDF weighting work. This topic makes the two laws precise and asks three questions about them:
+
+1. **Are they the same law?** Yes, in a precise sense. The rank–frequency curve is the tail of the type-count distribution turned on its side, and under i.i.d. sampling a Zipf exponent $s$ forces a Heaps exponent $\beta = 1/s$ (Karlin's theorem).
+2. **Where could they come from?** Two answers: Zipf is the maximum-entropy law at a fixed mean log-rank, and the Pitman–Yor process generates both laws from a single discount parameter $d$. That process is exactly how the finance corpus was built.
+3. **How do we measure them?** Not by drawing a line through a log–log plot. We show how badly that goes, develop the maximum-likelihood alternative, and test both on a corpus where we know the right answer.
+
+Before any algebra, try the laboratory. In panel A, pick different windows of ranks and watch the fitted slope of the same corpus swing from $-0.554$ to $-1.807$. In panel B, turn the Pitman–Yor discount and watch one knob move both exponents.
+
+<VocabularyLawsLab client:visible />
+
+---
+
+## Rank–frequency is a tail turned sideways
+
+Throughout, a corpus is a token sequence $w_1, \dots, w_N$ over a vocabulary of word types.
+
+<TheoremBlock type="definition" number={1} title="Counts and ranks">
+
+The **count** $c(w)$ of a type $w$ is its number of tokens. Sorting the $V$ observed types by decreasing count gives the **rank–frequency curve** $f(1) \ge f(2) \ge \dots \ge f(V)$, with ties ordered arbitrarily.
+
+</TheoremBlock>
+
+<TheoremBlock type="definition" number={2} title="Frequency spectrum and tail count">
+
+The **frequency spectrum** is $V_m = \#\{w : c(w) = m\}$, the number of types seen exactly $m$ times. The **tail count** is $N_{\ge}(f) = \#\{w : c(w) \ge f\} = \sum_{m \ge f} V_m$. Types with $c(w) = 1$ are the *hapax legomena*; there are $V_1$ of them.
+
+</TheoremBlock>
+
+In the finance corpus $V_1 = 1877$, $V_2 = 394$, $V_3 = 172$. The tail count is a staircase that starts at $N_{\ge}(1) = 3425$ (every type) and steps down: $N_{\ge}(2) = 1548$, $N_{\ge}(10) = 622$, $N_{\ge}(100) = 151$. Draw that staircase with $f$ on the horizontal axis, then reflect it across the diagonal, and you get the rank–frequency plot. The next proposition says this is not an analogy but an identity.
+
+<TheoremBlock type="proposition" number={1} title="Rank is the tail count">
+
+If ties are ranked last, the rank of any type with count $f$ is $N_{\ge}(f)$. Equivalently, $r \mapsto f(r)$ and $f \mapsto N_{\ge}(f)$ are generalized inverses of each other.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The types ranked at or above a type $w$ with $c(w) = f$ are exactly the types with count greater than $f$, together with every type whose count equals $f$ — ranking ties last places $w$ at the end of its tie block. Their number is $\#\{c > f\} + \#\{c = f\} = N_{\ge}(f)$, which is therefore the rank of $w$.
+
+</TheoremBlock>
+
+The identity converts statements about the spectrum into statements about the rank plot. In particular it ties the two exponents together.
+
+<TheoremBlock type="corollary" number={1} title="The exponent map α = 1 + 1/s">
+
+If $N_{\ge}(f) = A f^{-(\alpha - 1)}$ over a range of counts, then over the corresponding ranks $f(r) = (A/r)^{1/(\alpha - 1)}$: a rank–frequency exponent $s = 1/(\alpha - 1)$. If instead the spectrum itself is a power law, $V_m = B m^{-\alpha}$, then $N_{\ge}(f) = \frac{B}{\alpha - 1} f^{-(\alpha - 1)}\,(1 + O(1/f))$, with the same exponent.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The first statement inverts Proposition 1: $r = A f^{-(\alpha-1)}$ solves to $f = (A/r)^{1/(\alpha-1)}$. For the second, $N_{\ge}(f) = B \sum_{x \ge f} x^{-\alpha} = B\,\zeta(\alpha, f)$, where $\zeta(\alpha, f)$ is the Hurwitz zeta function. Since $x \mapsto x^{-\alpha}$ decreases, comparing the sum with integrals gives
+
+$$
+\int_f^\infty x^{-\alpha}\,dx \;\le\; \zeta(\alpha, f) \;\le\; f^{-\alpha} + \int_f^\infty x^{-\alpha}\,dx,
+\qquad\text{so}\qquad
+\zeta(\alpha, f) = \frac{f^{1-\alpha}}{\alpha - 1}\,\bigl(1 + O(1/f)\bigr).
+$$
+
+</TheoremBlock>
+
+So a spectrum exponent $\alpha$ and a rank exponent $s$ are two names for one number: $\alpha = 1 + 1/s$. The companion harness checks Proposition 1 exactly on all $3{,}425$ corpus types, and checks the exponent map on $200{,}000$-draw power-law samples with $\alpha \in \{1.6, 2.0, 2.5\}$. We will use the map constantly, because the clean estimator in the final section works with counts while the classical picture is drawn with ranks.
+
+---
+
+## Zipf as a probability law
+
+To reason about sampling we need Zipf's law as a distribution, not just a fitted curve.
+
+<TheoremBlock type="definition" number={3} title="Zipf law">
+
+For $s > 1$ the **Zipf law** on the positive integers is $p_r = C r^{-s}$ with $C = 1/\zeta(s)$ and $\zeta(s) = \sum_{r \ge 1} r^{-s}$. The **truncated** Zipf law on $\{1, \dots, R\}$ is $p_r = r^{-s}/H_{R,s}$ with $H_{R,s} = \sum_{r \le R} r^{-s}$, for any real $s$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={2} title="An infinite Zipf law needs s > 1">
+
+$\zeta(s) \lt \infty$ if and only if $s > 1$. At $s = 1$ the partial sums satisfy $H_{R,1} = \log R + \gamma + O(1/R)$, where $\gamma$ is the Euler–Mascheroni constant.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For $s > 0$ the terms $x^{-s}$ are positive and decreasing, so by the integral test (see [Series Convergence](https://www.formalcalculus.com/topics/series-convergence)) the partial sum $\sum_{r=1}^{R} r^{-s}$ lies within $1$ of $\int_1^R x^{-s}\,dx$. That integral stays bounded as $R \to \infty$ exactly when $s > 1$. For $s \le 0$ the terms do not tend to zero, so the series diverges. At $s = 1$, $\int_1^R dx/x = \log R$, and the gap between the sum and the integral increases to the constant $\gamma$, with remainder $O(1/R)$.
+
+</TheoremBlock>
+
+This sets the stage for the first honest caveat. Fitted Zipf exponents for word frequencies in real text sit near $s \approx 1$ — on exactly the boundary where an infinite vocabulary cannot be normalized. A Zipf law with $s \le 1$ must have a finite vocabulary, or a steeper tail somewhere beyond the ranks we can observe.
+
+Why would word frequencies take this shape at all? One answer comes from information theory. Suppose all we fix is the mean of $\log r$, which we can think of as a budget for how far down the ranking a typical token reaches. The least committal distribution with that budget is Zipf's.
+
+<TheoremBlock type="theorem" number={1} title="Zipf maximizes entropy at fixed mean log-rank">
+
+Fix $R \ge 2$ and $\mu \in (0, \log R)$. Among distributions $q$ on $\{1, \dots, R\}$ with $\sum_r q_r \log r = \mu$, the Shannon entropy $H(q) = -\sum_r q_r \log q_r$ has a unique maximizer: the truncated Zipf law $p_r = r^{-s}/H_{R,s}$, where $s$ is the unique real solution of $\mathbb{E}_p[\log r] = \mu$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+*The exponent exists and is unique.* Let $m(s) = \mathbb{E}_{p^{(s)}}[\log r]$ for the truncated Zipf law with exponent $s$. Since $\log H_{R,s}$ is a log-partition function in $s$, $m(s) = -\frac{d}{ds}\log H_{R,s}$ and $m'(s) = -\operatorname{Var}_{p^{(s)}}(\log r)$. The variance is positive because $\log r$ is not constant on $\{1, \dots, R\}$ when $R \ge 2$, so $m$ is continuous and strictly decreasing. As $s \to -\infty$ the mass moves to $r = R$ and $m(s) \to \log R$; as $s \to \infty$ it moves to $r = 1$ and $m(s) \to 0$. Hence $m$ maps $\mathbb{R}$ one-to-one onto $(0, \log R)$.
+
+*Optimality.* Let $q$ be any feasible distribution. Gibbs' inequality — the nonnegativity of the KL divergence, $\mathrm{KL}(q \,\|\, p) \ge 0$ (see [Shannon Entropy & Mutual Information](https://www.formalml.com/topics/shannon-entropy)) — gives $-\sum q_r \log q_r \le -\sum q_r \log p_r$. Substituting $\log p_r = -s \log r - \log H_{R,s}$,
+
+$$
+H(q) \;\le\; \sum_r q_r \bigl(s \log r + \log H_{R,s}\bigr) \;=\; s\mu + \log H_{R,s}.
+$$
+
+The same computation with $q = p$ shows that $H(p) = s\mu + \log H_{R,s}$, so $H(q) \le H(p)$. Equality forces $\mathrm{KL}(q \,\|\, p) = 0$, that is $q = p$.
+
+</TheoremBlock>
+
+The exponent $s$ is the Lagrange multiplier on the log-rank constraint: the price of spreading probability toward high ranks. The harness solves the constrained problem from scratch with a generic optimizer, for $R = 40$ and $\mu = 1.1703$ (the mean log-rank of Zipf with $s = 1.3$). Starting from the uniform distribution, the optimizer lands on the Zipf law to within $10^{-4}$, root-finding recovers $s = 1.3$ to $10^{-9}$, and fifty random feasible perturbations of the Zipf law all lower the entropy. Maximum entropy explains the *shape* if we accept the constraint; it does not explain why language would fix $\mathbb{E}[\log r]$. We take it as one well-defined route to the power law, not as a theory of language.
+
+---
+
+## Zipf implies Heaps
+
+Now we connect the two laws. Draw $n$ tokens independently from a Zipf law. Type $r$ is still unseen after $n$ draws with probability $(1 - p_r)^n$, so the expected vocabulary size is
+
+$$
+\mathbb{E}\,V(n) \;=\; \sum_{r \ge 1} \Bigl[1 - (1 - p_r)^n\Bigr].
+$$
+
+Each term is close to $1$ for the common types (they are surely seen) and close to $n p_r$ for the rare ones (they are probably unseen). The crossover happens near the rank where $n p_r \approx 1$, that is $r \approx (Cn)^{1/s}$. So the vocabulary should grow like $n^{1/s}$. To make this exact we need one tool for comparing sums with integrals.
+
+<TheoremBlock type="lemma" number={1} title="Sums of unimodal functions">
+
+Let $\varphi \ge 0$ be integrable on $[0, \infty)$, nondecreasing on $[0, x^\ast]$ and nonincreasing on $[x^\ast, \infty)$, with $M = \sup \varphi$. Then
+
+$$
+\int_0^\infty \varphi \;-\; M \;\le\; \sum_{r \ge 1} \varphi(r) \;\le\; \int_0^\infty \varphi \;+\; 2M.
+$$
+
+If $\varphi$ is nonincreasing ($x^\ast = 0$), then $\int_0^\infty \varphi - \int_0^1 \varphi \le \sum_{r \ge 1} \varphi(r) \le \int_0^\infty \varphi$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $m = \lfloor x^\ast \rfloor$. *Lower bound:* for $1 \le r \le m$, $\varphi$ rises on $[r-1, r]$, so $\varphi(r) \ge \int_{r-1}^{r} \varphi$; for $r \ge m + 1$, $\varphi$ falls on $[r, r+1]$, so $\varphi(r) \ge \int_r^{r+1} \varphi$. These intervals cover $[0, \infty)$ except $[m, m+1]$, whose integral is at most $M$. *Upper bound:* for $r \le m - 1$, $\varphi(r) \le \int_r^{r+1} \varphi$; for $r \ge m + 2$, $\varphi(r) \le \int_{r-1}^{r} \varphi$. These intervals are disjoint, and the two remaining terms $\varphi(m)$ and $\varphi(m+1)$ are each at most $M$. The monotone case is the same argument with $m = 0$: the upper bound uses $\varphi(r) \le \int_{r-1}^{r}\varphi$ for every $r \ge 1$, and the lower bound uses $\varphi(r) \ge \int_r^{r+1}\varphi$, which misses only $[0, 1]$.
+
+</TheoremBlock>
+
+<TheoremBlock type="theorem" number={2} title="Zipf implies Heaps (Karlin 1967)">
+
+Let tokens be i.i.d. with $p_r = C r^{-s}$, $s > 1$, $C = 1/\zeta(s)$, and set $I(n) = \Gamma(1 - 1/s)\,(Cn)^{1/s}$. Then
+
+$$
+I(n) - 1 \;\le\; \mathbb{E}\,V(n) \;\le\; I(n) + \varepsilon_n,
+\qquad
+\varepsilon_n \;\le\; \frac{1}{(1 - C)\,n}\Bigl[\tfrac{1}{s}\,\Gamma\bigl(2 - \tfrac{1}{s}\bigr)(Cn)^{1/s} + 8e^{-2}\Bigr] = O\bigl(n^{1/s - 1}\bigr).
+$$
+
+In particular $\mathbb{E}\,V(n) \sim I(n)$ and $\log \mathbb{E}\,V(n) = \tfrac{1}{s}\log n + \text{const} + o(1)$: Heaps' law holds with $\beta = 1/s$, and the absolute error is at most about one word type.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+*Step 0: the integral.* Let $g(x) = 1 - e^{-nCx^{-s}}$ and substitute $u = nCx^{-s}$, so $x = (nC/u)^{1/s}$ and $dx = -\tfrac{1}{s}(nC)^{1/s}u^{-1-1/s}\,du$:
+
+$$
+\int_0^\infty g(x)\,dx \;=\; \frac{(nC)^{1/s}}{s}\int_0^\infty \bigl(1 - e^{-u}\bigr)\,u^{-1-1/s}\,du.
+$$
+
+Integrate by parts with antiderivative $-s\,u^{-1/s}$ for $u^{-1-1/s}$. The boundary term $-s\,u^{-1/s}(1 - e^{-u})$ vanishes as $u \to \infty$, and as $u \to 0$ because $1 - e^{-u} \le u$ and $s > 1$. What remains is $s\int_0^\infty u^{-1/s}e^{-u}\,du = s\,\Gamma(1 - 1/s)$ (see [Improper Integrals & Special Functions](https://www.formalcalculus.com/topics/improper-integrals)). Hence $\int_0^\infty g = \Gamma(1 - 1/s)(Cn)^{1/s} = I(n)$.
+
+*Step 1: Poissonize.* Replace $(1-p)^n$ by $e^{-np}$. The function $g$ is decreasing with $0 \le g \le 1$, so the monotone case of Lemma 1 gives $I(n) - 1 \le \sum_{r \ge 1} g(r) \le I(n)$.
+
+*Step 2: de-Poissonize.* Since $1 - p \le e^{-p}$, we have $(1 - p)^n \le e^{-np}$, so $\mathbb{E}\,V(n) \ge \sum_r g(r) \ge I(n) - 1$. For the other side, $-\log(1-p) = \sum_{k \ge 1} p^k/k \le p + p^2/(1-p)$, hence $(1-p)^n \ge e^{-np}\,e^{-np^2/(1-p)} \ge e^{-np}\bigl(1 - np^2/(1-p)\bigr)$ and
+
+$$
+0 \;\le\; e^{-np_r} - (1 - p_r)^n \;\le\; \frac{n p_r^2\, e^{-np_r}}{1 - p_r} \;\le\; \frac{h(np_r)}{(1 - C)\,n},
+\qquad h(u) = u^2 e^{-u},
+$$
+
+using $p_r \le p_1 = C \lt 1$. As a function of $x$, $h(nCx^{-s})$ is unimodal with maximum $h(2) = 4e^{-2}$, and the substitution of Step 0 gives $\int_0^\infty h(nCx^{-s})\,dx = \tfrac{1}{s}\Gamma(2 - \tfrac{1}{s})(Cn)^{1/s}$. Lemma 1 bounds $\sum_r h(np_r)$ by that integral plus $8e^{-2}$, so $\mathbb{E}\,V(n) - \sum_r g(r) \le \varepsilon_n$. Combining with Step 1 gives both inequalities. Taking logarithms, $\log \mathbb{E}\,V(n) = \log I(n) + O(1/I(n))$, and $\log I(n) = \tfrac{1}{s}\log n + \log\bigl(\Gamma(1 - 1/s)C^{1/s}\bigr)$.
+
+</TheoremBlock>
+
+The theorem is sharper than its usual statement: the error is about one type, not a vanishing fraction. The harness computes $\mathbb{E}\,V(n)$ on the full infinite Zipf law (an exact sum over the first two million ranks plus the tail's Taylor series) and checks each step: the Step 1 sandwich, the sign and size of the Step 2 gap, and the slope. The ratio $\mathbb{E}\,V(n)/I(n)$ looks like this:
+
+| $s$ | $n = 10^2$ | $10^3$ | $10^4$ | $10^5$ | $10^6$ |
+|---|---|---|---|---|---|
+| 1.25 | 0.9915 | 0.9986 | 0.9998 | 1.0000 | 1.0000 |
+| 1.5 | 0.9847 | 0.9966 | 0.9992 | 0.9998 | 1.0000 |
+| 2.0 | 0.9651 | 0.9887 | 0.9964 | 0.9989 | 0.9996 |
+| 3.0 | 0.9165 | 0.9609 | 0.9818 | 0.9915 | 0.9961 |
+
+Convergence is *slowest for large* $s$. That is what the bound predicts: a one-type error weighed against $I(n) \sim n^{1/s}$ types, which is a small vocabulary when $s$ is large.
+
+<TheoremBlock type="remark">
+
+**Heaps' law needs an open vocabulary.** Theorem 2 uses the infinite support in an essential way. A Zipf law truncated at $R$ types has $V(n) \le R$, so its growth curve must flatten. With $R = 10{,}000$ and $s = 1.25$, the expected vocabulary is $270.4$, $1358.4$, $9808.2$, and $10000.0$ at $n = 10^3, 10^4, 10^6, 10^7$. The local log–log slope falls from above $0.6/s$ to below $0.25/s$. A fixed word list cannot keep up with text whose vocabulary keeps growing — the problem that subword tokenization, a later topic, solves.
+
+</TheoremBlock>
+
+The same argument says how much of the vocabulary we have seen only once.
+
+<TheoremBlock type="corollary" number={2} title="The hapax share estimates β">
+
+Under the hypotheses of Theorem 2, the expected number of types seen exactly once is $\mathbb{E}\,V_1(n) = \tfrac{1}{s}\Gamma(1 - \tfrac{1}{s})(Cn)^{1/s} + O(1)$. Consequently $\mathbb{E}\,V_1(n)/\mathbb{E}\,V(n) \to 1/s = \beta$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\mathbb{E}\,V_1(n) = \sum_r n p_r (1 - p_r)^{n-1}$. In the Poissonized version each term is $\varphi(r)$ with $\varphi(x) = u e^{-u}$, $u = nCx^{-s}$. As $x$ grows, $u$ falls from $\infty$ to $0$ and $ue^{-u}$ first rises and then falls, so $\varphi$ is unimodal with maximum $e^{-1}$. The substitution of Step 0 gives $\int_0^\infty \varphi = \tfrac{1}{s}(Cn)^{1/s}\int_0^\infty u^{-1/s}e^{-u}\,du = \tfrac{1}{s}\Gamma(1 - \tfrac{1}{s})(Cn)^{1/s}$, and Lemma 1 bounds the sum to within $O(1)$. To de-Poissonize,
+
+$$
+\bigl|(1-p)^{n-1} - e^{-np}\bigr| \;\le\; p\,(1-p)^{n-1} + \bigl[e^{-np} - (1-p)^n\bigr] \;\le\; e\,p\,e^{-np} + \frac{np^2 e^{-np}}{1 - p},
+$$
+
+using $(1-p)^{n-1} \le e^{-(n-1)p} \le e\cdot e^{-np}$. Multiplying by $np_r$ and summing, the total error is at most $\frac{e}{n}\sum_r u_r^2 e^{-u_r} + \frac{1}{(1-C)n}\sum_r u_r^3 e^{-u_r}$ with $u_r = np_r$. By Lemma 1 and the same substitution, both sums are $O(n^{1/s})$, so the error is $O(n^{1/s - 1})$. Dividing by Theorem 2's $\mathbb{E}\,V(n) = \Gamma(1 - 1/s)(Cn)^{1/s} + O(1)$ gives the limit $1/s$.
+
+</TheoremBlock>
+
+At $n = 10^6$ the harness finds hapax shares $0.6667$, $0.5002$, and $0.3346$ for $s = 1.5$, $2$, and $3$, against $1/s = 0.6667$, $0.5$, and $0.3333$. Once-seen words are not noise to discard. Their share measures the growth rate of the vocabulary, and their mass is what smoothing, a later topic, must reserve for words not yet seen.
+
+---
+
+## Pitman–Yor plants both laws
+
+Theorem 2 *assumes* a Zipf law. A generative model that *produces* one is more satisfying, and the Pitman–Yor process is the standard choice. It is also exactly how the site's finance corpus generates its content words.
+
+<TheoremBlock type="definition" number={4} title="Pitman–Yor restaurant">
+
+Fix a **discount** $0 \le d \lt 1$ and a **strength** $\theta > 0$. Customer $1$ sits at table $1$. Given $K_n$ occupied tables with occupancies $c_1, \dots, c_{K_n}$, customer $n + 1$
+
+- opens a new table with probability $\dfrac{\theta + d K_n}{\theta + n}$, or
+- joins table $k$ with probability $\dfrac{c_k - d}{\theta + n}$.
+
+Tables are word types and customers are tokens, so $K_n$ is the vocabulary after $n$ tokens. At $d = 0$ this is the Chinese restaurant process of the Dirichlet process (see [Bayesian Nonparametrics](https://www.formalml.com/topics/bayesian-nonparametrics)). The process is also defined for $-d \lt \theta \le 0$, but we need only $\theta > 0$.
+
+</TheoremBlock>
+
+The discount takes a little from every occupied table and gives it to the new-table probability. The more tables already exist, the more likely another one opens — rich vocabularies get richer. At $d = 0$ new tables open at the rate $\theta/(\theta + n)$, so the vocabulary grows only logarithmically. With $d > 0$ it grows as a power.
+
+<TheoremBlock type="theorem" number={3} title="Exact expected type count">
+
+For $0 \lt d \lt 1$ and $\theta > 0$,
+
+$$
+\mathbb{E}\,K_n + \frac{\theta}{d} \;=\; \frac{\theta}{d}\,\frac{\Gamma(\theta + n + d)\,\Gamma(\theta)}{\Gamma(\theta + d)\,\Gamma(\theta + n)}
+\;\sim\; \frac{\Gamma(\theta + 1)}{d\,\Gamma(\theta + d)}\; n^{d}.
+$$
+
+As $d \to 0$, $\mathbb{E}\,K_n \to \sum_{i=0}^{n-1} \frac{\theta}{\theta + i} = \theta\,[\psi(\theta + n) - \psi(\theta)] \sim \theta \log n$, the Dirichlet-process rate, where $\psi$ is the digamma function.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Definition 4, $\mathbb{E}[K_{n+1} \mid K_n] = K_n + \frac{\theta + dK_n}{\theta + n}$. The right side is affine in $K_n$, so taking expectations gives
+
+$$
+\mathbb{E}\,K_{n+1} = \mathbb{E}\,K_n + \frac{\theta + d\,\mathbb{E}\,K_n}{\theta + n}.
+$$
+
+Put $M_n = \mathbb{E}\,K_n + \theta/d$. Then $\theta + d\,\mathbb{E}\,K_n = d M_n$, and the recursion becomes $M_{n+1} = M_n\bigl(1 + \frac{d}{\theta + n}\bigr) = M_n\,\frac{\theta + n + d}{\theta + n}$ with $M_0 = \theta/d$. Telescoping,
+
+$$
+M_n = \frac{\theta}{d}\prod_{i=0}^{n-1}\frac{\theta + i + d}{\theta + i} = \frac{\theta}{d}\,\frac{\Gamma(\theta + n + d)\,\Gamma(\theta)}{\Gamma(\theta + d)\,\Gamma(\theta + n)},
+$$
+
+using $\Gamma(x + 1) = x\,\Gamma(x)$. For the asymptotic, Lemma 2 below with $x = \theta + n$ gives $\Gamma(\theta + n + d)/\Gamma(\theta + n) \sim (\theta + n)^d \sim n^d$, and $\theta\,\Gamma(\theta) = \Gamma(\theta + 1)$. At $d = 0$ the recursion reads $\mathbb{E}\,K_{n+1} - \mathbb{E}\,K_n = \theta/(\theta + n)$, which sums to the stated series and its digamma form.
+
+</TheoremBlock>
+
+<TheoremBlock type="lemma" number={2} title="Wendel's inequality">
+
+For $x > 0$ and $0 \lt d \lt 1$: $\displaystyle \Bigl(\frac{x}{x + d}\Bigr)^{1-d} \le \frac{\Gamma(x + d)}{x^d\,\Gamma(x)} \le 1$. In particular $\Gamma(x + d)/\Gamma(x) \sim x^d$ as $x \to \infty$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Write $t^{x+d-1}e^{-t} = \bigl(t^{x-1}e^{-t}\bigr)^{1-d}\bigl(t^{x}e^{-t}\bigr)^{d}$ and apply Hölder's inequality with exponents $\frac{1}{1-d}$ and $\frac{1}{d}$: $\Gamma(x + d) \le \Gamma(x)^{1-d}\,\Gamma(x+1)^{d} = x^d\,\Gamma(x)$. Applying the same inequality at the point $x + d$ with step $1 - d$ gives $\Gamma(x + 1) \le (x + d)^{1-d}\,\Gamma(x + d)$, that is $\Gamma(x + d) \ge x\,\Gamma(x)/(x + d)^{1-d}$. Dividing by $x^d\Gamma(x)$ gives the lower bound, and both bounds tend to $1$.
+
+</TheoremBlock>
+
+Read Theorem 3 carefully: it is $\mathbb{E}\,K_n + \theta/d$, not $\mathbb{E}\,K_n$, that is a clean power of $n$. The offset vanishes relative to $n^d$ eventually, but it is large at corpus scale — $\theta/d = 33.3$ for the finance corpus's restaurants ($d = 0.6$, $\theta = 20$). There, $\mathbb{E}\,K_n = 64.8$, $321.5$, $1364.2$, and $22090.8$ at $n = 10^2, 10^3, 10^4, 10^6$, which is only $0.7360$, $0.9168$, $0.9773$, and $0.9985$ of the asymptote $c\,n^d$. The harness confirms the closed form solves the recursion to $10^{-10}$, matches Monte-Carlo means over 200 restaurants, and agrees with the corpus module's own sampler.
+
+What about Zipf? The rank–frequency limit is deeper, and we cite it rather than prove it.
+
+<TheoremBlock type="theorem" number={4} title="Pitman–Yor limits (Pitman 2006)">
+
+For a Pitman–Yor restaurant with $0 \lt d \lt 1$, almost surely:
+
+1. $K_n / n^d \to S_d$, a strictly positive, finite **random** limit (the *$d$-diversity*);
+2. the ranked table frequencies satisfy $P^{\downarrow}_i \sim Z\, i^{-1/d}$ for a random $0 \lt Z \lt \infty$ — a Zipf law with $s = 1/d$;
+3. the share of tables with exactly $m$ customers converges, $K_{n,m}/K_n \to p_d(m) = \dfrac{d\,\Gamma(m - d)}{\Gamma(1 - d)\, m!}$ (the **Sibuya** law), whose tail is $p_d(m) \sim \frac{d}{\Gamma(1-d)}\, m^{-(1+d)}$.
+
+</TheoremBlock>
+
+These are Theorem 3.8, Corollary 3.9, and Lemma 3.11 of Pitman's *Combinatorial Stochastic Processes* (2006). The proof runs through Kingman's representation of exchangeable partitions and regular variation, which is beyond this topic. The harness checks the statements on restaurants of $200{,}000$ customers with $d \in \{0.4, 0.6, 0.8\}$. The block-size shares for $m = 1, \dots, 5$ fall within four binomial standard errors of $p_d(m)$. For $d = 0.6$ the limits are $0.6$, $0.12$, $0.056$, $0.0336$, $0.0228$. The fitted power-law spectrum exponent lands within $0.1$ of $1 + d$.
+
+Everything now fits together. The Sibuya tail has spectrum exponent $\alpha = 1 + d$. By Corollary 1 that is a rank exponent $s = 1/d$ — exactly item 2. Theorem 3 says $\beta = d = 1/s$ — exactly what Theorem 2 requires of a Zipf law with that $s$. And $p_d(1) = d$ is Corollary 2's hapax share. **One parameter sets both laws.** Panel B of the laboratory turns that parameter. Item 1 also explains something you will see there: a single restaurant's type count follows $S_d\, n^d$ with a *random* constant. Its points can sit visibly off the exact mean — at $d = 0.6$ the displayed restaurant has $1527$ types at $n = 20{,}000$, against an expected $2083.7$ — while their slope still tracks $d$.
+
+---
+
+## Estimating the exponent
+
+The classical recipe for "measuring Zipf's law" is to fit a least-squares line to the log–log rank plot and report minus its slope. On the finance corpus, the answer depends heavily on which ranks we fit:
+
+| ranks | 1–10 | 10–100 | 100–1000 | 1000–3425 | 1–1000 | 1–3425 |
+|---|---|---|---|---|---|---|
+| dense OLS slope | −0.871 | −0.554 | −1.807 | −0.821 | −1.300 | −1.464 |
+
+These are the windows in panel A of the laboratory. The slope over ranks $100$–$1000$ is more than three times the slope over $10$–$100$. Nothing in the recipe says which window is correct. Least squares also assumes independent, equal-variance errors around the line, while neighboring points on a rank plot are strongly dependent and the tail is a staircase of tied counts. The method has no valid standard error to report.
+
+The alternative, developed by Clauset, Shalizi, and Newman (2009), works with counts rather than ranks. By Corollary 1, a rank exponent $s$ corresponds to a spectrum exponent $\alpha = 1 + 1/s$. So we model each type's count as a draw from a discrete power law and estimate $\alpha$ by maximum likelihood.
+
+<TheoremBlock type="definition" number={5} title="Discrete power law">
+
+For an integer $x_{\min} \ge 1$ and $\alpha > 1$, the **discrete power law** is $P(X = x) = x^{-\alpha}/\zeta(\alpha, x_{\min})$ for $x \ge x_{\min}$, normalized by the Hurwitz zeta function $\zeta(\alpha, x_{\min}) = \sum_{x \ge x_{\min}} x^{-\alpha}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={3} title="The power-law MLE exists and is unique">
+
+Let $x_1, \dots, x_n \ge x_{\min}$ be type counts with log-likelihood $\ell(\alpha) = -n\log\zeta(\alpha, x_{\min}) - \alpha\sum_i \log x_i$. Then $\ell$ is strictly concave on $(1, \infty)$ and
+
+$$
+\ell'(\alpha) = n\bigl(\mathbb{E}_\alpha[\log X] - \overline{\log x}\bigr), \qquad \overline{\log x} = \tfrac{1}{n}\textstyle\sum_i \log x_i.
+$$
+
+If $\overline{\log x} > \log x_{\min}$ — that is, not every count equals $x_{\min}$ — the maximum-likelihood estimate $\hat\alpha$ exists, is unique, and solves the score equation $\overline{\log x} = -\partial_\alpha \log\zeta(\alpha, x_{\min})$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\log\zeta(\alpha, x_{\min}) = \log\sum_{x \ge x_{\min}} e^{-\alpha\log x}$ is a log-partition function. Its first derivative is $-\mathbb{E}_\alpha[\log X]$ and its second is $\operatorname{Var}_\alpha(\log X) > 0$. Hence $\ell''(\alpha) = -n\operatorname{Var}_\alpha(\log X) \lt 0$, and the score has the stated form. The map $\alpha \mapsto \mathbb{E}_\alpha[\log X]$ is continuous and strictly decreasing. As $\alpha \to \infty$ the mass concentrates on $x_{\min}$, so it tends to $\log x_{\min}$. As $\alpha \downarrow 1$ it tends to $+\infty$: for any level $L$, the finitely many $x \lt e^L$ carry bounded total weight while $\zeta(\alpha, x_{\min}) \to \infty$, so the probability of $\log X \ge L$ tends to $1$. Hence $\ell'$ has exactly one root when $\overline{\log x} > \log x_{\min}$, and by concavity it is the maximum.
+
+</TheoremBlock>
+
+With $x_{\min}$ fixed, this is a one-parameter exponential family with sufficient statistic $\sum_i \log x_i$. Consistency and asymptotic normality, with Fisher information $\operatorname{Var}_\alpha(\log X)$, follow from the general theory (see [Maximum Likelihood Estimation](https://www.formalstatistics.com/topics/maximum-likelihood)). Clauset et al.'s working standard error is $(\hat\alpha - 1)/\sqrt{n}$. The cutoff $x_{\min}$ is chosen by minimizing the Kolmogorov–Smirnov distance between the empirical and fitted tail distributions — a sensible heuristic, not a theorem.
+
+The harness checks the estimator against a reference implementation. On $20{,}000$-draw samples with $\alpha \in \{1.6, 2.2\}$ the MLE lands within four standard errors of the truth and agrees with `scipy.stats.fit` to $10^{-4}$. On the corpus, the score equation holds to $10^{-5}$ for $x_{\min} \in \{1, 5, 10\}$. It also measures the least-squares alternatives on 40 random power-law samples with $\alpha = 1.6$ (so $s = 5/3$). Least squares on the log–log frequency *histogram* is badly biased, with mean error more than twenty times the MLE's. Least squares on the rank plot does better, but its error is still more than twice the MLE's ([Simple & Multiple Linear Regression](https://www.formalstatistics.com/topics/linear-regression) covers the assumptions both fits break). On the corpus's full text, the KS rule selects $x_{\min} = 2$ and gives $\hat\alpha = 1.5608$, so $\hat s = 1/(\hat\alpha - 1) = 1.7833$. In panel A that estimate is the fixed dashed line through $(r(2), 2) = (1548, 2)$, placed there by Proposition 1.
+
+---
+
+## Finance case study: a corpus with a planted answer
+
+<FinanceCaseStudy title="Finance case study: a corpus with a planted answer">
+
+The shared finance corpus is unusual: we know how it was made. Its content words — *backlog*, *deposits*, *throughput*, and invented words like *subledgers* — come from seven Pitman–Yor restaurants (one shared, one per sector), each with discount $d = 0.6$ and strength $\theta = 20$. They are placed inside closed-class templates ("Management highlighted …", "… which management described as …"). So the truth is known: content words follow $\beta = 0.6$ and $s = 1/0.6 \approx 1.667$. The companion notebook rebuilds the corpus with every restaurant draw recorded, and verifies that the rebuild is token-for-token identical to the published corpus. The story has three beats.
+
+**1. The full text looks like real text.** Least squares over log-spaced ranks gives $s = 0.917$, and Heaps' slope is $\beta = 0.516$. That is the familiar real-text pairing, and it violates $\beta = 1/s$ (here $1/s = 1.091$) by about a factor of two — even though a single parameter generated everything. The template words are a closed class: at least 90% of them have appeared by the midpoint of the corpus, so they flatten the growth curve while dominating the head of the rank plot. A closed-class head over an open-class tail produces, by itself, the two-regime pattern Ferrer i Cancho and Solé (2001) report in real text.
+
+**2. Generic estimators miss the planted truth.** Restrict attention to the $12{,}107$ content draws ($2{,}909$ types). The naive Heaps slope is $0.681$ — it overshoots $d$ because it ignores Theorem 3's $\theta/d$ offset. The hapax share is $0.644$, a limit reached only as $n \to \infty$. The power-law MLE gives $\hat\alpha$ between $1.902$ and $2.163$ as $x_{\min}$ ranges over $\{2, 3, 5, 8, 10, 15\}$, far above the true $1 + d = 1.6$. The Sibuya spectrum is a power law only for counts much larger than one, and a twelve-thousand-draw stream has few of those.
+
+**3. The exact theorem recovers it.** On the shared restaurant ($n = 6{,}007$ draws and $1{,}108$ types, against an exact expectation of $996.8$), fitting $\log(K_n + \theta/d)$ against $\log(n + \theta)$ — Theorem 3's exact form, used as an estimator — gives $0.6009$. The naive slope on the same stream is $0.628$. To be precise about what this shows: the fit uses the known $\theta$, and $d$ enters only through the offset. It is a consistency check that the model and the theorem agree at corpus scale, not a blind estimate of $d$.
+
+The lesson for real filings and transcripts is the honest one. An exponent read off a log–log plot of a few thousand documents mixes a closed-class head with an open-class tail and inherits finite-sample offsets. Report the estimator, the fitting range, and the model it assumes — or report nothing.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Open vocabulary → subword units.** The Remark after Theorem 2 shows that no fixed word list keeps up with Heaps growth. Subword tokenization, the next topic in this track, responds by making the vocabulary a set of reusable pieces.
+- **Once-seen mass → smoothing.** Corollary 2 says roughly a fraction $1/s$ of the types seen so far are hapaxes. Their count divided by the number of tokens, $V_1(n)/n$, estimates how often the next token will be a word never seen before — the missing mass that Good–Turing estimation, in the later n-gram smoothing topic, assigns to unseen words. Kneser–Ney smoothing turns out to approximate a hierarchical Pitman–Yor model (Teh 2006) — the same discount $d$, now at every context.
+- **The head → stopwords and IDF.** The few types that dominate the rank plot are the stopword list. The long tail is where inverse document frequency is large (see [The Vector Space Model and TF-IDF](https://www.formalrag.com/topics/vector-space-model-tfidf)).
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Zipf's and Heaps' laws are empirical regularities, not theorems about language.** What we proved is conditional: *if* tokens are i.i.d. Zipf with $s > 1$, *then* $\beta = 1/s$ (Theorem 2); *if* types come from a Pitman–Yor process, *then* both laws hold with $s = 1/d$, $\beta = d$. Real text is neither i.i.d. nor exactly Zipfian.
+2. **Fitted $s \approx 1$ sits on the boundary** where an infinite vocabulary cannot be normalized (Proposition 2), and $\beta = 1/s$ routinely fails on real corpora — as it does on our own corpus's full text.
+3. **Log–log least-squares slopes depend on the fitting window and are biased.** The MLE is better founded, but it assumes a pure power tail above $x_{\min}$, which a Pitman–Yor spectrum reaches only for large counts, and $x_{\min}$ is chosen by a heuristic.
+4. **The Sibuya and Zipf limits of Pitman–Yor (Theorem 4) are cited, not proved**, and checked numerically.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `zipf_heaps_vocabulary_statistics.py`, which owns every number on this page. Running it as a script executes a harness of 27 assertion-based tests, one or more per claim, in about three seconds on a laptop CPU. The tests cover:
+
+- Proposition 1 exactly, on every corpus type, and the exponent map of Corollary 1 on random samples.
+- The convergence of $\zeta(s)$, and the maximum-entropy theorem against a generic constrained optimizer.
+- Each step of Karlin's proof, the saturation of a finite vocabulary, and the hapax-share corollary.
+- Theorem 3's closed form against its recursion, Monte-Carlo means, and the finance corpus's own sampler, plus the Sibuya shares of Theorem 4.
+- The MLE against `scipy.stats.fit`, its score equation, and its advantage over least squares.
+- The three beats of the finance case study.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

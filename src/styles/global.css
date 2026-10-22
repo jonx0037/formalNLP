@@ -154,6 +154,50 @@ code {
   line-height: 1.5;
 }
 
+/* === Prose lists and tables ===
+   Tailwind's preflight strips list markers and table spacing; MDX prose needs both back. */
+.prose ul,
+.prose ol {
+  padding-left: 1.5rem;
+  margin: 1rem 0;
+}
+
+.prose ul { list-style: disc; }
+.prose ol { list-style: decimal; }
+
+.prose li + li {
+  margin-top: 0.35rem;
+}
+
+.prose table {
+  display: block; /* scrolls horizontally on narrow screens instead of overflowing the page */
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 1.5rem 0;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.prose th,
+.prose td {
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.prose th:first-child,
+.prose td:first-child {
+  text-align: left;
+}
+
+.prose thead th {
+  font-weight: 600;
+  border-bottom: 2px solid var(--color-muted-border);
+}
+
 /* === Mobile prose scale === */
 @media (max-width: 640px) {
   .prose {
