@@ -157,7 +157,7 @@ GENERAL_STANDIN_LEXICON: dict[LexiconCategory, frozenset[str]] = {
 }
 
 # sha256 prefix of "\n".join(texts of generate_corpus(300, 0)) under the pinned numpy.
-CORPUS_FINGERPRINT = "c1a05ac33d67a902"
+CORPUS_FINGERPRINT = "b40dd72b3eeba520"
 
 # --------------------------------------------------------------------------------------------
 # The world: a fixed knowledge base, built before any text.
@@ -536,7 +536,7 @@ _CLOSERS = ("{demand} for {product} shaped the {n} and {n} outlook.",
 
 # Aspect-level polarity given the document tone: polar documents mix in neutral and
 # opposite-polarity aspects, so document tone is a majority, not a unanimity.
-_SENTENCE_TONE_MIX = {1: ([1, 0, -1], [0.65, 0.2, 0.15]), -1: ([-1, 0, 1], [0.65, 0.2, 0.15]),
+_SENTENCE_TONE_MIX = {1: ([1, 0, -1], [0.7, 0.2, 0.1]), -1: ([-1, 0, 1], [0.7, 0.2, 0.1]),
                       0: ([0, 1, -1], [0.6, 0.2, 0.2])}
 CONTRAST_RATE = 0.2  # share of polar aspect sentences that pair two aspects of opposite polarity
 DIRECTION_COMMENT_RATE = 0.75  # share of "rose/fell" clauses that add an evaluative comment
