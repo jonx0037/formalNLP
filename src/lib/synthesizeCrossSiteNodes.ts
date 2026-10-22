@@ -1,9 +1,8 @@
 import type { DAGEdge, DAGNode } from '../components/viz/shared/types';
 
-// formalRAG links UP into formalML (its deepest prerequisites) and DOWN into the
-// calculus/statistics foundations — three sister sites, unlike formalML which
-// only links to two.
-type CrossSiteSite = 'formalml' | 'formalcalculus' | 'formalstatistics';
+// formalNLP links UP into formalML and formalRAG and DOWN into the
+// calculus/statistics foundations — four sister sites.
+type CrossSiteSite = 'formalml' | 'formalcalculus' | 'formalstatistics' | 'formalrag';
 
 interface CrossSiteRef {
   topic: string;
@@ -17,6 +16,7 @@ interface PublishedTopic {
     formalmlPrereqs?: CrossSiteRef[];
     formalcalculusPrereqs?: CrossSiteRef[];
     formalstatisticsPrereqs?: CrossSiteRef[];
+    formalragPrereqs?: CrossSiteRef[];
   };
 }
 
@@ -31,11 +31,13 @@ const SITE_DOMAINS: Record<CrossSiteSite, string> = {
   formalml: 'https://formalml.com',
   formalcalculus: 'https://formalcalculus.com',
   formalstatistics: 'https://formalstatistics.com',
+  formalrag: 'https://formalrag.com',
 };
 
 // Lowercase tokens preserved as uppercase when humanizing a slug — common
-// IR / retrieval / ML acronyms that appear in cross-site slugs.
+// IR / ML / NLP acronyms that appear in cross-site and local slugs.
 const ACRONYMS = new Set([
+  'bleu', 'bpe', 'crf', 'hmm', 'lda', 'lm', 'lora', 'ner', 'ppmi', 'rope', 'rouge',
   'ab', 'ann', 'anova', 'bim', 'bm25', 'cdf', 'colbert', 'dpp', 'dpr', 'em',
   'fft', 'glm', 'gp', 'hmc', 'hnsw', 'hyde', 'idf', 'iid', 'ivf', 'kl', 'ks',
   'lsh', 'map', 'mcmc', 'mips', 'ml', 'mle', 'mmr', 'mrr', 'ndcg', 'ode', 'opq',
@@ -57,7 +59,7 @@ export function humanReadableFromSlug(slug: string): string {
 /**
  * Walks each topic's frontmatter and emits ephemeral cross-site nodes
  * (one per unique sister-site prereq) plus edges pointing into the
- * formalRAG topic. Pure build-time transform — caller merges the result
+ * formalNLP topic. Pure build-time transform — caller merges the result
  * with the canonical curriculum-graph.json data before passing to the
  * renderer.
  *
@@ -75,6 +77,7 @@ export function synthesizeCrossSiteNodes(
       { refs: topic.data.formalmlPrereqs, site: 'formalml' },
       { refs: topic.data.formalcalculusPrereqs, site: 'formalcalculus' },
       { refs: topic.data.formalstatisticsPrereqs, site: 'formalstatistics' },
+      { refs: topic.data.formalragPrereqs, site: 'formalrag' },
     ];
 
     for (const { refs: list, site } of refs) {

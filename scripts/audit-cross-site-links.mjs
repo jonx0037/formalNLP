@@ -2,15 +2,17 @@
 /**
  * audit-cross-site-links.mjs — Cross-repo reciprocity validator.
  *
- * Walks src/content/topics/ in each of the three formal* sibling repos,
+ * Walks src/content/topics/ in formalNLP and each of the four formal* sibling repos,
  * extracts cross-site frontmatter entries, builds a unified edge map, then
  * checks every edge has a reciprocal with opposite direction (Prereqs ↔
  * Connections) on the target side.
  *
- * Inputs (read-only):
- *   $REPO_ROOT/src/content/topics/*.mdx                  — formalml (script's own checkout)
+ * Inputs (read-only), configured in scripts/lib/crossSite.mjs:
+ *   $REPO_ROOT/src/content/topics/*.mdx                  — formalnlp (script's own checkout)
+ *   $FORMAL_ML_PATH or ../formalML/...                   — formalml
  *   $FORMAL_CALCULUS_PATH or ../formalCalculus/...       — formalcalculus
  *   $FORMAL_STATISTICS_PATH or ../formalStatistics/...   — formalstatistics
+ *   $FORMAL_RAG_PATH or ../formalRAG/...                 — formalrag
  *
  * Outputs (written under the script's own checkout):
  *   docs/plans/audit-output/<site>-references.json     — per-site edge dump
@@ -25,49 +27,24 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
+import { SITES, CROSS_SITE_FIELDS, parseField, reciprocalField } from './lib/crossSite.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(SCRIPT_DIR);
 
-const REPOS = {
-  formalcalculus:
-    process.env.FORMAL_CALCULUS_PATH ?? join(REPO_ROOT, '../formalCalculus'),
-  formalstatistics:
-    process.env.FORMAL_STATISTICS_PATH ?? join(REPO_ROOT, '../formalStatistics'),
-  formalml: REPO_ROOT,
-};
+const REPOS = Object.fromEntries(
+  Object.entries(SITES).map(([site, { envVar, defaultPath }]) => [
+    site,
+    envVar ? (process.env[envVar] ?? join(REPO_ROOT, defaultPath)) : REPO_ROOT,
+  ]),
+);
 
-const SITE_LABELS = {
-  formalcalculus: 'formalCalculus',
-  formalstatistics: 'formalStatistics',
-  formalml: 'formalML',
-};
-
-const CROSS_SITE_FIELDS = [
-  'formalcalculusPrereqs',
-  'formalcalculusConnections',
-  'formalstatisticsPrereqs',
-  'formalstatisticsConnections',
-  'formalmlPrereqs',
-  'formalmlConnections',
-];
+const SITE_LABELS = Object.fromEntries(Object.entries(SITES).map(([site, { label }]) => [site, label]));
 
 const OUTPUT_DIR = join(REPO_ROOT, 'docs/plans/audit-output');
 const REPORT_PATH = join(REPO_ROOT, 'docs/plans/cross-site-audit-report.md');
 const DEFERRED_PATH = join(REPO_ROOT, 'docs/plans/deferred-reciprocals.md');
 
-const FIELD_RE = /^(formalcalculus|formalstatistics|formalml)(Prereqs|Connections)$/;
-
-function parseField(field) {
-  const m = field.match(FIELD_RE);
-  if (!m) return null;
-  return { targetSite: m[1], direction: m[2] };
-}
-
-function reciprocalField(sourceSite, direction) {
-  const flipped = direction === 'Prereqs' ? 'Connections' : 'Prereqs';
-  return `${sourceSite}${flipped}`;
-}
 
 async function loadRepo(site) {
   const root = REPOS[site];
