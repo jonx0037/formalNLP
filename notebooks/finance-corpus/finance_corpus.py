@@ -12,7 +12,7 @@ whole site argues from ONE corpus. Provides
   ``edgar/SOURCES.md``.
 
 Run (executes the verification harness):
-    uv run --with numpy --with scipy python notebooks/finance-corpus/finance_corpus.py
+    uv run --with numpy==2.5.4 --with scipy==1.18.1 python notebooks/finance-corpus/finance_corpus.py
 """
 
 from __future__ import annotations
@@ -58,25 +58,45 @@ class FinanceDoc:
 
 
 # Hand-written for this site; deliberately NOT drawn from the Loughran–McDonald dictionary.
-STANDIN_LEXICON: dict[LexiconCategory, frozenset[str]] = {
-    "positive": frozenset("""
-        strong improved record exceeded robust gains favorable momentum resilient outperformed
-        expanded accelerated healthy upside achieved stronger beat efficient confident solid
-    """.split()),
-    "negative": frozenset("""
-        weak declined loss impairment shortfall adverse deteriorated headwinds softness missed
-        contraction writedown downturn pressure decreased weaker unfavorable disappointing slowed
-        restructuring
-    """.split()),
-    "uncertainty": frozenset("""
-        uncertain may could approximately variability fluctuations depend possibly volatility
-        unpredictable assumptions estimates risk contingent preliminary tentative unclear
-    """.split()),
-    "litigious": frozenset("""
-        litigation plaintiff lawsuit settlement indemnification regulatory subpoena arbitration
-        claimant counsel allegation injunction statute jurisdiction defendant
-    """.split()),
+# Every word carries a part of speech so each template slot gets a grammatical filler.
+LEXICON_POS: dict[str, str] = {
+    # positive
+    "strong": "ADJ", "improved": "ADJ", "robust": "ADJ", "favorable": "ADJ", "resilient": "ADJ",
+    "healthy": "ADJ", "solid": "ADJ", "stronger": "ADJ", "efficient": "ADJ", "confident": "ADJ",
+    "gains": "NOUN", "momentum": "NOUN", "upside": "NOUN", "strength": "NOUN",
+    "exceeded": "VERB", "outperformed": "VERB", "beat": "VERB", "surpassed": "VERB",
+    # negative
+    "weak": "ADJ", "adverse": "ADJ", "weaker": "ADJ", "unfavorable": "ADJ", "disappointing": "ADJ",
+    "soft": "ADJ", "loss": "NOUN", "impairment": "NOUN", "shortfall": "NOUN", "headwinds": "NOUN",
+    "softness": "NOUN", "contraction": "NOUN", "writedown": "NOUN", "downturn": "NOUN",
+    "missed": "VERB", "trailed": "VERB", "undershot": "VERB",
+    # uncertainty
+    "uncertain": "ADJ", "unpredictable": "ADJ", "contingent": "ADJ", "preliminary": "ADJ",
+    "tentative": "ADJ", "unclear": "ADJ", "variability": "NOUN", "fluctuations": "NOUN",
+    "volatility": "NOUN", "assumptions": "NOUN", "estimates": "NOUN", "risk": "NOUN",
+    "may": "MODAL", "could": "MODAL", "approximately": "ADV", "possibly": "ADV",
+    # litigious
+    "litigation": "NOUN", "plaintiff": "NOUN", "lawsuit": "NOUN", "settlement": "NOUN",
+    "indemnification": "NOUN", "subpoena": "NOUN", "arbitration": "NOUN", "claimant": "NOUN",
+    "counsel": "NOUN", "allegation": "NOUN", "injunction": "NOUN", "statute": "NOUN",
+    "jurisdiction": "NOUN", "defendant": "NOUN", "regulatory": "ADJ",
 }
+_CATEGORY_WORDS = {
+    "positive": "strong improved robust favorable resilient healthy solid stronger efficient confident "
+                "gains momentum upside strength exceeded outperformed beat surpassed",
+    "negative": "weak adverse weaker unfavorable disappointing soft loss impairment shortfall headwinds "
+                "softness contraction writedown downturn missed trailed undershot",
+    "uncertainty": "uncertain unpredictable contingent preliminary tentative unclear variability "
+                   "fluctuations volatility assumptions estimates risk may could approximately possibly",
+    "litigious": "litigation plaintiff lawsuit settlement indemnification subpoena arbitration claimant "
+                 "counsel allegation injunction statute jurisdiction defendant regulatory",
+}
+STANDIN_LEXICON: dict[LexiconCategory, frozenset[str]] = {
+    cat: frozenset(words.split()) for cat, words in _CATEGORY_WORDS.items()  # type: ignore[misc]
+}
+
+# sha256 prefix of "\n".join(texts of generate_corpus(300, 0)) under the pinned numpy.
+CORPUS_FINGERPRINT = "176db960b22b8d75"
 
 # Fictional roster: company → (sector, CEO, flagship product). Sectors give topic models signal.
 COMPANIES: dict[str, tuple[str, str, str]] = {
@@ -150,11 +170,47 @@ def _money(rng: np.random.Generator) -> str:
     return f"${rng.integers(12, 980)}.{rng.integers(0, 10)} million"
 
 
-def _sentiment_words(rng: np.random.Generator, tone: int, k: int) -> list[str]:
-    pos, neg = sorted(STANDIN_LEXICON["positive"]), sorted(STANDIN_LEXICON["negative"])
-    unc = sorted(STANDIN_LEXICON["uncertainty"])
-    pools = {1: [pos, pos, pos, neg], -1: [neg, neg, neg, pos], 0: [pos, neg, unc, unc]}[tone]
-    return [_zipf_pick(rng, pools[rng.integers(len(pools))], 0.6) for _ in range(k)]
+def _lex(rng: np.random.Generator, category: str, pos: str) -> str:
+    words = sorted(w for w in STANDIN_LEXICON[category] if LEXICON_POS[w] == pos)  # type: ignore[index]
+    return words[rng.integers(len(words))]
+
+
+def _tone_sentence(rng: np.random.Generator, tone: int, nouns: list[str]) -> str:
+    """One sentence expressing `tone`; polar sentences are sometimes negated (a lexicon trap)."""
+    n1, n2 = _zipf_pick(rng, nouns), _zipf_pick(rng, nouns)
+    if tone == 0:
+        return [f"Results in {n1} were in line with the prior period. ",
+                f"The {n1} trend was broadly unchanged, and {n2} held steady. "][rng.integers(2)]
+    cat, opp = ("positive", "negative") if tone > 0 else ("negative", "positive")
+    form = rng.integers(4)
+    if form == 0:
+        return f"Results in {n1} were {_lex(rng, cat, 'ADJ')}, and the {n2} trend was {_lex(rng, cat, 'ADJ')}. "
+    if form == 1:
+        return f"The {n1} business {_lex(rng, cat, 'VERB')} expectations this period. "
+    if form == 2:
+        return f"Management pointed to {_lex(rng, cat, 'NOUN')} in {n1} and {_lex(rng, cat, 'NOUN')} in {n2}. "
+    # Negation: the polarity is carried by "not" + an opposite-polarity adjective.
+    return f"Results in {n1} were not {_lex(rng, opp, 'ADJ')} this period. "
+
+
+def _hedge_sentence(rng: np.random.Generator, nouns: list[str]) -> str:
+    n1, n2 = _zipf_pick(rng, nouns), _zipf_pick(rng, nouns)
+    return (f"Estimates of {_lex(rng, 'uncertainty', 'NOUN')} {_lex(rng, 'uncertainty', 'MODAL')} change, and the "
+            f"{n1} outlook remains {_lex(rng, 'uncertainty', 'ADJ')} given {_lex(rng, 'uncertainty', 'NOUN')} "
+            f"in {n2}. ")
+
+
+def _legal_sentence(rng: np.random.Generator) -> str:
+    nouns = sorted(w for w in STANDIN_LEXICON["litigious"] if LEXICON_POS[w] == "NOUN")
+    a, b2, c = (nouns[i] for i in rng.choice(len(nouns), size=3, replace=False))
+    return (f"The filing discloses a {a} and a related {b2}; {_lex(rng, 'litigious', 'ADJ')} review of the "
+            f"{c} is ongoing. ")
+
+
+# Sentence-level tone given the document tone: polar documents mix in neutral and
+# opposite-polarity sentences, so document tone is a majority, not a unanimity.
+_SENTENCE_TONE_MIX = {1: ([1, 0, -1], [0.6, 0.2, 0.2]), -1: ([-1, 0, 1], [0.6, 0.2, 0.2]),
+                      0: ([0, 1, -1], [0.5, 0.25, 0.25])}
 
 
 def _generate_doc(rng: np.random.Generator, i: int, tone: int) -> FinanceDoc:
@@ -206,11 +262,14 @@ def _generate_doc(rng: np.random.Generator, i: int, tone: int) -> FinanceDoc:
             b.text(". ")
             b.rel(o, "GUIDED", pct)
 
-    # Tone-bearing and descriptive sentences; content words drawn Zipfian from sector vocab.
+    # Tone-bearing sentences, hedges (all tones), and legal language (8-Ks).
+    values, probs = _SENTENCE_TONE_MIX[tone]
     for _ in range(rng.integers(4, 8)):
-        w = _sentiment_words(rng, tone, 2)
-        n1, n2 = _zipf_pick(rng, nouns), _zipf_pick(rng, nouns)
-        b.text(f"Results in {n1} were {w[0]}, and the {n2} trend was {w[1]}. ")
+        b.text(_tone_sentence(rng, int(rng.choice(values, p=probs)), nouns))
+    if rng.random() < 0.7:
+        b.text(_hedge_sentence(rng, nouns))
+    if doc_type == "8-k" and rng.random() < 0.75:
+        b.text(_legal_sentence(rng))
     b.text("Demand for ")
     b.ent(product, "PRODUCT")
     b.text(f" shaped the {_zipf_pick(rng, nouns)} and {_zipf_pick(rng, nouns)} outlook.")
@@ -355,6 +414,56 @@ def test_edgar_manifest():
         assert len(f.read_text().split()) <= 400, f.name
     docs = load_edgar_excerpts()
     assert len(docs) == len(files) and all(d.doc_type == "mdna" and d.tone == 0 for d in docs)
+
+
+def test_lexicon_words_have_parts_of_speech():
+    assert set(LEXICON_POS) == set().union(*STANDIN_LEXICON.values())
+    assert set(LEXICON_POS.values()) <= {"ADJ", "NOUN", "VERB", "MODAL", "ADV"}
+
+
+def test_predicate_slots_are_grammatical():
+    import re
+
+    for d in generate_corpus(300):
+        for w in re.findall(r"\b(?:were|was|remains|not) ([a-z]+)", d.text):
+            assert LEXICON_POS.get(w, "ADJ") == "ADJ", (d.doc_id, w)
+
+
+def test_uncertainty_appears_in_every_tone():
+    docs = generate_corpus(300)
+    for t in (-1, 0, 1):
+        tone_docs = [d for d in docs if d.tone == t]
+        mean = np.mean([sum(w in STANDIN_LEXICON["uncertainty"] for w in _tokens(d.text)) for d in tone_docs])
+        assert mean >= 0.5, (t, mean)
+
+
+def test_litigious_language_in_8k():
+    docs = [d for d in generate_corpus(300) if d.doc_type == "8-k"]
+    hits = [sum(w in STANDIN_LEXICON["litigious"] for w in _tokens(d.text)) for d in docs]
+    assert np.mean([h > 0 for h in hits]) >= 0.5, np.mean([h > 0 for h in hits])
+
+
+def test_tone_not_trivially_separable():
+    """A three-line lexicon rule must NOT recover the gold tone (it did at 96.8%)."""
+    docs = generate_corpus(300)
+
+    def rule(text):
+        toks = _tokens(text)
+        if any(w in STANDIN_LEXICON["uncertainty"] for w in toks):
+            return 0
+        return int(np.sign(sum(w in STANDIN_LEXICON["positive"] for w in toks)
+                           - sum(w in STANDIN_LEXICON["negative"] for w in toks)))
+
+    acc = np.mean([rule(d.text) == d.tone for d in docs])
+    assert acc <= 0.85, acc
+
+
+def test_fingerprint():
+    """Pins the corpus bytes: downstream viz mirror these numbers to the decimal."""
+    import hashlib
+
+    digest = hashlib.sha256("\n".join(d.text for d in generate_corpus(300, 0)).encode()).hexdigest()
+    assert digest.startswith(CORPUS_FINGERPRINT), digest[:16]
 
 
 def _run_harness() -> int:
