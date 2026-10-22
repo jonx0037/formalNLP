@@ -1,0 +1,18 @@
+---
+// The recurring finance case-study callout: the finance thread that runs
+// through formalNLP, drawn from *Applied NLP for Finance*. Case-study prose
+// goes in the default slot.
+interface Props {
+  title?: string;
+}
+const { title = 'Finance case study' } = Astro.props;
+---
+
+<aside class="my-6 rounded-r-lg border-l-4 border-l-[var(--color-accent)] bg-[var(--color-definition-bg)] px-6 py-4">
+  <div class="mb-2 font-[family-name:var(--font-sans)] font-semibold text-[var(--color-accent)]">
+    § {title}
+  </div>
+  <div class="prose">
+    <slot />
+  </div>
+</aside>

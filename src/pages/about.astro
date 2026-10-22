@@ -1,0 +1,72 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="About" description="About formalNLP and its author">
+  <article class="mx-auto max-w-3xl px-6 py-12">
+    <h1 class="text-3xl font-semibold font-[family-name:var(--font-sans)] mb-8">About</h1>
+
+    <div class="prose">
+      <h2>Mission</h2>
+      <p>
+        formalNLP treats natural language processing as a mathematical subject. Tutorials on how to
+        <em>call</em> a language model are everywhere; careful treatments of the mathematics underneath —
+        why vocabulary follows a power law, why smoothing works, why attention is a kernel smoother,
+        why a classifier's probabilities can be trusted or not — are rare. This site fills that gap.
+        Every topic receives the three-pillar treatment shared across the formal series: rigorous
+        mathematical exposition, interactive visual intuition, and working code you can run immediately.
+      </p>
+      <p>
+        The curriculum runs from the statistics of text and language modeling, through word and
+        contextual representations, attention and transformers, and decoding, to the applied tasks —
+        classification and sentiment, information extraction and knowledge graphs, text mining — and
+        the evaluation of all of it. Where a celebrated method's guarantees are heuristic rather than
+        proven, we say so plainly.
+      </p>
+
+      <h2>The formal series</h2>
+      <p>
+        formalNLP is the fifth site in a family of mathematics-heavy explainers. Its prerequisites
+        often live on its sibling sites:
+        <a href="https://formalml.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">formalML</a>
+        (kernels, information theory, variational inference),
+        <a href="https://formalstatistics.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">formalStatistics</a>
+        (estimation, hidden Markov models, the bootstrap),
+        <a href="https://formalcalculus.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">formalCalculus</a>
+        (linear algebra, Fourier analysis, optimization), and
+        <a href="https://formalrag.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">formalRAG</a>
+        (embedding geometry, vector search, and retrieval). Topics link directly to the foundations
+        they rely on.
+      </p>
+
+      <h2>The finance thread</h2>
+      <p>
+        A running case study threads the site: language as it appears in corporate disclosure —
+        earnings calls, 10-K filings, and the specialized sentiment vocabulary of finance. Case studies
+        run on a shared synthetic corpus and short public SEC excerpts, and they culminate in a
+        capstone that carries one corpus from tokenization to a knowledge graph.
+      </p>
+
+      <h2>Author</h2>
+      <p>
+        <strong>Jonathan Rocha</strong> is a data scientist and researcher specializing in financial
+        NLP and the mathematical foundations of machine learning. He holds an MS in Data Science from
+        SMU, an MA in English from Texas A&M University, and a BA in History from Texas A&M. He is the
+        author of <em>Applied NLP for Finance</em>.
+      </p>
+
+      <h2>DataSalt</h2>
+      <p>
+        formalnlp.com is an independent educational project by the founder of
+        <a href="https://datasalt.ai" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">DataSalt LLC</a>.
+      </p>
+
+      <h2>Links</h2>
+      <ul>
+        <li><a href="https://github.com/jonx0037" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">GitHub (@jonx0037)</a></li>
+        <li><a href="https://datasalt.ai" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">DataSalt</a></li>
+        <li><a href="https://github.com/jonx0037/formalNLP" target="_blank" rel="noopener noreferrer" class="text-[var(--color-accent)] hover:underline">formalNLP Repository</a></li>
+      </ul>
+    </div>
+  </article>
+</BaseLayout>
