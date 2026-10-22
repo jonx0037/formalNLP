@@ -41,10 +41,10 @@ ad hoc with `uv run --with …`:
 
 ```bash
 # Run the reference implementation (asserts every claim, prints the demos):
-uv run --with numpy --with scipy python notebooks/finance-corpus/finance_corpus.py
+uv run --with numpy==2.5.4 --with scipy==1.18.1 python notebooks/finance-corpus/finance_corpus.py
 
 # Execute the narrative notebook top to bottom to verify it still runs (no outputs saved):
-uv run --with numpy --with scipy --with jupyter --with ipykernel \
+uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel \
     jupyter execute notebooks/finance-corpus/01_finance_corpus.ipynb
 ```
 
