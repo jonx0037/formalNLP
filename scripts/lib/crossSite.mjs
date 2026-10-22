@@ -34,3 +34,10 @@ export function reciprocalField(sourceSite, direction) {
   const flipped = direction === 'Prereqs' ? 'Connections' : 'Prereqs';
   return `${sourceSite}${flipped}`;
 }
+
+// Frontmatter keys that look like cross-site arrays but aren't one of the ten
+// valid fields (e.g. `formalRagPrereqs`, `formalmlPrereq`). Zod would silently
+// strip them and the audit would silently skip them, so both call this.
+export function unknownCrossSiteKeys(keys) {
+  return keys.filter((k) => /^formal/i.test(k) && !CROSS_SITE_FIELDS.includes(k));
+}

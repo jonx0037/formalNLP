@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execGrep } from './helpers';
-import { domainColorScale } from '../src/components/viz/shared/colorScales';
+import { domainColorScale, domainColorScaleFor, DOMAIN_PALETTE } from '../src/components/viz/shared/colorScales';
+import { contrastRatio } from '../src/lib/contrast';
 import { DOMAINS, SIBLING_SITES } from '../src/data/domains';
 
 // Identity strings, not sibling mentions: formalRAG may still be *named* as a
@@ -27,10 +28,29 @@ test('pages are titled and owned as formalNLP', () => {
   }
 });
 
-test('domainColorScale covers every domain plus four siblings', () => {
+test('domainColorScale covers every domain plus four siblings, in palette order', () => {
   assert.deepEqual(domainColorScale.domain(), [...DOMAINS, ...SIBLING_SITES]);
-  assert.deepEqual(domainColorScale.range(), [
-    '#9F1D35', '#A16207', '#2F5D62', '#5B4B8A', '#C2410C', '#4D7C0F', '#1E4E79', '#8C5A3C', '#57534E',
-    '#9ca3af', '#6b7280', '#4b5563', '#374151',
-  ]);
+  assert.deepEqual(domainColorScale.range(), DOMAIN_PALETTE.light);
+});
+
+test('the dark scale serves the dark palette for the same domains', () => {
+  const dark = domainColorScaleFor('dark');
+  assert.deepEqual(dark.domain(), [...DOMAINS, ...SIBLING_SITES]);
+  assert.equal(dark('text-as-data'), '#E0697C');
+  assert.equal(domainColorScaleFor('light')('text-as-data'), '#9F1D35');
+});
+
+test('every graph color clears 3:1 against its theme background (WCAG non-text)', () => {
+  assert.equal(DOMAIN_PALETTE.light.length, 13);
+  assert.equal(DOMAIN_PALETTE.dark.length, 13);
+  for (const c of DOMAIN_PALETTE.light) assert.ok(contrastRatio(c, '#FBF8F1') >= 3, `light ${c}`);
+  for (const c of DOMAIN_PALETTE.dark) assert.ok(contrastRatio(c, '#1A1614') >= 3, `dark ${c}`);
+});
+
+test('both graphs follow the theme', () => {
+  for (const f of ['src/components/viz/CurriculumGraph.tsx', 'src/components/viz/DAGGraph.tsx']) {
+    const src = readFileSync(f, 'utf8');
+    assert.match(src, /useTheme\(\)/, f);
+    assert.match(src, /domainColorScaleFor\(theme\)/, f);
+  }
 });

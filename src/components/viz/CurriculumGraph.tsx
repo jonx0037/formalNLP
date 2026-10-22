@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { domainColorScale } from './shared/colorScales';
+import { domainColorScaleFor } from './shared/colorScales';
+import { useTheme } from './shared/useTheme';
 import type { DAGNode, DAGEdge } from './shared/types';
 
 interface CurriculumGraphProps {
@@ -54,6 +55,9 @@ export default function CurriculumGraph({ nodes, edges }: CurriculumGraphProps) 
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string } | null>(null);
+
+  const theme = useTheme();
+  const domainColorScale = domainColorScaleFor(theme);
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || nodes.length === 0) return;
@@ -255,7 +259,7 @@ export default function CurriculumGraph({ nodes, edges }: CurriculumGraphProps) 
     });
 
     return () => simulation.stop();
-  }, [nodes, edges]);
+  }, [nodes, edges, theme]);
 
   // Domain legend data — exclude site domains from the per-track legend; they
   // get their own "Cross-site" entry below.

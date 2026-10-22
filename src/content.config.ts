@@ -2,6 +2,7 @@ import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 import { DOMAINS, SIBLING_SITES } from './data/domains';
+import { unknownCrossSiteKeys } from '../scripts/lib/crossSite.mjs';
 
 // formalNLP links UP into formalML and formalRAG (representation learning,
 // kernels, retrieval geometry) and DOWN into the calculus/statistics
@@ -68,7 +69,15 @@ const topics = defineCollection({
     formalstatisticsConnections: z.array(crossSiteRef).optional(),
     formalragPrereqs: z.array(crossSiteRef).optional(),
     formalragConnections: z.array(crossSiteRef).optional(),
-  }),
+  })
+    // Keep unknown keys long enough to reject misspelled cross-site arrays
+    // (e.g. `formalRagPrereqs`), which Zod would otherwise strip silently.
+    .passthrough()
+    .superRefine((data, ctx) => {
+      for (const key of unknownCrossSiteKeys(Object.keys(data))) {
+        ctx.addIssue({ code: 'custom', path: [key], message: `Unknown cross-site field "${key}"` });
+      }
+    }),
 });
 
 export const collections = { topics };

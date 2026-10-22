@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import { domainColorScale } from './shared/colorScales';
+import { domainColorScaleFor } from './shared/colorScales';
+import { useTheme } from './shared/useTheme';
 import type { DAGNode, DAGEdge } from './shared/types';
 import type { SimNode, SimLink } from './shared/d3Types';
 
@@ -20,6 +21,9 @@ export default function DAGGraph({
   layout = 'force',
 }: DAGGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+
+  const theme = useTheme();
+  const domainColorScale = domainColorScaleFor(theme);
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return;
@@ -131,7 +135,7 @@ export default function DAGGraph({
     });
 
     return () => simulation.stop();
-  }, [nodes, edges, highlightNode, onNodeClick, layout]);
+  }, [nodes, edges, highlightNode, onNodeClick, layout, theme]);
 
   return <svg role="img" aria-label="DAGGraph visualization" ref={svgRef} className="w-full rounded-lg" style={{ minHeight: 400 }} />;
 }

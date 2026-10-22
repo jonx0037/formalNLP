@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SITES, SELF, CROSS_SITE_FIELDS, parseField, reciprocalField } from '../scripts/lib/crossSite.mjs';
+import { SITES, SELF, CROSS_SITE_FIELDS, parseField, reciprocalField, unknownCrossSiteKeys } from '../scripts/lib/crossSite.mjs';
+import { readFileSync } from 'node:fs';
 import { synthesizeCrossSiteNodes, humanReadableFromSlug } from '../src/lib/synthesizeCrossSiteNodes';
 
 test('five sites, formalnlp is self', () => {
@@ -46,4 +47,16 @@ test('synthesizeCrossSiteNodes resolves formalrag prereqs to formalrag.com', () 
 test('NLP acronyms are upper-cased in synthesized labels', () => {
   assert.equal(humanReadableFromSlug('subword-tokenization-bpe-unigram'), 'Subword Tokenization BPE Unigram');
   assert.equal(humanReadableFromSlug('topic-models-lda'), 'Topic Models LDA');
+});
+
+test('misspelled cross-site keys are reported, valid ones are not', () => {
+  assert.deepEqual(
+    unknownCrossSiteKeys(['title', 'formalragPrereqs', 'formalRagPrereqs', 'formalmlPrereq', 'formalnlpConnections']),
+    ['formalRagPrereqs', 'formalmlPrereq'],
+  );
+});
+
+test('the schema rejects unknown formal* keys and the audit warns on them', () => {
+  assert.match(readFileSync('src/content.config.ts', 'utf8'), /unknownCrossSiteKeys/);
+  assert.match(readFileSync('scripts/audit-cross-site-links.mjs', 'utf8'), /unknownCrossSiteKeys/);
 });

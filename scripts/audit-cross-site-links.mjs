@@ -27,7 +27,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import matter from 'gray-matter';
-import { SITES, CROSS_SITE_FIELDS, parseField, reciprocalField } from './lib/crossSite.mjs';
+import { SITES, CROSS_SITE_FIELDS, parseField, reciprocalField, unknownCrossSiteKeys } from './lib/crossSite.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = dirname(SCRIPT_DIR);
@@ -74,6 +74,9 @@ async function loadRepo(site) {
 function extractEdges(sourceSite, frontmatter) {
   const edges = [];
   for (const [sourceSlug, fm] of [...frontmatter.entries()].sort()) {
+    for (const key of unknownCrossSiteKeys(Object.keys(fm))) {
+      console.warn(`[warning] ${sourceSite}/${sourceSlug}: unknown cross-site field "${key}" — edges ignored`);
+    }
     for (const field of CROSS_SITE_FIELDS) {
       const entries = fm[field];
       if (!Array.isArray(entries)) continue;
