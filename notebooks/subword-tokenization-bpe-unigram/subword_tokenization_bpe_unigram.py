@@ -601,9 +601,10 @@ def viz_payload() -> dict:
             row[kind] = {"tpw": round(tokens_per_word(segs, fw["held"]), 3),
                          "segs": {w: segs[w] for w in LAB_WORDS}}
         merges_panel[k] = row
-    lattice = {}
+    lattice, unigram_segs = {}, {}
     for size in VOCAB_SIZES:
         m = t["unigram"][size]
+        unigram_segs[size] = {w: viterbi_segment(w, m.logp, m.max_len)[0] for w in LAB_WORDS}
         lattice[size] = {}
         for w in LAB_LATTICE_WORDS:
             logz, edges = forward_backward(w, m.logp, m.max_len)
@@ -613,8 +614,13 @@ def viz_payload() -> dict:
                 "viterbi": pieces, "bits_viterbi": round(-best / math.log(2), 2),
                 "bits_marginal": round(-logz / math.log(2), 2),
                 "log2_segs": round(math.log2(count_segmentations(w, m.logp, m.max_len)), 2)}
-    return {"alphabet": alphabet, "merges": merges_panel, "lattice": lattice,
-            "words": list(LAB_WORDS), "lattice_words": list(LAB_LATTICE_WORDS)}
+    s = finance_summary()
+    # Planted boundaries (character offsets) for the pseudo-words; real words have none.
+    planted = {w: sorted(next(iter(ps))) if w in fw["pseudo"] | set(fw["oov"]) and len(ps := planted_parses(w)) == 1
+               else None for w in LAB_WORDS}
+    f1 = {size: {k: round(s[f"{k}_{size}_f1_train"], 3) for k in ("bpe", "wordpiece", "unigram")} for size in VOCAB_SIZES}
+    return {"alphabet": alphabet, "merges": merges_panel, "lattice": lattice, "unigram_segs": unigram_segs,
+            "planted": planted, "f1": f1, "words": list(LAB_WORDS), "lattice_words": list(LAB_LATTICE_WORDS)}
 
 
 # --------------------------------------------------------------------------------------------
@@ -968,6 +974,19 @@ def test_viz_payload():
         for w, d in words.items():
             assert d["bits_marginal"] <= d["bits_viterbi"] <= d["bits_marginal"] + d["log2_segs"] + 0.01
             assert "".join(d["viterbi"]) == w
+    assert p["planted"]["nonroyaltys"] == [3, 10] and p["planted"]["subscriptions"] is None
+    assert all("".join(seg) == w for segs in p["unigram_segs"].values() for w, seg in segs.items())
+
+
+VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / "data" / "subword-tokenization-lab.json"
+
+
+def test_viz_mirror_matches_payload():
+    """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
+    Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
+    import json
+
+    assert json.loads(VIZ_JSON.read_text()) == json.loads(json.dumps(viz_payload())), VIZ_JSON
 
 
 def _run_harness() -> int:

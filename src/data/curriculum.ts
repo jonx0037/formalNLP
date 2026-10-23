@@ -16,9 +16,7 @@ export const tracks = [
     layer: 'Foundations',
     description:
       'Text as a statistical object: the heavy-tailed laws of vocabulary and subword tokenization as a compression problem. The root of the dependency graph.',
-    planned: [
-      'Subword Tokenization as Compression: BPE, WordPiece, and Unigram LM',
-    ],
+    planned: [],
     dependsOnFormalML: false,
   },
   {

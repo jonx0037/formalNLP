@@ -1,0 +1,499 @@
+---
+title: "Subword Tokenization as Compression: BPE, WordPiece, and Unigram LM"
+subtitle: "Three ways to spell an open vocabulary with a closed one — greedy merges, likelihood merges, and a probabilistic lattice — compared as codes, and tested against a morphology we planted"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "zipf-heaps-vocabulary-statistics"
+tags:
+  - "tokenization"
+  - "bpe"
+  - "wordpiece"
+  - "unigram-lm"
+  - "em-algorithm"
+  - "mdl"
+  - "morphology"
+domain: "text-as-data"
+financeCaseStudy: true
+rigorFlag: "BPE is a greedy heuristic for an objective — token count, itself only a proxy for what a model needs — whose optimum is NP-hard and APX-complete to approximate; its 1/3 approximation guarantee and the hardness results are cited, not proved, and checked only on tiny strings. WordPiece is described differently across papers and implementations; the criterion here is the exact unigram likelihood gain. The Unigram LM's EM only guarantees that the likelihood never decreases, not a global optimum, and its vocabulary pruning is SentencePiece's heuristic loss. The two-part code's optimum depends on the lexicon code we chose. Nothing here shows that any tokenizer improves a downstream model; and compression is not morphology — on a corpus with planted morphemes, the tokenizer that compresses best is not always the one whose boundaries are right."
+videoId: null
+notebookPath: "notebooks/subword-tokenization-bpe-unigram/01_subword_tokenization_bpe_unigram.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/subword-tokenization-bpe-unigram.mdx"
+datePublished: 2026-10-22
+estimatedReadTime: 40
+abstract: "A word vocabulary is closed, but the vocabulary of text keeps growing, so any fixed word list meets words it has never seen. Subword tokenizers spell every word from a fixed inventory of pieces. We make that precise: a vocabulary encodes every string exactly when it contains the alphabet, and a word has exponentially many segmentations, so choosing one is a search problem. Byte-pair encoding merges the most frequent adjacent pair; we prove each merge saves exactly its replacement count and show, with a nine-letter counterexample, that greedy merging is not optimal (the optimal problem is APX-complete, a cited result). WordPiece merges by the gain in unigram likelihood, which we derive exactly: its leading term is the pair's pointwise mutual information weighted by its count. The Unigram LM scores whole segmentations; we prove Viterbi decoding, the forward–backward lattice, and that EM never lowers the likelihood. All three are codes, and a two-part description length picks a vocabulary between letters and words. A finance case study tests the tokenizers on a corpus whose rare words were built from known prefixes, roots, and suffixes: compression and morphology agree only partly."
+connections: []
+references:
+  - type: "paper"
+    title: "A New Algorithm for Data Compression"
+    authors: "Philip Gage"
+    year: 1994
+    url: "https://www.drdobbs.com/a-new-algorithm-for-data-compression/184402829"
+    note: "C Users Journal 12 (2): 23–38. Byte-pair encoding as a general-purpose compressor"
+  - type: "paper"
+    title: "Neural Machine Translation of Rare Words with Subword Units"
+    authors: "Rico Sennrich, Barry Haddow, and Alexandra Birch"
+    year: 2016
+    url: "https://aclanthology.org/P16-1162/"
+    note: "ACL 2016, 1715–25. BPE adapted to open-vocabulary translation"
+  - type: "paper"
+    title: "Japanese and Korean Voice Search"
+    authors: "Mike Schuster and Kaisuke Nakajima"
+    year: 2012
+    url: "https://doi.org/10.1109/ICASSP.2012.6289079"
+    note: "ICASSP 2012, 5149–52. The WordPiece likelihood criterion"
+  - type: "paper"
+    title: "Google's Neural Machine Translation System: Bridging the Gap between Human and Machine Translation"
+    authors: "Yonghui Wu et al."
+    year: 2016
+    url: "https://arxiv.org/abs/1609.08144"
+    note: "arXiv:1609.08144. WordPiece in neural machine translation"
+  - type: "paper"
+    title: "Subword Regularization: Improving Neural Network Translation Models with Multiple Subword Candidates"
+    authors: "Taku Kudo"
+    year: 2018
+    url: "https://aclanthology.org/P18-1007/"
+    note: "ACL 2018, 66–75. The Unigram LM tokenizer, trained by EM"
+  - type: "documentation"
+    title: "SentencePiece: A Simple and Language Independent Subword Tokenizer and Detokenizer for Neural Text Processing"
+    authors: "Taku Kudo and John Richardson"
+    year: 2018
+    url: "https://aclanthology.org/D18-2012/"
+    note: "EMNLP 2018 System Demonstrations, 66–71. The library and its vocabulary-pruning loss"
+  - type: "paper"
+    title: "A Formal Perspective on Byte-Pair Encoding"
+    authors: "Vilém Zouhar, Clara Meister, Juan Luis Gastaldi, Li Du, Tim Vieira, Mrinmaya Sachan, and Ryan Cotterell"
+    year: 2023
+    url: "https://doi.org/10.18653/v1/2023.findings-acl.38"
+    note: "Findings of ACL 2023, 598–614. A curvature-dependent approximation bound for greedy BPE"
+  - type: "paper"
+    title: "Theoretical Analysis of Byte-Pair Encoding"
+    authors: "László Kozma and Johannes Voderholzer"
+    year: 2026
+    url: "https://doi.org/10.4230/LIPIcs.ESA.2026.80"
+    note: "ESA 2026, LIPIcs 388 (arXiv:2411.08671). APX-completeness and the 1/3 guarantee"
+  - type: "paper"
+    title: "Tokenisation Is NP-Complete"
+    authors: "Philip Whittington, Gregor Bachmann, and Tiago Pimentel"
+    year: 2025
+    url: "https://aclanthology.org/2025.acl-long.1365/"
+    note: "ACL 2025, 28133–53. NP-completeness of bottom-up and direct tokenization"
+  - type: "paper"
+    title: "Tokenization and the Noiseless Channel"
+    authors: "Vilém Zouhar, Clara Meister, Juan Luis Gastaldi, Li Du, Mrinmaya Sachan, and Ryan Cotterell"
+    year: 2023
+    url: "https://aclanthology.org/2023.acl-long.284/"
+    note: "ACL 2023, 5184–207. Rényi efficiency as an empirical predictor of tokenizer quality"
+  - type: "paper"
+    title: "Byte Pair Encoding Is Suboptimal for Language Model Pretraining"
+    authors: "Kaj Bostrom and Greg Durrett"
+    year: 2020
+    url: "https://aclanthology.org/2020.findings-emnlp.414/"
+    note: "Findings of EMNLP 2020, 4617–24. Unigram LM pieces align better with morphology"
+  - type: "paper"
+    title: "Maximum Likelihood from Incomplete Data via the EM Algorithm"
+    authors: "A. P. Dempster, N. M. Laird, and D. B. Rubin"
+    year: 1977
+    url: "https://doi.org/10.1111/j.2517-6161.1977.tb01600.x"
+    note: "Journal of the Royal Statistical Society, Series B 39 (1): 1–38"
+  - type: "paper"
+    title: "Error Bounds for Convolutional Codes and an Asymptotically Optimum Decoding Algorithm"
+    authors: "Andrew J. Viterbi"
+    year: 1967
+    url: "https://doi.org/10.1109/TIT.1967.1054010"
+    note: "IEEE Transactions on Information Theory 13 (2): 260–69"
+  - type: "paper"
+    title: "Modeling by Shortest Data Description"
+    authors: "Jorma Rissanen"
+    year: 1978
+    url: "https://doi.org/10.1016/0005-1098(78)90005-5"
+    note: "Automatica 14 (5): 465–71. The two-part code"
+  - type: "paper"
+    title: "Unsupervised Models for Morpheme Segmentation and Morphology Learning"
+    authors: "Mathias Creutz and Krista Lagus"
+    year: 2007
+    url: "https://doi.org/10.1145/1187415.1187418"
+    note: "ACM Transactions on Speech and Language Processing 4 (1): 3. Morfessor: MDL for morphology"
+  - type: "paper"
+    title: "Practical Lossless Compression with Latent Variables Using Bits Back Coding"
+    authors: "James Townsend, Tom Bird, and David Barber"
+    year: 2019
+    url: "https://arxiv.org/abs/1901.04866"
+    note: "ICLR 2019. Recovering the Viterbi code's wasted bits"
+formalmlPrereqs:
+  - topic: "shannon-entropy"
+    site: "formalml"
+    relationship: "Tokenizers are compared as codes: a piece costs its Shannon code length −log p, and the Viterbi segmentation is the shortest encoding under the Unigram LM's code."
+  - topic: "minimum-description-length"
+    site: "formalml"
+    relationship: "The vocabulary size is read off a two-part code — bits to spell the vocabulary plus bits to code the corpus with it — whose total has an interior minimum."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "EM's monotonicity for the Unigram LM rests on Jensen's inequality and on Gibbs' inequality (KL ≥ 0), which makes normalized expected counts the exact M-step."
+formalstatisticsPrereqs:
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "Unigram LM piece probabilities are maximum-likelihood estimates over latent segmentations, and WordPiece merges by the gain in unigram log-likelihood."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import SubwordTokenizationLab from '../../components/viz/SubwordTokenizationLab.tsx';
+
+## Overview & Motivation
+
+The previous topic ended with a warning. Heaps' law says a corpus keeps meeting new word types as it grows, and a vocabulary of fixed size cannot keep pace: its coverage saturates while the text does not. Here is the warning in numbers. Train a word vocabulary on the finance corpus — $63{,}182$ tokens, $3{,}425$ word types — and read $100$ fresh documents from the same generator. They contain $79$ word types the vocabulary has never seen: *colevys*, *nonroyaltys*, *supplierers*, *crosspremium*. That is only $0.73\%$ of the $21{,}006$ held-out tokens, but every one of them is a word the model cannot represent, and over half the training vocabulary ($54.8\%$) was seen exactly once anyway.
+
+The way out is to stop treating words as atoms. A **subword tokenizer** keeps a fixed inventory of pieces — letters, frequent fragments like *in*, *ing*, *non*, and whole frequent words — and spells every word as a sequence of pieces. *nonroyaltys* is unseen, but *non*, *royalty*, and *s* are not.
+
+That raises three questions this topic answers with proofs:
+
+1. **Which inventories work, and how many ways are there to spell a word?** Every word can be spelled exactly when the inventory contains the alphabet, but a word of $n$ letters has up to $2^{n-1}$ spellings, so choosing one is a search problem.
+2. **How do we choose the inventory?** Three standard answers. **BPE** repeatedly merges the most frequent adjacent pair. **WordPiece** merges the pair that most increases the likelihood of the data. The **Unigram LM** starts large, gives every piece a probability, and prunes. We show what each one optimizes, where greedy merging falls short of the best possible merges, and why the likelihood criterion is a pointwise mutual information in disguise.
+3. **In what sense is this compression?** All three are codes. We compare them in bits, find that a two-part description length prefers neither letters nor words, and then test them against a corpus whose rare words were built from known morphemes.
+
+The laboratory below lets you watch both mechanisms before the algebra. In panel A, run BPE or WordPiece for more merges and watch the words fuse into pieces; the lower strip shows the Unigram LM's spelling at the same vocabulary size, and the gold marks show where the corpus generator actually joined morphemes. Panel B draws one word's **lattice** — every way to spell it — with arc widths set by probability; it will make full sense after the section on the Unigram LM.
+
+<SubwordTokenizationLab client:visible />
+
+---
+
+## The open-vocabulary problem
+
+Fix a finite alphabet $\Sigma$ — here the $26$ lowercase letters — and let $\Sigma^+$ be the nonempty strings over it. Training data is a collection of words with counts; tokenizers work inside words, so no piece ever crosses a space.
+
+<TheoremBlock type="definition" number={1} title="Vocabulary and segmentation">
+
+A **vocabulary** is a finite set $V \subset \Sigma^+$ of **pieces**. A **segmentation** of a string $x$ is a tuple $(t_1, \dots, t_k) \in V^k$ whose concatenation $t_1 t_2 \cdots t_k$ equals $x$. We write $\mathrm{Seg}_V(x)$ for the set of segmentations of $x$. **Encoding** chooses one segmentation; **decoding** concatenates its pieces.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={1} title="Completeness">
+
+Every string $x \in \Sigma^+$ has at least one segmentation if and only if $\Sigma \subseteq V$. In that case decoding inverts every encoding.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+If $\Sigma \subseteq V$, the letters of $x$ themselves form a segmentation. Conversely, if some letter $c \in \Sigma$ is missing from $V$, every piece of a segmentation of the one-letter string $c$ would have to be a nonempty substring of $c$, which is $c$ itself — so there is none. Decoding concatenates the pieces, and by definition they concatenate to $x$.
+
+</TheoremBlock>
+
+This is the whole fix for the open vocabulary: keep the letters, and no word is ever out of reach. The harness confirms it on every one of the $79$ unseen held-out words. The price is choice. If many fragments are pieces, a word can be cut many ways.
+
+<TheoremBlock type="proposition" number={2} title="Counting segmentations">
+
+If every substring of $x$ is a piece and $|x| = n$, then $|\mathrm{Seg}(x)| = 2^{n-1}$. If pieces are limited to length at most $L$, then $|\mathrm{Seg}(x)| = S_L(n)$, where $S_L(0) = 1$ and $S_L(m) = \sum_{k=1}^{\min(L, m)} S_L(m - k)$ — the $L$-step Fibonacci numbers.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A segmentation is determined by which of the $n - 1$ gaps between adjacent letters are piece boundaries, and when every substring is a piece, every subset of gaps occurs: $2^{n-1}$ choices. With pieces of length at most $L$, sort the segmentations of the first $m$ letters by the length $k \le \min(L, m)$ of their last piece; removing that piece leaves a segmentation of the first $m - k$ letters, and every such pair arises once.
+
+</TheoremBlock>
+
+A sixteen-letter word has $32{,}768$ segmentations when every fragment is allowed. No tokenizer enumerates them; each of the three below either builds the segmentation up greedily or finds the best one by dynamic programming.
+
+---
+
+## BPE: greedy compression
+
+Byte-pair encoding began as a file compressor (Gage 1994): find the most frequent pair of adjacent bytes, replace it everywhere by a new symbol, repeat. Sennrich, Haddow, and Birch (2016) applied the same loop to the letters of words.
+
+<TheoremBlock type="definition" number={2} title="Merges and merge sequences">
+
+To **merge** the pair $(a, b)$ in a token sequence, scan left to right and replace each adjacent occurrence of $a$ followed by $b$ with the single token $ab$, resuming the scan after the new token, so that no two replacements overlap. Let $r$ be the number of replacements. A **merge sequence** $\mu = ((a_1, b_1), \dots, (a_M, b_M))$ defines vocabularies $V_0 = \Sigma$ and $V_j = V_{j-1} \cup \{a_j b_j\}$. **Rank replay** encodes a word by starting from its letters and applying merges $1, 2, \dots, M$ in order.
+
+</TheoremBlock>
+
+<TheoremBlock type="definition" number={3} title="Greedy BPE and utility">
+
+**BPE training** chooses, at each step, the pair with the largest **window count** — the number of adjacent positions $(t_i, t_{i+1}) = (a, b)$, summed over the training words with their counts — and merges it in every word. Ties go to the pair that comes first in a fixed order of tokens: letters alphabetically, then merged tokens in the order they were created. The **utility** of a merge sequence on a text is the number of tokens it saves.
+
+</TheoremBlock>
+
+On the finance corpus the first ten merges are *in, an, er, re, en, ed, es, or, an·d, th*, with window counts from $10{,}843$ down to $4{,}102$: English inflection and function words surface first. Each merge buys exactly what it replaces — with one subtlety.
+
+<TheoremBlock type="proposition" number={3} title="Merge accounting">
+
+Merging $(a, b)$ shortens a token sequence by exactly $r$, the number of replacements. If $a \neq b$, then $r$ equals the window count of $(a, b)$. If $a = b$, a maximal run of $\ell$ consecutive copies of $a$ contains $\ell - 1$ windows but yields only $\lfloor \ell / 2 \rfloor$ replacements.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Each replacement consumes two tokens and emits one, and every other token is copied, so the length falls by $r$. If $a \ne b$, two occurrences cannot overlap: windows at positions $i$ and $i + 1$ would require $t_{i+1} = b$ and $t_{i+1} = a$ at once. The scan skips only the second token of a window it has just replaced, and that token cannot start another occurrence, so every occurrence is replaced and $r$ equals the window count. If $a = b$, the scan pairs a run's tokens as $(1, 2), (3, 4), \dots$, giving $\lfloor \ell/2 \rfloor$ replacements; distinct runs are separated by other tokens and do not interact.
+
+</TheoremBlock>
+
+So the count BPE ranks by over-values runs: *aaaa* shows three windows of $(a, a)$, but merging saves only two tokens. In letters of English words the effect is small, but it is the first sign that BPE's ranking is a proxy for compression rather than compression itself.
+
+<TheoremBlock type="proposition" number={4} title="Rank replay reproduces training">
+
+Replaying merges $1, \dots, k$ on a training word yields exactly that word's segmentation after $k$ training merges. Moreover, the first $k$ merges of a greedy run of any length $M \ge k$ are the $k$-merge model.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Training applies merge $j$ to every word's current sequence with the same deterministic map that replay applies, starting from the same letters; induct on $j$. For the second claim, greedy's choice at step $j$ depends only on the state after $j - 1$ merges and on a deterministic tie rule, not on how many merges will follow.
+
+</TheoremBlock>
+
+Prefix-closure is why a single long training run gives every smaller vocabulary for free, and why the laboratory's merge slider is honest: the $174$-merge model *is* the first $174$ merges of the $774$-merge model. The companion code checks its trainer against Hugging Face's `tokenizers` library on the same corpus: the two merge lists agree exactly for all $4{,}000$ merges, and the two encoders agree on every held-out word.
+
+### Greedy is not optimal
+
+BPE is greedy: it never revisits a merge. Is the most frequent pair always the best next step? No — and the gap is fundamental, not a matter of tuning.
+
+<TheoremBlock type="theorem" number={1} title="Optimal merging is hard — cited">
+
+(i) Finding a merge sequence of maximum utility on a string is APX-complete; greedy BPE always achieves at least $1/3$ of the optimal utility, and there are inputs on which it achieves at most $0.625$ of it (Kozma and Voderholzer). (ii) The decision versions of both bottom-up tokenization (choosing merges) and direct tokenization (choosing a vocabulary) are NP-complete (Whittington, Bachmann, and Pimentel 2025). (iii) Greedy BPE achieves a fraction $\frac{1}{\sigma}\bigl(1 - e^{-\sigma}\bigr)$ of the optimal utility, where $\sigma$ measures the curvature of the utility function (Zouhar et al. 2023).
+
+</TheoremBlock>
+
+We do not prove these results here; their proofs are reductions and submodularity arguments well outside this topic. What we can do is exhibit the failure. Exhaustive search over all strings of length at most nine on alphabets of size at most three finds the smallest string on which *every* greedy run — however ties are broken — loses:
+
+<TheoremBlock type="example" number={1} title="aaaabaaab with three merges">
+
+In $\texttt{aaaabaaab}$ the pair $(a, a)$ makes three replacements (two in the first run, one in the second), more than any other pair, so greedy must merge it first: $\texttt{aa}\;\texttt{aa}\;\texttt{b}\;\texttt{aa}\;\texttt{a}\;\texttt{b}$. Every pair left now occurs once, and two more merges save two more tokens: utility $5$ in every greedy run. The optimum instead merges $(a, b)$, then $(a, ab)$, then $(a, aab)$, building the repeated unit $\texttt{aaab}$ and ending at $\texttt{a}\;\texttt{aaab}\;\texttt{aaab}$ — utility $6$. Greedy's forced first move breaks both copies of the structure the optimum exploits.
+
+</TheoremBlock>
+
+On $300$ random short strings every greedy run stays above the guaranteed $1/3$ of the optimum, and some fall strictly short of it — consistent with Theorem 1, which is the actual guarantee.
+
+---
+
+## WordPiece: a likelihood criterion
+
+WordPiece (Schuster and Nakajima 2012) keeps BPE's merge loop but changes the question. Instead of *which pair is most frequent*, it asks *which merge makes the training data most probable* under a unigram model of the current tokens. Write $c_t$ for the count of token $t$ in the training data and $N = \sum_t c_t$. The maximum-likelihood unigram model is $\hat p(t) = c_t / N$, and its log-likelihood is
+
+$$
+\mathcal{L} \;=\; \sum_t c_t \log \frac{c_t}{N} \;=\; \sum_t c_t \log c_t \;-\; N \log N .
+$$
+
+<TheoremBlock type="proposition" number={5} title="The likelihood gain of a merge">
+
+If merging $(a, b)$ with $a \ne b$ makes $m$ replacements, then the exact change in $\mathcal{L}$ is
+
+$$
+\Delta\mathcal{L} = m\log m + \sum_{c \in \{c_a,\, c_b\}} \bigl[(c - m)\log(c - m) - c\log c\bigr] - \bigl[(N - m)\log(N - m) - N\log N\bigr],
+$$
+
+and it decomposes as
+
+$$
+\Delta\mathcal{L} \;=\; m\Bigl[\log\frac{mN}{c_a\, c_b} - 1\Bigr] + R_{c_a} + R_{c_b} - R_N,
+\qquad 0 \;\le\; R_c \;\le\; \frac{m^2}{2(c - m)} .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A merge changes only four quantities: $c_a$ and $c_b$ each fall by $m$, the new token $ab$ goes from count $0$ to $m$, and $N$ falls to $N - m$. Substituting into $\mathcal{L}$ gives the first display. For the second, fix $c > m$, put $x = m/c$, and let $g(x) = (1 - x)\log(1 - x) + x$. Expanding $\log(c - m) = \log c + \log(1 - x)$ gives
+
+$$
+(c - m)\log(c - m) - c\log c \;=\; -m\log c - m + c\,g(m/c).
+$$
+
+Now $g(0) = 0$, $g'(x) = -\log(1 - x) \ge 0$, and $g''(x) = 1/(1 - x)$, so $0 \le g(x) = \int_0^x \!\int_0^y \frac{dz}{1 - z}\,dy \le \frac{x^2}{2(1 - x)}$. Setting $R_c = c\,g(m/c)$ gives $0 \le R_c \le \frac{m^2}{2(c - m)}$. Applying the identity to $c_a$, $c_b$, and $N$ and collecting terms, the leading part is $m\log m - m\log c_a - m\log c_b + m\log N - m$, as claimed.
+
+</TheoremBlock>
+
+The leading term reads $m\,\bigl[\mathrm{PMI}(a, b) - 1\bigr]$, where $\mathrm{PMI}(a, b) = \log \frac{c_{ab} N}{c_a c_b}$ is the pointwise mutual information of the pair and $c_{ab} = m$. BPE ranks by $m$ alone; WordPiece weights $m$ by how much more often $a$ and $b$ occur together than independence would predict. It prefers **cohesive** pairs, whose parts rarely occur apart. On the finance corpus the two agree on *in* and *an*, then split at the third merge: BPE takes $(e, r)$, with count $7{,}663$; WordPiece takes $(an, d)$, with a gain of $7{,}355.4$ nats, because *an* is followed by *d* far more often than chance. The harness checks the exact formula against a recount for the first $40$ WordPiece merges and the remainder bound on $2{,}000$ random instances.
+
+The tokenizers also differ in how they *encode*. BPE replays its merges. WordPiece's encoder, MaxMatch, repeatedly takes the longest vocabulary piece that starts the remaining text. The Unigram LM of the next section takes the most probable segmentation. Given the same vocabulary these are three different functions: with WordPiece's $200$-piece vocabulary, *acquisition* comes out as `a c qu i s it ion` under MaxMatch but `a c qu i s i tion` under replay.
+
+---
+
+## The Unigram LM
+
+The Unigram LM (Kudo 2018) turns tokenization into probability. Instead of a merge history it keeps a probability for every piece, scores a whole segmentation, and picks the best one.
+
+<TheoremBlock type="definition" number={4} title="Unigram LM">
+
+A **Unigram LM** is a probability vector $p$ on a vocabulary $V$. A segmentation has probability $P(t_1, \dots, t_k) = \prod_{i=1}^{k} p(t_i)$, and a string has **marginal probability** $P(x) = \sum_{\mathbf{t} \in \mathrm{Seg}_V(x)} P(\mathbf{t})$. Encoding uses the **Viterbi segmentation** $\mathbf{t}^\ast = \arg\max_{\mathbf{t} \in \mathrm{Seg}_V(x)} P(\mathbf{t})$.
+
+</TheoremBlock>
+
+Picture the segmentations of a word as paths. Put a node at each of the $n + 1$ gaps of an $n$-letter word, from before the first letter to after the last, and draw an arc from gap $i$ to gap $j$ whenever $x_{i:j}$ — letters $i + 1$ through $j$ — is a piece. Every segmentation is a path from the first node to the last, and its log-probability is the sum of its arcs' weights $\log p(x_{i:j})$. That graph is the **lattice** in panel B of the laboratory. Finding the best segmentation is finding the heaviest path, which dynamic programming does in one sweep.
+
+<TheoremBlock type="theorem" number={2} title="Viterbi decoding">
+
+Let pieces have length at most $L$, set $\delta(0) = 0$, and for $j = 1, \dots, n$ let
+
+$$
+\delta(j) \;=\; \max_{\substack{j - L \le i \lt j \\ x_{i:j} \in V}} \Bigl[\delta(i) + \log p(x_{i:j})\Bigr],
+$$
+
+with $\delta(j) = -\infty$ when no $i$ qualifies. Then $\delta(n) = \max_{\mathbf{t} \in \mathrm{Seg}_V(x)} \log P(\mathbf{t})$, and it is $-\infty$ exactly when $x$ has no segmentation. The recursion uses $O(nL)$ vocabulary lookups, and recording the maximizing $i$ at each $j$ recovers $\mathbf{t}^\ast$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+We show by induction on $j$ that $\delta(j)$ is the largest log-probability of a segmentation of the prefix $x_{0:j}$. For $j = 0$ the empty segmentation has log-probability $0$. Every segmentation of $x_{0:j}$ consists of a segmentation of some prefix $x_{0:i}$ followed by one last piece $x_{i:j}$, and its log-probability is the sum of the two parts. Maximizing over the last piece and then over the segmentations of $x_{0:i}$ gives $\max_i \bigl[\delta(i) + \log p(x_{i:j})\bigr]$ by the induction hypothesis. If no last piece is in $V$, there is no segmentation and the maximum over an empty set is $-\infty$.
+
+</TheoremBlock>
+
+Replacing the maximum by a sum gives the total probability of all paths.
+
+<TheoremBlock type="proposition" number={6} title="Forward–backward and the lattice posteriors">
+
+Let $\alpha(0) = 0$, $\alpha(j) = \log \sum_i \exp\bigl[\alpha(i) + \log p(x_{i:j})\bigr]$, and symmetrically $\beta(n) = 0$, $\beta(i) = \log \sum_j \exp\bigl[\log p(x_{i:j}) + \beta(j)\bigr]$. Then $\alpha(n) = \beta(0) = \log P(x)$. The posterior probability that the segmentation uses the piece from gap $i$ to gap $j$ is
+
+$$
+q_{ij} \;=\; \exp\bigl[\alpha(i) + \log p(x_{i:j}) + \beta(j) - \log P(x)\bigr],
+$$
+
+and for every letter position $k$, the posteriors of the arcs covering it sum to one: $\sum_{i \le k \lt j} q_{ij} = 1$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The induction of Theorem 2 with sums in place of maxima, using the distributive law, gives $e^{\alpha(j)}$ as the total probability of all segmentations of $x_{0:j}$; the same holds for $\beta$ from the right. The segmentations that use the arc $(i, j)$ are exactly a segmentation of $x_{0:i}$, then $x_{i:j}$, then a segmentation of $x_{j:n}$, so their total probability is $e^{\alpha(i)}\,p(x_{i:j})\,e^{\beta(j)}$; dividing by $P(x)$ gives $q_{ij}$. Each segmentation has exactly one piece covering position $k$, so summing $q_{ij}$ over the covering arcs sums $P(\mathbf{t})/P(x)$ over every segmentation, which is $1$.
+
+</TheoremBlock>
+
+The arc widths in panel B are these posteriors. Try *underwriting* at $|V| = 400$: many arcs are possible, but nearly all the probability flows along a handful of them.
+
+### Training by EM
+
+The piece probabilities are learned from data, and the segmentations are hidden. This is the setting of expectation–maximization: guess $p$, compute the expected number of times each piece is used under the posterior of Proposition 6, renormalize those expected counts into a new $p$, and repeat.
+
+<TheoremBlock type="theorem" number={3} title="EM never lowers the likelihood">
+
+Fix $V$ and a Unigram LM $p$. For training words $x$ with counts $c_x$, let $q(\mathbf{t} \mid x)$ be the posterior over $\mathrm{Seg}_V(x)$ under $p$, and let $\bar c_u = \sum_x c_x\, \mathbb{E}_{q}\bigl[\text{number of times } u \text{ appears in } \mathbf{t}\bigr]$. Then the update $p'(u) = \bar c_u / \sum_v \bar c_v$ satisfies $\ell(p') \ge \ell(p)$, where $\ell(p) = \sum_x c_x \log P_p(x)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For any model $p'$, Jensen's inequality applied to the concave logarithm gives
+
+$$
+\log P_{p'}(x) \;=\; \log \sum_{\mathbf{t}} q(\mathbf{t} \mid x)\,\frac{P_{p'}(\mathbf{t})}{q(\mathbf{t} \mid x)}
+\;\ge\; \sum_{\mathbf{t}} q(\mathbf{t} \mid x) \log P_{p'}(\mathbf{t}) \;-\; \sum_{\mathbf{t}} q(\mathbf{t} \mid x)\log q(\mathbf{t} \mid x),
+$$
+
+with equality when $p' = p$, because then the ratio inside is the constant $P_p(x)$. Weight by $c_x$, sum over words, and subtract the equality case: $\ell(p') - \ell(p) \ge Q(p') - Q(p)$, where $Q(p') = \sum_x c_x \sum_{\mathbf{t}} q(\mathbf{t}|x)\log P_{p'}(\mathbf{t}) = \sum_u \bar c_u \log p'(u)$. Write $\pi_u = \bar c_u / \sum_v \bar c_v$. Then $Q(p') = \bigl(\sum_v \bar c_v\bigr)\bigl[-H(\pi) - \mathrm{KL}(\pi \,\|\, p')\bigr]$, which Gibbs' inequality, $\mathrm{KL} \ge 0$ (see [KL Divergence](https://www.formalml.com/topics/kl-divergence)), maximizes exactly at $p' = \pi$. Hence $\ell(p') - \ell(p) \ge Q(\pi) - Q(p) \ge 0$.
+
+</TheoremBlock>
+
+EM climbs; it does not promise the top. The vocabulary itself is chosen by a heuristic. Starting from the $26$ letters and the $2{,}000$ most frequent substrings (scored by count times length), training alternates two EM steps with **pruning**: drop the quarter of the non-letter pieces whose removal costs the least likelihood, estimated by SentencePiece's rule of reassigning each piece's Viterbi frequency to its best alternative spelling (Kudo and Richardson 2018). Letters are never pruned, so Proposition 1 always applies. We stop at $|V| \in \{800, 400, 200, 100, 50\}$. Our M-step is the plain maximum-likelihood update of Theorem 3; SentencePiece itself uses a smoothed variant. As a check that our decoder is the standard one, we train SentencePiece on the same text and feed its piece scores to our Viterbi: it reproduces SentencePiece's own spelling of every held-out word.
+
+---
+
+## Tokenization as compression
+
+A Unigram LM is a code. Spending $-\log_2 p(t)$ bits on piece $t$ is the Shannon code for the distribution $p$ (see [Shannon Entropy & Mutual Information](https://www.formalml.com/topics/shannon-entropy)), so a segmentation $\mathbf{t}$ costs $-\log_2 P(\mathbf{t})$ bits, and the Viterbi segmentation is the cheapest single spelling. A cleverer coder could charge for the word as a whole, $-\log_2 P(x)$ bits, summed over all spellings. The two are never far apart.
+
+<TheoremBlock type="proposition" number={7} title="The segmentation sandwich">
+
+For every string $x$ with at least one segmentation,
+
+$$
+-\log P(x) \;\le\; -\log P(\mathbf{t}^\ast) \;\le\; -\log P(x) + \log\bigl|\mathrm{Seg}_V(x)\bigr| .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The gap $-\log P(\mathbf{t}^\ast) + \log P(x)$ equals $-\log q(\mathbf{t}^\ast \mid x)$, the posterior surprisal of the Viterbi segmentation, which is nonnegative. Since $\mathbf{t}^\ast$ has the largest posterior among $|\mathrm{Seg}_V(x)|$ possibilities, $q(\mathbf{t}^\ast \mid x) \ge 1/|\mathrm{Seg}_V(x)|$, which bounds the gap by $\log|\mathrm{Seg}_V(x)|$.
+
+</TheoremBlock>
+
+The Viterbi code wastes exactly the surprisal of its own choice; "bits-back" coding (Townsend, Bird, and Barber 2019) is a way to recover it. In practice there is little to recover. At $|V| = 400$, *nonroyaltys* costs $21.66$ bits under its Viterbi spelling *non · royalty · s* and $21.65$ bits marginally, although $\log_2|\mathrm{Seg}| = 4.32$ would allow a gap of over four bits. The lattice's posterior is concentrated, which panel B shows as one thick path.
+
+### How large should the vocabulary be?
+
+Compression also suggests a way to choose $|V|$. A bigger vocabulary spells the corpus in fewer, likelier tokens, but the vocabulary itself must be described. The **two-part code** of minimum description length (Rissanen 1978; see [Minimum Description Length](https://www.formalml.com/topics/minimum-description-length)) charges for both:
+
+$$
+L(V) + L(D \mid V), \qquad L(V) = \sum_{t \in V} \bigl(|t| + 1\bigr)\log_2 27, \qquad L(D \mid V) = -\frac{\mathcal{L}}{\ln 2},
+$$
+
+where $L(V)$ spells each piece letter by letter with an end marker, and $L(D \mid V)$ codes the training tokens under their own maximum-likelihood unigram model. Along BPE's merge path on the finance corpus:
+
+| vocabulary | two-part code length |
+|---|---|
+| letters only | $1{,}648{,}296$ bits |
+| BPE after $1{,}844$ merges ($1{,}870$ pieces) | $636{,}622$ bits — the minimum |
+| whole words ($3{,}425$ types) | $712{,}162$ bits |
+
+Too few pieces make the data long; too many make the lexicon long. The minimum sits between letters and words, which is the trade-off morphology learners like Morfessor were built around (Creutz and Lagus 2007). Where exactly it falls depends on how we chose to code the lexicon, so we read it as an argument for subwords, not as a law fixing $|V|$.
+
+The open vocabulary of the previous topic is now closed in the useful sense. Of the training corpus's word types, $54.8\%$ occur once; of the $353$ pieces BPE uses at $|V| = 400$, $0.57\%$ do. Rare words have become combinations of common parts.
+
+---
+
+## Finance case study: planted morphemes
+
+<FinanceCaseStudy title="Finance case study: a morphology we planted">
+
+The shared finance corpus invents its rare content words. Each one is built by the generator from English-like morphemes: a prefix and a root, optionally a plural *s* (*co·levy·s*, *non·royalty·s*), or an optional prefix, a root, and a suffix (*cross·fleet*, *supplier·ers*), with the usual dropped *e* (*lease* + *ing* → *leasing*). So the right segmentation of these words is known. We rebuild the training corpus with the generator's inventions recorded — $2{,}830$ of its $3{,}425$ word types, in a rebuild that is token-for-token identical to the published corpus — and parse each invented word back into its morphemes. Every parse turns out to be unique, and all $79$ unseen held-out words parse too.
+
+We score each tokenizer by **boundary F1**: a predicted piece boundary is correct if the generator joined two morphemes there. Recall is the share of planted boundaries the tokenizer splits at; precision is the share of its splits that are planted.
+
+| boundary F1, training words | $\lvert V\rvert = 50$ | $100$ | $200$ | $400$ | $800$ |
+|---|---|---|---|---|---|
+| BPE | 0.298 | 0.363 | 0.408 | 0.512 | 0.736 |
+| WordPiece | 0.281 | 0.307 | 0.413 | 0.528 | 0.813 |
+| Unigram LM | 0.293 | 0.363 | **0.582** | **0.780** | 0.782 |
+
+The story has three beats.
+
+**1. Small vocabularies find no morphology.** With pieces close to letters, almost every planted boundary is split (recall near $1$), but so is almost everything else: precision is $0.17$ to $0.23$.
+
+**2. At $|V| = 200$ to $400$ the Unigram LM pulls away** — by $0.17$ and $0.27$ in F1 on training words, and by $0.24$ and $0.29$ on the unseen held-out words. Part of that is compression: at the same $|V|$ the Unigram LM spells a held-out word in fewer pieces ($1.847$ against BPE's $2.257$ at $|V| = 400$), and fewer splits mean higher precision. But it is not only compression. Interpolating BPE's F1 to the Unigram LM's tokens per word gives about $0.47$ against $0.582$ at $|V| = 200$, and about $0.64$ against $0.780$ at $|V| = 400$. At $|V| = 400$ the Unigram LM's precision is $0.658$ against BPE's $0.375$. This reproduces, on a corpus where the answer is known, Bostrom and Durrett's (2020) finding that Unigram LM pieces align better with morphology than BPE's.
+
+**3. By $|V| = 800$ the gap closes** — all three tokenizers lie within $0.08$ of one another, and WordPiece scores highest. Once the vocabulary holds most of the roots, compression and morphology agree.
+
+Panel A of the laboratory shows the difference directly. At $|V| = 400$ BPE spells the unseen *nonroyaltys* as *non · ro · yalty · s* and *supplierers* as *sup · p · li · er · ers*; the Unigram LM gives *non · royalty · s* and *supplier · ers*, the planted morphemes exactly. Boundary F1 on unseen words tracks F1 on training words at every size: the pieces learned from the training corpus carry over to words it never contained.
+
+The lesson for real filings is the one in the caveats below. Compression is what these tokenizers optimize, and it correlates with linguistic structure only partly; a tokenizer chosen for compression can split a company-specific term at the wrong place.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Perplexity needs a unit.** A language model over subword tokens reports perplexity per token, and changing the tokenizer changes the token count. Comparing models across tokenizers requires normalizing per character or per word — the subject of the later topic on perplexity and cross-entropy, which also makes the compression reading of this topic exact.
+- **n-grams over pieces.** The n-gram models of the next language-modeling topic work over whatever tokens the tokenizer produces; subwords trade a sparse word vocabulary for longer sequences.
+- **Better criteria.** Beyond compressed length, Zouhar et al.'s Rényi efficiency is an empirical predictor of how well a tokenizer will serve a translation model — a correlation, not a theorem.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **BPE optimizes a proxy, greedily.** Token count is not what a language model needs, and even for token count, the optimal merge sequence is NP-hard to find and APX-complete to approximate. The $1/3$ guarantee and the hardness results (Theorem 1) are cited, not proved, and checked here only on short strings.
+2. **"WordPiece" names several criteria.** Papers and implementations describe its merge score differently; the criterion on this page is the exact unigram likelihood gain of Proposition 5.
+3. **EM climbs, pruning guesses.** Theorem 3 guarantees that the Unigram LM's likelihood never decreases, not that it reaches a global optimum, and the vocabulary pruning step is SentencePiece's heuristic loss.
+4. **The vocabulary-size optimum depends on the code.** The two-part code's minimum moves with how the lexicon is described.
+5. **Compression is not morphology, and neither is downstream quality.** Nothing here shows that a tokenizer improves a model trained on its output. On a corpus with planted morphemes, the tokenizer that compresses best is not always the one whose boundaries are right.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `subword_tokenization_bpe_unigram.py`, which owns every number on this page. Running it as a script executes a harness of $24$ assertion-based tests in about ten seconds on a laptop CPU. The tests cover:
+
+- Propositions 1–4 on random inputs and on the corpus, including the run-counting subtlety of Proposition 3.
+- Agreement with Hugging Face `tokenizers` (identical merge lists and encodings) and with `sentencepiece` (identical Viterbi spellings).
+- The greedy counterexample by exhaustive search, and the $1/3$ guarantee on random strings.
+- Proposition 5's exact formula against recounts, and its remainder bound.
+- Viterbi and forward–backward against brute-force enumeration, the posterior coverage identity, and EM's monotonicity.
+- The segmentation sandwich on every held-out word, the two-part code's interior minimum, and the three beats of the finance case study.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

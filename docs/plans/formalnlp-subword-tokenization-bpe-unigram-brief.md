@@ -406,3 +406,17 @@ uv run --python 3.13 --with numpy==2.5.4 --with scipy==1.18.1 --with tokenizers=
 - `pnpm audit:cross-site` will report the four outward links as missing reciprocals — expected until launch.
 - Verify reference URLs resolve before shipping (Gage's is a Dr. Dobb's reprint; Kozma–Voderholzer's DOI
   is the ESA 2026 version of arXiv:2411.08671).
+
+## 11. Phase B record (2026-10-22)
+
+- Page numbering matches the brief (Defs 1–4, Props 1–7, Thms 1–3) plus **Example 1** for the
+  `aaaabaaab` counterexample. The lab is embedded in the Overview (Topic 1's placement), not at the end
+  of §4; the prose says Panel B reads fully after the Unigram section.
+- The lab reads `src/components/viz/data/subword-tokenization-lab.json`. The payload gained
+  `unigram_segs` (Panel A's lower strip), `planted` (boundary ticks), and `f1` (the strip readout);
+  `test_viz_mirror_matches_payload` requires the JSON to equal `viz_payload()` exactly (harness now 24/24).
+- One shared |V| slider drives both panels over {26, 50, 100, 200, 400, 800}; Panel B clamps to 50,
+  since Unigram has no 26-piece model.
+- DOM checks on the built page: 0 `.katex-error`, 316 `.katex`; the island hydrates (6 word strips;
+  `nonroyaltys` lattice at |V| = 400 has 4 arcs, 3 on the Viterbi path); every readout equals the
+  payload at |V| = 26, 400, and 800 for both tokenizers.
