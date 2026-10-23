@@ -657,3 +657,42 @@ Dawid (1984) is cited through Topic 4's reference list. Add it here in Phase B i
   interpolated KN 233 bits in Topic 4's lab").
 - Re-run the harness at the B3 gate. The harness is ≈ 52 s; if a lab addition pushes it past 60 s, trim
   `DECAY_SENTENCES` or `LAG_STEPS` before anything else, and re-verify the lag-60 assertion.
+
+## 11. Phase B record (2026-10-23)
+
+- **Numbering and placement.**
+  - Page numbering matches the brief: Defs 1–4, Props 1–6, Thms 1–6, Cors 1–3, in page order (verified in the
+    built DOM). The complex step is an unnumbered remark.
+  - Special tokens stay out of math. Thm 4 writes the sentence end's index as "eos" inside `\mathrm{}`.
+  - The lab, `NeuralLMLab`, is embedded after §5 under "One sentence, four models; gradients through time".
+- **Payload changes** (made in the `.py`, then mirrored):
+  - The Phase A payload rounded `long_lag.reach_init` to 6 decimals, which turned Elman's 10⁻¹⁰ and LSTM-1's
+    10⁻⁷ into 0. The inset now carries log₁₀ census medians and the cell-path prediction.
+  - Sensitivities and the decay curve use 4 significant figures.
+  - Each lab token carries Thm 5's trajectory bound, computed in Python, so the viz never derives one.
+  - The unused per-epoch history is gone.
+  - `test_viz_payload` now also asserts:
+    - measured ≤ bound through the rounding;
+    - every step factor above 1;
+    - the bars summing to each sentence's closed NLL;
+    - the inset's ordering.
+  - `test_viz_mirror_matches_payload` requires `src/components/viz/data/neural-lm-lab.json` to equal
+    `viz_payload()` exactly. The harness is 22/22 (≈ 50 s), and the notebook exits 0.
+- **Cross-site.** All nine targets were re-verified `status: "published"` on GitHub `main`.
+- **Gates.**
+  - `pnpm test` passes 39/39, and `astro sync` and `pnpm validate` are clean.
+  - `pnpm audit:cross-site` exits 0. The nine outward links appear as missing reciprocals (expected until launch),
+    and formalNLP has 0 deferred and 0 drifted targets.
+  - `pnpm build` exits 0.
+- **DOM checks** on the built page (foreground pane, desktop width): 0 `.katex-error`, 432 `.katex`, and the island
+  hydrates once its container, not the `display: contents` island, is scrolled into view. The readouts equal the
+  payload:
+  - sentence 2 totals: 65.7, 57.8, 41.3, and 39.3 bits;
+  - *footprint*: 0.357 at `<s>` against a bound of 531;
+  - EDGAR: 103.1 bits plus 128.6 spelling under KN, which is 231.7 bits and agrees with Topic 4's
+    −log₂ Q = 231.76 for the same sentence; picking EDGAR turns the dynamic RNN back on;
+  - the σ slider (real key presses): σ = 1.5 gives ρ 0.825 and 10^−14.6 at lag 50 (tanh). In linear mode, σ = 3
+    gives 10^10.9 against the bound 10^23.9, and σ = 0.5 gives 10^−27.3;
+  - the inset: 10^−9.6, 10^−6.6, and 10^−2.8.
+- **Mobile.** `innerWidth === 375` before and after hydration, with no unclipped overflow. Long words under Panel
+  B's bars are truncated with an ellipsis, after *headcount* and *clinicbase* collided at desktop width.

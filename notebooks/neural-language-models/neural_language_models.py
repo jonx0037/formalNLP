@@ -641,21 +641,25 @@ def jacobian_product_norms(Wh: np.ndarray, hs: np.ndarray) -> tuple[np.ndarray, 
     return np.array(measured), np.array(bounds)
 
 
-def loss_sensitivity(P: Params, ids) -> list[list[float]]:
-    """For each target t of a sentence, ‖∂ℓ_t/∂h_k‖₂ for k = 0, …, t (h_k the state that predicts target k):
-    how strongly the loss at t reaches back through the recurrence (the lab's Panel B)."""
+def loss_sensitivity(P: Params, ids) -> tuple[list[list[float]], list[list[float]]]:
+    """For each target t of a sentence, ‖∂ℓ_t/∂h_k‖₂ for k = 0, …, t (h_k the state that predicts target k) — how
+    strongly the loss at t reaches back through the recurrence (the lab's Panel B) — and Thm 5's bound on it,
+    ‖∂ℓ_t/∂h_t‖ Π_{j=k+1}^{t} ‖diag(1 − h_j²) W_hᵀ‖₂."""
     hs = rnn_states(P, ids)
-    out = []
+    steps = [float(np.linalg.norm((1 - h**2)[:, None] * P["Wh"].T, 2)) for h in hs]
+    out, bounds = [], []
     for t, y in enumerate(ids):
         g = softmax(hs[t] @ P["Wo"] + P["bo"])
         g[y] -= 1
         g = g @ P["Wo"].T  # ∂ℓ_t/∂h_t
-        row = [float(np.linalg.norm(g))]
+        row, brow = [float(np.linalg.norm(g))], [float(np.linalg.norm(g))]
         for k in range(t, 0, -1):
-            g = (g * (1 - hs[k] ** 2)) @ P["Wh"].T
+            g = (g * (1 - hs[k] ** 2)) @ P["Wh"].T  # ∂ℓ_t/∂h_{k−1} = ∂ℓ_t/∂h_k · ∂h_k/∂h_{k−1}
             row.append(float(np.linalg.norm(g)))
+            brow.append(brow[-1] * steps[k])
         out.append(row[::-1])
-    return out
+        bounds.append(brow[::-1])
+    return out, bounds
 
 
 def scaled_matrix(rng: np.random.Generator, n: int, sigma: float) -> np.ndarray:
@@ -682,7 +686,7 @@ def init_lstm(rng: np.random.Generator, k: int, h: int, forget_bias: float, out:
     return P
 
 
-def _sig(z):
+def _sigmoid(z):
     return 1 / (1 + np.exp(-z))
 
 
@@ -690,7 +694,7 @@ def lstm_cell(P: Params, x: np.ndarray, h: np.ndarray, c: np.ndarray):
     """One step: c_t = f ⊙ c_{t−1} + i ⊙ g, h_t = o ⊙ tanh(c_t), every gate a function of (x_t, h_{t−1})."""
     H = h.shape[-1]
     z = x @ P["Wx"] + h @ P["Wh"] + P["b"]
-    i, f, o, g = _sig(z[..., :H]), _sig(z[..., H : 2 * H]), _sig(z[..., 2 * H : 3 * H]), np.tanh(z[..., 3 * H :])
+    i, f, o, g = _sigmoid(z[..., :H]), _sigmoid(z[..., H : 2 * H]), _sigmoid(z[..., 2 * H : 3 * H]), np.tanh(z[..., 3 * H :])
     c = f * c + i * g
     return o * np.tanh(c), c, (i, f, o, g)
 
@@ -1120,6 +1124,11 @@ THROUGH_H, THROUGH_T, THROUGH_LAGS, THROUGH_DRAWS = 32, 60, 50, 16
 _r = pce._r
 
 
+def _sig(x: float, n: int = 4):
+    """Round to n significant figures (for quantities spanning many decades, shown on log axes)."""
+    return None if not math.isfinite(x) else float(f"{x:.{n}g}")
+
+
 @lru_cache(maxsize=1)
 def through_time() -> dict:
     """Panel B's synthetic curves: for W_h Gaussian with spectral norm σ, the median over draws of
@@ -1188,8 +1197,10 @@ def lab_sentence(test: str, words: NGram) -> dict:
                        "bits": {name: _r(-lps[name][i] / LN2, 3) for name in LAB_MODELS}})
     P = trained_rnn().params
     hs = rnn_states(P, ids)
+    sens, bound = loss_sensitivity(P, ids)
     return {"test": test, "index": j, "words": list(words), "chars": pce.n_chars([words]), "tokens": tokens,
-            "sensitivity": [[_r(x, 5) for x in row] for row in loss_sensitivity(P, ids)],
+            "sensitivity": [[_sig(x) for x in row] for row in sens],
+            "sensitivity_bound": [[_sig(x) for x in row] for row in bound],
             "step_norms": [_r(float(np.linalg.norm((1 - h**2)[:, None] * P["Wh"].T, 2)), 4) for h in hs]}
 
 
@@ -1197,18 +1208,19 @@ def lab_sentence(test: str, words: NGram) -> dict:
 def viz_payload() -> dict:
     R = trained_rnn().params
     corpus_rows = {t: {name: {k: _r(v) for k, v in comparison_row(name, t).items()} for name in COMPARED} for t in TESTS}
-    hist = {"nplm": trained_nplm().history, "rnn": trained_rnn().history}
-    lag = long_lag_training()
+    census, trained = long_lag_census(), long_lag_training()
+    lag = {name: {"log10_reach": _r(math.log10(float(np.median(census[name]))), 3),
+                  "accuracy": _r(trained[name]["accuracy"], 4), "test_loss": _sig(trained[name]["test_loss"]),
+                  "log10_cell_path": None if cell != "lstm" else _r(LAG * math.log10(float(_sigmoid(fb))), 3)}
+           for name, cell, fb in lag_models()}
     return {"models": list(LAB_MODELS), "sentences": [lab_sentence(t, w) for t, w in LAB_SENTENCES],
             "sigma_max": _r(float(np.linalg.norm(R["Wh"], 2)), 4),
             "rho": _r(float(np.abs(np.linalg.eigvals(R["Wh"])).max()), 4),
             "through_time": through_time(),
-            "corpus_decay": {k: ([_r(x, 5) for x in v] if k in ("measured", "bound") else v)
+            "corpus_decay": {k: ([_sig(x) for x in v] if k in ("measured", "bound") else v)
                              for k, v in corpus_decay().items() if k in ("lags", "measured", "bound", "n")},
-            "long_lag": {name: {k: _r(v, 6) for k, v in row.items()} for name, row in lag.items()},
-            "corpus": corpus_rows, "uniform_nats": _r(pce.uniform_log_loss()), "V": V,
-            "epochs": {m: [{k: _r(v) for k, v in row.items()} for row in h] for m, h in hist.items()},
-            "lzma_edgar_bpc": _r(lzma_given_bpc("edgar"))}
+            "long_lag": {"lag": LAG, "models": lag}, "corpus": corpus_rows, "uniform_nats": _r(pce.uniform_log_loss()),
+            "V": V, "lzma_edgar_bpc": _r(lzma_given_bpc("edgar"))}
 
 
 # --------------------------------------------------------------------------------------------
@@ -1625,14 +1637,35 @@ def test_viz_payload():
     are finite; the through-time curves have one value per lag; σ_max and ρ match the trained RNN."""
     p = viz_payload()
     assert len(p["sentences"]) == len(LAB_SENTENCES)
-    for s in p["sentences"]:
-        assert len(s["tokens"]) == len(s["words"]) + 1 == len(s["sensitivity"])
+    for s, (test, words) in zip(p["sentences"], LAB_SENTENCES):
+        assert len(s["tokens"]) == len(s["words"]) + 1 == len(s["sensitivity"]) == len(s["sensitivity_bound"])
         assert all(len(row) == i + 1 for i, row in enumerate(s["sensitivity"]))
+        for m, b in zip(s["sensitivity"], s["sensitivity_bound"]):
+            assert all(0 < x <= y * (1 + 1e-3) for x, y in zip(m, b))  # Thm 5, through the 4-figure rounding
         for tok in s["tokens"]:
             assert all(v > 0 for v in tok["bits"].values())
+        j = corpus()[test].index(words)
+        for name in LAB_MODELS:  # the bars sum to the sentence's closed NLL in bits
+            total = sum(tok["bits"][name] for tok in s["tokens"])
+            assert abs(total - sentence_table(name, test)[j, 0] / LN2) < 0.01
+    sens, bound = loss_sensitivity(trained_rnn().params, ids_of("held")[0])
+    assert all(x <= y * (1 + 1e-12) for r, b in zip(sens, bound) for x, y in zip(r, b))
     tt = p["through_time"]
     assert all(len(row) == THROUGH_LAGS for row in tt["tanh"] + tt["linear"])
-    assert p["sigma_max"] > 1
+    assert p["sigma_max"] > 1 and all(x > 1 for s in p["sentences"] for x in s["step_norms"])
+    L = p["long_lag"]["models"]
+    assert L["lstm-3"]["log10_reach"] > L["lstm-1"]["log10_reach"] > L["elman"]["log10_reach"]
+
+
+VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / "data" / "neural-lm-lab.json"
+
+
+def test_viz_mirror_matches_payload():
+    """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
+    Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
+    import json
+
+    assert json.loads(VIZ_JSON.read_text()) == json.loads(json.dumps(viz_payload())), VIZ_JSON
 
 
 def _run_harness() -> int:
