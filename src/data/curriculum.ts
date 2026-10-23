@@ -26,7 +26,6 @@ export const tracks = [
     description:
       'Assigning probabilities to sequences: n-gram estimation and smoothing, perplexity as cross-entropy, and the move to neural language models.',
     planned: [
-      'Perplexity, Cross-Entropy, and Compression',
       "Neural Language Models: From Bengio's NPLM to Recurrent Networks",
     ],
     dependsOnFormalML: false,

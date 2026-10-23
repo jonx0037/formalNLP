@@ -1,0 +1,622 @@
+---
+title: "Perplexity, Cross-Entropy, and Compression"
+subtitle: "Held-out log-loss is a file size: an arithmetic coder turns any language model into a compressor within two bits of it — which makes perplexity a branching factor, bits per character its honest unit, and the unknown-word convention a flattering lower bound"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "n-gram-models-smoothing"
+tags:
+  - "perplexity"
+  - "cross-entropy"
+  - "arithmetic-coding"
+  - "kraft-mcmillan"
+  - "aep"
+  - "bits-per-character"
+  - "tokenization"
+  - "language-model"
+domain: "language-modeling"
+financeCaseStudy: true
+rigorFlag: "Perplexity and bits per character are estimates on one finite text, not properties of a language. The law of large numbers and the standard errors treat held-out sentences as i.i.d., but ours come from a Pitman–Yor generator whose restaurants share state across a document — neither i.i.d. nor stationary — so the intervals are idealizations; Shannon–McMillan–Breiman is cited, not proved, and checked only on Markov chains. Bits per character depend on the character inventory (here lowercase letters, spaces, and sentence ends; digits and punctuation are dropped). The arithmetic code is exact only in unbounded precision. The open-vocabulary code is deficient, and its speller is a choice — the one that wins in domain loses out of domain. The bz2 and lzma 'given the training text' figures are differences of file sizes, not conditional codes. A closed-vocabulary <unk> perplexity is not a code length at all. Every ranking is evidence about one synthetic corpus, and several reverse out of domain."
+videoId: null
+notebookPath: "notebooks/perplexity-cross-entropy/01_perplexity_cross_entropy.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/perplexity-cross-entropy.mdx"
+datePublished: 2026-10-23
+estimatedReadTime: 40
+abstract: "Perplexity is usually read as a score. This topic reads it three more ways and proves each reading. As a forecast, held-out log-loss is a cross-entropy, and the logarithm is the score that rewards reporting one's true belief. As a branching factor, perplexity counts equally likely choices — exactly so by the asymptotic equipartition property, which we prove with the typical set's size. As a file size, an arithmetic coder turns any sequential model into a code within two bits of the model's negative log-probability: we prove McMillan's inequality, price coding with the wrong model at its KL divergence, and run an exact big-integer arithmetic coder on the whole held-out finance corpus, which becomes one codeword of 98,345 bits, 0.69 bits above the model's own figure. The file-size reading settles which unit makes models comparable. A string's total log-probability does not depend on how it is tokenized, so bits per character is comparable across tokenizers and per-token perplexity is not: a character 7-gram's perplexity of 1.67 looks ten times better than a word trigram's 17.38 and codes worse. Mapping words to an unknown-word symbol can only lower the reported loss. On public EDGAR filings, Kneser–Ney does worse than a uniform guess, most of its honest code is spelling, and lzma beats every model on the page."
+connections: []
+references:
+  - type: "paper"
+    title: "A Mathematical Theory of Communication"
+    authors: "Claude E. Shannon"
+    year: 1948
+    url: "https://doi.org/10.1002/j.1538-7305.1948.tb01338.x"
+    note: "Bell System Technical Journal 27 (3): 379–423. Entropy and source coding"
+  - type: "paper"
+    title: "Prediction and Entropy of Printed English"
+    authors: "Claude E. Shannon"
+    year: 1951
+    url: "https://doi.org/10.1002/j.1538-7305.1951.tb01366.x"
+    note: "Bell System Technical Journal 30 (1): 50–64. Estimating an entropy rate by prediction"
+  - type: "paper"
+    title: "The Basic Theorems of Information Theory"
+    authors: "Brockway McMillan"
+    year: 1953
+    url: "https://doi.org/10.1214/aoms/1177729028"
+    note: "Annals of Mathematical Statistics 24 (2): 196–219. The equipartition property for ergodic sources"
+  - type: "paper"
+    title: "Two Inequalities Implied by Unique Decipherability"
+    authors: "Brockway McMillan"
+    year: 1956
+    url: "https://doi.org/10.1109/TIT.1956.1056818"
+    note: "IRE Transactions on Information Theory 2 (4): 115–16. Theorem 3"
+  - type: "paper"
+    title: "The Individual Ergodic Theorem of Information Theory"
+    authors: "Leo Breiman"
+    year: 1957
+    url: "https://doi.org/10.1214/aoms/1177706899"
+    note: "Annals of Mathematical Statistics 28 (3): 809–11. Shannon–McMillan–Breiman almost surely"
+  - type: "paper"
+    title: "Generalized Kraft Inequality and Arithmetic Coding"
+    authors: "Jorma Rissanen"
+    year: 1976
+    url: "https://doi.org/10.1147/rd.203.0198"
+    note: "IBM Journal of Research and Development 20 (3): 198–203. Arithmetic coding"
+  - type: "paper"
+    title: "Perplexity — a Measure of the Difficulty of Speech Recognition Tasks"
+    authors: "Frederick Jelinek, Robert L. Mercer, Lalit R. Bahl, and James K. Baker"
+    year: 1977
+    url: "https://doi.org/10.1121/1.2016299"
+    note: "Journal of the Acoustical Society of America 62 (S1): S63. Perplexity named"
+  - type: "paper"
+    title: "Expected Information as Expected Utility"
+    authors: "José M. Bernardo"
+    year: 1979
+    url: "https://doi.org/10.1214/aos/1176344689"
+    note: "Annals of Statistics 7 (3): 686–90. The logarithmic score is the only proper local score"
+  - type: "paper"
+    title: "Data Compression Using Adaptive Coding and Partial String Matching"
+    authors: "John G. Cleary and Ian H. Witten"
+    year: 1984
+    url: "https://doi.org/10.1109/TCOM.1984.1096090"
+    note: "IEEE Transactions on Communications 32 (4): 396–402. PPM: adaptive models as coders"
+  - type: "paper"
+    title: "Present Position and Potential Developments: Some Personal Views. Statistical Theory: The Prequential Approach"
+    authors: "A. Philip Dawid"
+    year: 1984
+    url: "https://doi.org/10.2307/2981683"
+    note: "Journal of the Royal Statistical Society, Series A 147 (2): 278–92. Prequential coding"
+  - type: "paper"
+    title: "Arithmetic Coding for Data Compression"
+    authors: "Ian H. Witten, Radford M. Neal, and John G. Cleary"
+    year: 1987
+    url: "https://doi.org/10.1145/214762.214771"
+    note: "Communications of the ACM 30 (6): 520–40. Arithmetic coding in finite precision"
+  - type: "paper"
+    title: "A Sandwich Proof of the Shannon–McMillan–Breiman Theorem"
+    authors: "Paul H. Algoet and Thomas M. Cover"
+    year: 1988
+    url: "https://doi.org/10.1214/aop/1176991794"
+    note: "Annals of Probability 16 (2): 899–909. SMB via Markov approximations"
+  - type: "paper"
+    title: "An Estimate of an Upper Bound for the Entropy of English"
+    authors: "Peter F. Brown, Stephen A. Della Pietra, Vincent J. Della Pietra, Jennifer C. Lai, and Robert L. Mercer"
+    year: 1992
+    url: "https://aclanthology.org/J92-1002/"
+    note: "Computational Linguistics 18 (1): 31–40. A model's cross-entropy as an entropy bound"
+  - type: "book"
+    title: "Elements of Information Theory"
+    authors: "Thomas M. Cover and Joy A. Thomas"
+    year: 2006
+    url: "https://doi.org/10.1002/047174882X"
+    note: "2nd ed. Wiley. The AEP, Kraft–McMillan, and arithmetic coding"
+  - type: "paper"
+    title: "Strictly Proper Scoring Rules, Prediction, and Estimation"
+    authors: "Tilmann Gneiting and Adrian E. Raftery"
+    year: 2007
+    url: "https://doi.org/10.1198/016214506000001437"
+    note: "Journal of the American Statistical Association 102 (477): 359–78. Proper scoring rules"
+  - type: "paper"
+    title: "What Kind of Language Is Hard to Language-Model?"
+    authors: "Sabrina J. Mielke, Ryan Cotterell, Kyle Gorman, Brian Roark, and Jason Eisner"
+    year: 2019
+    url: "https://aclanthology.org/P19-1491/"
+    note: "Proceedings of ACL 2019, 4975–89. Comparing language models by total surprisal rather than per-token loss"
+  - type: "documentation"
+    title: "Data Compression and Archiving"
+    authors: "Python Software Foundation"
+    year: 2026
+    url: "https://docs.python.org/3/library/archiving.html"
+    note: "Python 3 documentation: zlib, bz2, and lzma, the reference coders"
+formalmlPrereqs:
+  - topic: "shannon-entropy"
+    site: "formalml"
+    relationship: "Kraft's inequality and the source-coding theorem are cited from there; this page adds McMillan's theorem, which extends Kraft to every uniquely decodable code, and makes the code exact with arithmetic coding."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "Cross-entropy is entropy plus KL divergence (its Proposition 1); that decomposition makes the log score strictly proper and prices coding with the wrong model at KL bits per symbol."
+formalmlConnections:
+  - topic: "minimum-description-length"
+    site: "formalml"
+    relationship: "An arithmetic code under a sequential model is a prequential code, and lzma's out-of-domain win on EDGAR text is adaptive (prequential) coding beating every static model."
+formalstatisticsPrereqs:
+  - topic: "law-of-large-numbers"
+    site: "formalstatistics"
+    relationship: "Held-out log-loss converges to the per-token cross-entropy because it is a ratio of two sample means over i.i.d. sentences, each governed by the strong law."
+  - topic: "central-limit-theorem"
+    site: "formalstatistics"
+    relationship: "The standard error of held-out perplexity comes from the CLT and the delta method applied to the ratio estimator, with sentences rather than tokens as the independent units."
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "Minimizing empirical cross-entropy is maximizing likelihood, and the log score's strict propriety is why maximum likelihood rewards a model for reporting its true beliefs."
+formalstatisticsConnections:
+  - topic: "large-deviations"
+    site: "formalstatistics"
+    relationship: "The AEP is proved here with Chebyshev's polynomial bound; Cramér's theorem sharpens the typical set's concentration to an exponential rate."
+  - topic: "model-selection-and-information-criteria"
+    site: "formalstatistics"
+    relationship: "Held-out log-loss and AIC estimate the same quantity — expected out-of-sample cross-entropy — one by holding data out, the other by correcting the in-sample fit."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import PerplexityCompressionLab from '../../components/viz/PerplexityCompressionLab.tsx';
+
+## Overview & Motivation
+
+Two language models score the same held-out finance text. One reports a perplexity of $1.665$, the other $17.38$. Which is better? As posed, the question has no answer. The first model is a character $7$-gram, so its perplexity is per character. The second is a word trigram, so its perplexity is per word. Put both on one unit and the order flips: the word model spends $0.637$ bits per character, and the character model $0.735$.
+
+This topic makes that comparison precise by reading a language model three ways, and proving each reading.
+
+1. **A forecaster scored by log-loss.** Held-out log-loss estimates a cross-entropy, and the logarithm is the score that rewards a forecaster for reporting what it actually believes.
+2. **A branching factor.** Perplexity counts the equally likely choices the model behaves as if it faced at each token. The asymptotic equipartition property makes "behaves as if" exact.
+3. **A compressor.** An arithmetic coder turns any sequential model into a code whose length is within two bits of the model's $-\log_2 Q(\text{text})$. So held-out cross-entropy is the size of the file the model would write. We run that coder on the whole held-out corpus of the [n-gram topic](/topics/n-gram-models-smoothing): $154{,}362$ characters become one codeword of $98{,}345$ bits, $0.69$ bits above the model's own figure.
+
+The file-size reading settles two questions the previous topics left open. The [subword topic](/topics/subword-tokenization-bpe-unigram) charged $-\log_2 p(t)$ bits for a piece $t$ and called it compression, and Theorem 4 makes that exact for a whole file. The n-gram topic reported log-loss per word, and Theorem 5 shows that comparing models across tokenizers needs a unit the tokenizer does not choose: characters, bytes, or words. Proposition 5 shows that the unknown-word convention can only flatter a model. The finance case study then takes everything out of domain, to public EDGAR filings, where a Kneser–Ney model predicts worse than a uniform guess and a stock `lzma` compressor beats every model on the page.
+
+---
+
+## Cross-entropy and the log score
+
+The n-gram topic's interpolated Kneser–Ney model scores $2.8551$ nats per token on held-out text: the average of $-\log Q(w_i \mid u_i)$ over its $23{,}055$ predicted tokens. In bits that is $4.119$ per token, and it already sounds like a code length. We start with what that average estimates.
+
+Throughout, a sentence is padded with two `<s>` symbols in front and one `</s>` behind, and every word and the final `</s>` is a predicted token. $V$ is the n-gram topic's vocabulary, $\lvert V \rvert = 3{,}427$. The **normalized string** of a sentence is its words joined by single spaces, followed by a sentence-end mark. Its **characters** are therefore each word's letters plus one separator after each word, a space or the sentence end. The held-out text has $2{,}049$ sentences, $23{,}055$ predicted tokens, and $154{,}362$ characters. Logarithms are natural (in nats) unless written $\log_2$ (in bits).
+
+<TheoremBlock type="definition" number={1} title="Cross-entropy, log-loss, and perplexity">
+
+For distributions $p$ and $q$ on a finite set, the **cross-entropy** of $q$ relative to $p$ is $H(p, q) = -\sum_x p(x) \log q(x)$, and $H(p) = H(p, p)$ is the entropy. A sequential model $Q$ scores a text $x_1 \dots x_n$ by its **negative log-likelihood**
+
+$$
+\mathrm{NLL} = -\log Q(x_1 \dots x_n) = -\sum_{i=1}^{n} \log Q(x_i \mid x_1 \dots x_{i-1}).
+$$
+
+For a **unit** occurring $n_{\text{unit}}$ times in the text (the model's own tokens, characters, or word tokens), the **log-loss per unit** is $\mathrm{NLL}/n_{\text{unit}}$, and the **perplexity per unit** is $\mathrm{PP}_{\text{unit}} = \exp(\mathrm{NLL}/n_{\text{unit}})$. **Bits per character** (bpc) is $\mathrm{NLL}/(n_{\text{char}} \ln 2)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={1} title="Cross-entropy is entropy plus divergence">
+
+$H(p, q) = H(p) + \mathrm{KL}(p \,\|\, q) \ge H(p)$, with equality if and only if $q = p$.
+
+</TheoremBlock>
+
+This is Proposition 1 of formalML's [KL divergence](https://www.formalml.com/topics/kl-divergence): expand $\log q = \log p - \log(p/q)$ and apply Gibbs' inequality. We use it as a tool, three times on this page.
+
+<TheoremBlock type="corollary" number={1} title="The log score is strictly proper">
+
+For every distribution $p$, the expected log-loss $\mathbb{E}_p[-\log q(X)]$ is minimized at $q = p$ and nowhere else.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\mathbb{E}_p[-\log q(X)] = H(p, q) = H(p) + \mathrm{KL}(p \,\|\, q)$. Only the divergence depends on $q$, and by Proposition 1 it is zero exactly at $q = p$.
+
+</TheoremBlock>
+
+A forecaster scored by log-loss does best, on average, by reporting its true belief. That is the property **strictly proper** names (Gneiting and Raftery 2007), and it is why training a language model by cross-entropy is maximum likelihood, the reading the n-gram topic proved for relative frequencies. Not every score has it. Under the linear score $\mathbb{E}_p[q(X)]$, putting all mass on the most likely outcome beats reporting $p$ itself. For more than two outcomes, the logarithm is the only proper score that depends on the forecast only through the probability given to what happened (Bernardo 1979).
+
+<TheoremBlock type="proposition" number={2} title="What a perplexity is">
+
+1. For a text of $N$ tokens with model probabilities $q_1, \dots, q_N$, the perplexity is $\mathrm{PP} = \bigl(\prod_{i} 1/q_i\bigr)^{1/N}$, the geometric mean of the inverse probabilities, which is at most their arithmetic mean.
+2. A model that is uniform on $k$ symbols has perplexity exactly $k$ on every text.
+3. For every distribution $p$, $1 \le e^{H(p)} \le \lvert \mathrm{supp}\, p \rvert$.
+4. Consequently, a perplexity above $\lvert V \rvert$ means the model did worse on that text than the uniform distribution on $V$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For (1), $\exp\bigl(-\frac1N \sum_i \log q_i\bigr) = \bigl(\prod_i q_i^{-1}\bigr)^{1/N}$, and the arithmetic–geometric mean inequality bounds it by $\frac1N \sum_i q_i^{-1}$. For (2), every $q_i = 1/k$. For (3), $H(p) \ge 0$, and $H(p) \le \log \lvert \mathrm{supp}\, p \rvert$ is Proposition 1 with $q$ uniform on the support of $p$. Statement (4) is (2) with $k = \lvert V \rvert$.
+
+</TheoremBlock>
+
+On the held-out text, interpolated Kneser–Ney's $2.8551$ nats per token is a perplexity of $17.38$: the model is as uncertain as if it chose uniformly among about seventeen words at each token. On the public EDGAR excerpts of the finance case study, the same model scores $8.7963$ nats, a perplexity of $6{,}610$. That is above $\lvert V \rvert = 3{,}427$, whose logarithm is $8.1394$, so on that text the model predicts worse than the uniform distribution over its own vocabulary. Modified Kneser–Ney ($8.6022$) does too. Laplace smoothing, which leans hardest toward uniform, scores $8.1326$ and stays just under the line.
+
+---
+
+## Perplexity as a branching factor
+
+Roll a three-sided die weighted $0.6$, $0.3$, and $0.1$ three hundred times. There are $3^{300}$ possible sequences, but the die does not visit them evenly. Almost all of its probability falls on a set that holds a fraction $4.8 \times 10^{-17}$ of the sequences, each of about the same probability. That set behaves like a uniform choice among $e^{H} = 2.455$ faces per roll, rather than three. This is the precise sense in which perplexity is a branching factor.
+
+<TheoremBlock type="theorem" number={1} title="The asymptotic equipartition property">
+
+Let $X_1, \dots, X_n$ be independent draws from $p$ on a finite alphabet, with entropy $H = H(p)$ and $\sigma^2 = \mathrm{Var}(-\log p(X_1))$. For $\varepsilon \gt 0$, the **typical set** is
+
+$$
+A = \Bigl\{ x_1 \dots x_n : \bigl\lvert -\tfrac1n \log p(x_1 \dots x_n) - H \bigr\rvert \le \varepsilon \Bigr\}.
+$$
+
+Then
+
+$$
+P(A) \;\ge\; 1 - \frac{\sigma^2}{n\varepsilon^2},
+\qquad
+\lvert A \rvert \;\le\; e^{n(H + \varepsilon)},
+\qquad
+\lvert A \rvert \;\ge\; P(A)\, e^{n(H - \varepsilon)}.
+$$
+
+For any model $q$ with $\tau^2 = \mathrm{Var}(-\log q(X_1))$, likewise $P\bigl(\lvert -\tfrac1n \log q(X_1 \dots X_n) - H(p, q) \rvert \le \varepsilon\bigr) \ge 1 - \tau^2/(n\varepsilon^2)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$-\log p(X_1 \dots X_n) = \sum_i -\log p(X_i)$ is a sum of $n$ independent terms, each with mean $H$ and variance $\sigma^2$. Chebyshev's inequality bounds the probability that its average leaves $[H - \varepsilon, H + \varepsilon]$ by $\sigma^2/(n\varepsilon^2)$, which is the first bound and the weak law of large numbers. Every sequence in $A$ has probability between $e^{-n(H + \varepsilon)}$ and $e^{-n(H - \varepsilon)}$. Summing the lower bound over $A$ gives $1 \ge P(A) \ge \lvert A \rvert e^{-n(H + \varepsilon)}$, the second bound. Summing the upper bound gives $P(A) \le \lvert A \rvert e^{-n(H - \varepsilon)}$, the third. The statement for $q$ is Chebyshev's inequality applied to the terms $-\log q(X_i)$, whose mean is $H(p, q)$.
+
+</TheoremBlock>
+
+So almost all the probability sits on between $e^{n(H - \varepsilon)}$ and $e^{n(H + \varepsilon)}$ sequences of nearly equal probability. Generating the text is then like choosing uniformly among $e^{H}$ options per symbol. A model that scores $-\frac1n \log q \approx H(p, q)$ assigns each typical sequence about the probability a uniform guesser among $e^{H(p, q)}$ options would. Its perplexity is that number of options.
+
+For the die, $H = 0.8979$ nats. Counting type classes exactly with $\varepsilon = 0.1$:
+
+| rolls $n$ | $P(A)$ | Chebyshev's floor | $\frac1n \log \lvert A \rvert$ |
+|---|---|---|---|
+| $40$ | $0.7504$ | $0.212$ | $0.9339$ |
+| $120$ | $0.9484$ | $0.737$ | $0.9619$ |
+| $300$ | $0.9979$ | $0.895$ | $0.9733$ |
+| $1{,}000$ | $1.0000$ | $0.968$ | $0.9797$ |
+
+The probability of the typical set climbs to one, and the growth rate of its size stays within $\varepsilon$ of $H$, as the theorem says. At $n = 300$ the set has $e^{292.0}$ members out of $3^{300} \approx e^{329.6}$. Formal statements of this kind are often quoted as "about $e^{nH}$ sequences." The table shows what "about" means: within $e^{\pm n\varepsilon}$, with $\varepsilon$ fixed while $n$ grows.
+
+---
+
+## From held-out text to cross-entropy
+
+A held-out log-loss is one number computed from one text, so it comes with an uncertainty. For interpolated Kneser–Ney there are two candidate standard errors: $0.0227$ if every token is an independent draw, and $0.0320$ if every sentence is. The second is right, and the reason is in what the held-out average estimates.
+
+<TheoremBlock type="definition" number={2} title="The sentence source">
+
+Sentences $S_1, S_2, \dots$ are independent and identically distributed finite token sequences, each ending in `</s>`. For a model $Q$, write $Y_j = -\log Q(S_j)$ for the negative log-likelihood of sentence $j$ and $N_j = \lvert S_j \rvert$ for its number of predicted tokens. The **per-token cross-entropy** of $Q$ against the source is $r = \mathbb{E}[Y_1]/\mathbb{E}[N_1]$.
+
+</TheoremBlock>
+
+<TheoremBlock type="theorem" number={2} title="Held-out log-loss is a ratio estimator">
+
+If $\mathbb{E}[N_1]$ and $\mathbb{E}[Y_1]$ are finite, the held-out per-token log-loss of $m$ sentences, $\hat r_m = \sum_{j \le m} Y_j \big/ \sum_{j \le m} N_j$, converges to $r$ almost surely. If the second moments are also finite, then
+
+$$
+\sqrt{m}\,(\hat r_m - r) \;\Rightarrow\; \mathcal{N}\!\left(0,\; \frac{\mathrm{Var}(Y_1 - r N_1)}{\mathbb{E}[N_1]^2}\right),
+$$
+
+and the variance of $\hat r_m$ is estimated consistently by
+
+$$
+\widehat{\mathrm{se}}^{\,2} = \frac{\sum_{j \le m} (Y_j - \hat r_m N_j)^2}{m(m-1)\,\bar N^{2}},
+\qquad \bar N = \frac1m \sum_{j \le m} N_j .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By the strong law of large numbers (formalStatistics, [Law of Large Numbers](https://www.formalstatistics.com/topics/law-of-large-numbers)), the sentence averages $\bar Y$ and $\bar N$ converge almost surely to $\mathbb{E}[Y_1]$ and $\mathbb{E}[N_1] \gt 0$, and $\hat r_m = \bar Y / \bar N$ is a continuous function of the pair away from $\bar N = 0$. For the limit law, write $\hat r_m - r = (\bar Y - r \bar N)/\bar N$. The numerator is the average of the independent terms $Y_j - r N_j$, which have mean $\mathbb{E}[Y_1] - r\,\mathbb{E}[N_1] = 0$. The central limit theorem (formalStatistics, [Central Limit Theorem](https://www.formalstatistics.com/topics/central-limit-theorem)) gives $\sqrt{m}\,(\bar Y - r \bar N) \Rightarrow \mathcal{N}(0, \mathrm{Var}(Y_1 - r N_1))$, and Slutsky's theorem divides by $\bar N \to \mathbb{E}[N_1]$. Replacing $r$ by $\hat r_m$ in the sample variance is consistent by the same two laws.
+
+</TheoremBlock>
+
+Two things follow. First, the held-out average estimates a ratio of means, not the mean of per-sentence averages, so long sentences count for more. Second, the independent unit is the sentence: tokens in one sentence share a history, so treating them as independent understates the error. On the corpus the sentence-level standard error is $1.41$ times the naive one.
+
+We checked the theorem where the answer is known exactly. For twenty random bigram sentence sources, absorbing-chain algebra gives $\mathbb{E}[Y_1]$ and $\mathbb{E}[N_1]$ in closed form. The held-out average of $20{,}000$ sampled sentences lands within four standard errors of $r$ every time, and in $400$ replications the interval $\hat r \pm 1.96\,\widehat{\mathrm{se}}$ covers $r$ at the nominal rate. On the held-out corpus:
+
+- interpolated Kneser–Ney scores $2.8551 \pm 0.0320$ nats per token;
+- modified Kneser–Ney minus interpolated Kneser–Ney, paired sentence by sentence, is $-0.0143 \pm 0.0006$, twenty-four standard errors from zero, although the two models' own intervals overlap;
+- the open-vocabulary code of the next section spends $0.6371 \pm 0.0065$ bits per character.
+
+Pairing removes the variation the two models share, which is most of it. Formal tests and the bootstrap belong to the later topic on significance testing.
+
+<TheoremBlock type="remark" title="Shannon–McMillan–Breiman (cited)">
+
+Sentences need not be independent for the held-out average to mean something. For a stationary ergodic source $P$ on a finite alphabet, $-\frac1n \log P(X_1 \dots X_n)$ converges almost surely to the **entropy rate** (McMillan 1953 in mean, Breiman 1957 almost surely). For a model $Q$ of finite Markov order with positive conditionals, $-\frac1n \log Q(X_1 \dots X_n)$ is an ergodic average of a function of finitely many coordinates, so Birkhoff's ergodic theorem sends it to the **cross-entropy rate**. Algoet and Cover (1988) prove the first statement by sandwiching between exactly such Markov approximations. The companion notebook checks both limits along single paths of length $10^5$ of random ergodic Markov chains, whose rates formalML's [Shannon Entropy](https://www.formalml.com/topics/shannon-entropy) computes in closed form.
+
+</TheoremBlock>
+
+<TheoremBlock type="corollary" number={2} title="Every model bounds the entropy rate">
+
+For a stationary source $P$ and any sequential model $Q$, $\mathbb{E}[-\log Q(X_1 \dots X_n)] \ge H(X_1, \dots, X_n)$ for every $n$. When the limits exist, the cross-entropy rate is therefore at least the entropy rate, with equality when $Q = P$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Apply Proposition 1 to the joint distributions of $n$ symbols: $\mathbb{E}[-\log Q(X_1 \dots X_n)] = H(X_1, \dots, X_n) + \mathrm{KL}(P_n \,\|\, Q_n)$, where $P_n$ and $Q_n$ are the two laws of the first $n$ symbols. Divide by $n$ and let $n$ grow.
+
+</TheoremBlock>
+
+So any model's held-out cross-entropy estimates an upper bound on the entropy rate of the source. Brown et al. (1992) bounded English at $1.75$ bits per character this way. For our generator the best code below gives $0.637$ bits per character. That figure comes from one held-out text, so it estimates the bound rather than certifying it.
+
+---
+
+## Compression is prediction
+
+A **binary code** gives each symbol $x$ a codeword $c(x)$ of $\ell(x)$ bits. It is **prefix-free** if no codeword begins another, and **uniquely decodable** if concatenations of codewords can be split back in only one way. Picture each codeword $c$ as an interval of $[0, 1)$. Read $c$ as a binary fraction $0.c$, and let it name the **dyadic interval** $[0.c,\ 0.c + 2^{-\ell})$, of length $2^{-\ell}$. A codeword that begins another names an interval containing the other's. So a prefix-free code is a set of disjoint dyadic intervals, and its lengths satisfy
+
+$$
+\sum_x 2^{-\ell(x)} \le 1 .
+$$
+
+This is **Kraft's inequality**. Conversely, any lengths satisfying it admit a prefix code: lay the intervals left to right in order of increasing length. Both directions, with Shannon's source-coding theorem $H \le \mathbb{E}[\ell] \lt H + 1$ (in bits), are proved in formalML's [Shannon Entropy](https://www.formalml.com/topics/shannon-entropy). We add the step that extends the converse from prefix codes to every uniquely decodable code.
+
+<TheoremBlock type="definition" number={3} title="Codes">
+
+A **binary code** on a finite set $\mathcal{X}$ is a map $c : \mathcal{X} \to \{0, 1\}^{\ast}$ with lengths $\ell(x) = \lvert c(x) \rvert$. Its **extension** sends a message $x_1 \dots x_m$ to the concatenation $c(x_1) \cdots c(x_m)$. The code is **uniquely decodable** if its extension is injective, and **prefix-free** if no codeword is a proper prefix of another.
+
+</TheoremBlock>
+
+<TheoremBlock type="theorem" number={3} title="McMillan's inequality">
+
+Every uniquely decodable code satisfies $\sum_x 2^{-\ell(x)} \le 1$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $K = \sum_x 2^{-\ell(x)}$ and let $\ell_{\max}$ be the longest codeword length. For each $m \ge 1$, multiply out the $m$-th power:
+
+$$
+K^m = \sum_{x_1, \dots, x_m} 2^{-(\ell(x_1) + \cdots + \ell(x_m))} = \sum_{j=1}^{m \ell_{\max}} A_j\, 2^{-j},
+$$
+
+where $A_j$ counts the messages of $m$ symbols whose concatenated codeword has exactly $j$ bits. Unique decodability makes those concatenations distinct strings of $j$ bits, and there are only $2^j$ such strings, so $A_j \le 2^j$ and $K^m \le m\,\ell_{\max}$. If $K \gt 1$, the left side grows exponentially in $m$ and the right side linearly, which is impossible for large $m$. So $K \le 1$.
+
+</TheoremBlock>
+
+Prefix codes therefore lose nothing: any lengths a uniquely decodable code achieves, a prefix code achieves too. The companion notebook checks the theorem exhaustively. Of the $1{,}365$ binary codes with three or four codewords of at most three bits, $587$ are uniquely decodable by the Sardinas–Patterson test, and $214$ of those are not prefix-free; $\{0, 01, 11\}$ is one. None violates Kraft's inequality, and none of the $182$ codes that violate it is uniquely decodable. A brute-force count of the parsings of every bit-string up to ten bits agrees with Sardinas–Patterson on all $1{,}365$ codes.
+
+<TheoremBlock type="proposition" number={3} title="Coding with the wrong model costs its divergence">
+
+For a model $q$, the **Shannon code** has lengths $\ell_q(x) = \lceil -\log_2 q(x) \rceil$. It is realized by a prefix code, and when symbols are drawn from $p$,
+
+$$
+H_2(p) + \mathrm{KL}_2(p \,\|\, q) \;\le\; \mathbb{E}_p[\ell_q] \;\lt\; H_2(p) + \mathrm{KL}_2(p \,\|\, q) + 1,
+$$
+
+where the subscript $2$ marks quantities in bits.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\sum_x 2^{-\ell_q(x)} \le \sum_x q(x) = 1$, so Kraft's inequality gives a prefix code with these lengths. Since $-\log_2 q(x) \le \ell_q(x) \lt -\log_2 q(x) + 1$, taking expectations under $p$ places $\mathbb{E}_p[\ell_q]$ in $[H_2(p, q),\, H_2(p, q) + 1)$, and Proposition 1 writes $H_2(p, q) = H_2(p) + \mathrm{KL}_2(p \,\|\, q)$.
+
+</TheoremBlock>
+
+The bits a model wastes per symbol, beyond the source's entropy, are its divergence from the source. For $p = (\tfrac12, \tfrac14, \tfrac18, \tfrac18)$ coded with the uniform model, the code spends $2$ bits per symbol: the entropy's $1.75$ plus a divergence of $0.25$. The rounding up to whole bits costs up to one more bit per symbol. Over a text of thousands of symbols that is thousands of bits, and the next theorem removes it.
+
+<TheoremBlock type="theorem" number={4} title="Arithmetic coding">
+
+Let $Q$ be a sequential model and $x = x_1 \dots x_n$ a message. Start from the interval $[0, 1)$. At step $i$, divide the current interval into consecutive slices, one per possible next symbol, the slice for symbol $s$ having a fraction $Q(s \mid x_1 \dots x_{i-1})$ of the interval's width, and keep the slice for $x_i$. The final interval $[a, a + Q(x))$ has width $Q(x)$. Let $L = \lceil -\log_2 Q(x) \rceil + 1$ and $b = \lceil a\, 2^{L} \rceil$, and let the codeword be the $L$-bit binary expansion of $b$. Then:
+
+1. the dyadic interval $[b/2^{L},\, (b + 1)/2^{L})$ lies inside $[a, a + Q(x))$;
+2. over any prefix-free set of messages (for example, all messages with a fixed number of symbols), these codewords form a prefix code;
+3. the shortest codeword whose dyadic interval fits has a length $L_{\min}$ with $-\log_2 Q(x) \le L_{\min} \le \lceil -\log_2 Q(x) \rceil + 1$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(1) By the choice of $L$, $2^{-L} \le Q(x)/2$. By the choice of $b$, $a \le b/2^{L} \lt a + 2^{-L}$, so $(b + 1)/2^{L} \lt a + 2 \cdot 2^{-L} \le a + Q(x)$. (2) The slices of an interval are disjoint, so by induction on the symbols, two messages that differ at some position have disjoint final intervals as long as neither is a prefix of the other. Their dyadic subintervals are then disjoint too. A codeword that began another would name a dyadic interval containing the other's, so neither codeword begins the other. (3) The upper bound is (1). For the lower bound, a dyadic interval of length $2^{-L}$ inside an interval of width $Q(x)$ needs $2^{-L} \le Q(x)$.
+
+</TheoremBlock>
+
+So the whole message costs at most two bits more than $-\log_2 Q(x)$, not one bit more per symbol. Our coder replaces each probability $q$ with an integer frequency $f = \lfloor q\,(2^{40} - \lvert \mathcal{A} \rvert) \rfloor + 1$, so every symbol of the alphabet $\mathcal{A}$ keeps a nonzero slice. It then carries the interval as exact big-integer fractions: with $T$ the total frequency and $\mathrm{cum}(s)$ the frequency of the symbols before $s$,
+
+$$
+A \leftarrow A\,T + W\,\mathrm{cum}(x_i),
+\qquad
+W \leftarrow W\,f(x_i),
+\qquad
+D \leftarrow D\,T,
+$$
+
+so that the interval is $[A/D,\ (A + W)/D)$ at every step. The bounds of Theorem 4 then hold exactly for the integer model. On $200$ random sequential models and messages, decoding recovers every message and the two-sided bound holds in exact integer arithmetic. Over all $243$ messages of five symbols from a three-symbol model, the codewords are prefix-free with Kraft sum at most one.
+
+To code real text, the model needs a way to write down words it has never seen.
+
+<TheoremBlock type="definition" number={4} title="The open-vocabulary word code">
+
+The **open-vocabulary** form of a word model codes a word in $V$ as one symbol. It codes any other word as `<unk>` followed by its letters and an end mark, which are spelled by a **speller**: a character trigram Kneser–Ney model fit to the $1{,}877$ word types that occur exactly once in training, the stand-ins for unseen words that Good–Turing reasoning suggests. The word history sees `<unk>`, as in the n-gram topic.
+
+</TheoremBlock>
+
+The speller can also spell words that are in $V$. That wastes a little code space, so the code is slightly **deficient**, but it never fails. Under interpolated Kneser–Ney, the entire held-out text — $24{,}768$ symbols, counting the letters of spelled words — becomes **one codeword of $98{,}345$ bits**. The model's own $-\log_2 Q$ is $98{,}344.31$, so the codeword is $0.69$ bits longer. Quantizing to integer frequencies costs less than $0.01$ bits in all, and decoding reproduces all $2{,}049$ sentences exactly. That is $0.6371$ bits per character. Coding each symbol separately with its Shannon code would take $114{,}900$ bits, $16.8\%$ more. The subword topic's reading of a unigram model as a code, $-\log_2 p(t)$ bits per piece, is now exact to within two bits for a whole file.
+
+<TheoremBlock type="proposition" number={4} title="A compressor is a model">
+
+If $C$ is a uniquely decodable code on a set of texts, then $q_C(x) = 2^{-\ell(x)}$ satisfies $\sum_x q_C(x) \le 1$, so the length of every compressed file is the negative log-probability, in bits, of the text under a sub-probability model. Conversely, Theorem 4 turns every sequential model into a code within two bits of its negative log-probability.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The first statement is Theorem 3, since $\ell(x) = -\log_2 q_C(x)$. The second is Theorem 4.
+
+</TheoremBlock>
+
+So compressors and language models can be ranked on one scale, bits per character. "Given the training text" means the coder may use the training corpus. For zlib that is a genuine conditional code, a $32$ KiB preset dictionary the decoder also holds. For bz2 and lzma it is the extra length $\lvert C(\text{train} + \text{test}) \rvert - \lvert C(\text{train}) \rvert$, an approximation to one.
+
+| bits per character | held out, alone | held out, given training text | EDGAR, alone | EDGAR, given training text |
+|---|---|---|---|---|
+| zlib, level 9 | $1.4763$ | $1.3763$ | $3.2661$ | $3.0269$ |
+| bz2, level 9 | $1.0404$ | $0.6771$ | $3.1244$ | $3.5542$ |
+| lzma, preset 9e | $1.2617$ | $0.9559$ | $3.4201$ | $\mathbf{2.9080}$ |
+| interpolated Kneser–Ney, arithmetic-coded | — | $\mathbf{0.6371}$ | — | $5.6607$ |
+
+In domain, the Kneser–Ney code beats every general-purpose compressor that sees the same training text. bz2 comes within $6\%$, because its block sort finds the corpus's long templated phrases. On the EDGAR excerpts the order reverses, and lzma beats every model on the page. lzma wins by adapting to the text it is coding, and Theorem 4 allows that too: $Q(x_i \mid x_1 \dots x_{i-1})$ may be learned from the symbols already coded, as long as the decoder can learn it the same way. This is prequential coding (Dawid 1984; formalML's [Minimum Description Length](https://www.formalml.com/topics/minimum-description-length)), and adaptive models like PPM (Cleary and Witten 1984) were built on it.
+
+---
+
+## Choosing the unit
+
+One model, one text, two perplexities. On the $1{,}903$ held-out sentences made only of in-vocabulary words, interpolated Kneser–Ney (with `<unk>` removed and the rest renormalized) has a perplexity of $15.71$ per word token and $1.513$ per character. Nothing about the model changed between the two numbers, only the count we divided by.
+
+<TheoremBlock type="theorem" number={5} title="Tokenization invariance">
+
+Let $P$ be a distribution on strings, each ending in an end mark, and let $\tau$ be an injective tokenizer from strings to token sequences. The token model $Q_\tau(t) = P(\tau^{-1}(t))$ satisfies $\log Q_\tau(\tau(s)) = \log P(s)$ for every string $s$. Consequently, for a text $T$ and any two units $A$ and $B$ occurring $n_A$ and $n_B$ times in it,
+
+$$
+n_A \log \mathrm{PP}_A \;=\; n_B \log \mathrm{PP}_B \;=\; -\log P(T),
+$$
+
+and every unit whose count does not depend on the model (characters, bytes, word tokens) ranks any set of models identically.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The chain rule over tokens multiplies the conditionals of the single distribution $Q_\tau$, the image of $P$ under $\tau$. Because $\tau$ is injective, the string $s$ corresponds to the one token sequence $\tau(s)$, so $Q_\tau(\tau(s)) = P(s)$. The unit identity is $\mathrm{NLL} = n_{\text{unit}} \cdot (\mathrm{NLL}/n_{\text{unit}})$ for each unit. A unit whose count is the same for every model divides every model's total by one constant, which preserves the order.
+
+</TheoremBlock>
+
+The theorem is close to bookkeeping, and its force is in what it rules out. A per-token perplexity divides a model's total by the number of tokens *its own tokenizer* produced. Two models with different tokenizers divide by different numbers, so their per-token perplexities measure model quality and token length together.
+
+The construction behind it shows that a word model really is a character model. Let $Q'$ be the word model with `<unk>` removed and renormalized, a proper distribution on sentences of in-vocabulary words. After a context $u$, the words beginning with a partial word $\pi$ form a contiguous block of the sorted vocabulary, with total probability
+
+$$
+M(\pi) = \sum_{w \text{ begins with } \pi} Q'(w \mid u).
+$$
+
+The next letter $c$ then has probability $M(\pi c)/M(\pi)$. Write $s(u)$ for the probability $Q'$ gives `</s>` after the context $u$. The character after a complete word $w$ is its separator, with
+
+$$
+P(\text{sentence end} \mid w) = \frac{Q'(w \mid u)}{M(w)}\, s(u'),
+\qquad
+P(\text{space} \mid w) = \frac{Q'(w \mid u)}{M(w)}\,\bigl(1 - s(u')\bigr),
+$$
+
+where $u'$ is the context after $w$. After a space the next word cannot be `</s>`, so the first letter is normalized by $1 - s(u)$ instead of $1$. Each word's factors telescope to $Q'(w \mid u)$, and the separators carry the decisions to stop. On all $1{,}903$ sentences, the character factorization and the word factorization agree to $10^{-9}$. The character view also shows where a model spends its bits. In *halvorsen reported revenue …*, the first letter of *halvorsen* costs $4.80$ bits and the next eight cost almost nothing. The first letter of *reported* costs $4.98$.
+
+Now compare models built on different tokenizers. Each row is a Kneser–Ney model of the order shown, scored on the same held-out text:
+
+| model | tokens per character | nats per token | perplexity per token | **bits per character** | perplexity per word token |
+|---|---|---|---|---|---|
+| character 3-gram | $1.0000$ | $1.7146$ | $5.555$ | $2.4737$ | $96{,}772$ |
+| character 5-gram | $1.0000$ | $0.6913$ | $1.996$ | $0.9974$ | $102.4$ |
+| character 7-gram | $1.0000$ | $0.5095$ | $\mathbf{1.665}$ | $0.7351$ | $30.31$ |
+| BPE, $\lvert V \rvert = 100$, 5-gram | $0.6575$ | $0.7628$ | $2.144$ | $0.7236$ | $28.73$ |
+| BPE, $\lvert V \rvert = 400$, 5-gram | $0.4433$ | $1.0398$ | $2.829$ | $0.6650$ | $21.89$ |
+| BPE, $\lvert V \rvert = 1{,}870$, 5-gram | $0.2950$ | $1.5235$ | $4.588$ | $0.6483$ | $20.26$ |
+| word trigram, open vocabulary | $0.1494$ | $2.9567$ | $19.23$ | $\mathbf{0.6371}$ | $19.23$ |
+| word trigram, `<unk>` as one event — not a code | $0.1494$ | $2.8551$ | $17.38$ | ($0.6152$) | $17.38$ |
+
+The BPE vocabularies are the subword topic's tokenizer, and $1{,}870$ pieces is the minimum of its two-part description length. Per-token perplexity calls the character $7$-gram the best model by a wide margin. In bits per character it ranks fifth of seven, and the open word trigram ranks first. Bits per character and perplexity per word token order the models identically, as Theorem 5 requires. Per-token perplexity rewards short tokens: a token that carries less of the text is easier to predict. The models also see different amounts of context — $6$ characters for the $7$-gram, about $13$ for both the word trigram and the largest BPE model — so the table compares models as built, not tokenizers in isolation.
+
+The last row is not a code at all, which is the next point.
+
+<TheoremBlock type="proposition" number={5} title="The unknown-word convention can only flatter">
+
+Let a closed-vocabulary model give the symbol `<unk>` probability $q_{\mathrm{unk}}(u)$ after a context $u$, and let an open completion spell each out-of-vocabulary word $w$ with probability $S(w \mid \cdot)$, where $\sum_w S(w \mid \cdot) \le 1$. Then
+
+$$
+-\log Q_{\text{open}}(\text{text}) = -\log Q_{\text{closed}}(\text{text}) - \sum_{\text{OOV words}} \log S(w \mid \cdot) \;\ge\; -\log Q_{\text{closed}}(\text{text}).
+$$
+
+The closed score is not the length of any code for the text, because it gives one probability to infinitely many different strings.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The open model's probability of the text is the closed model's probability times one spelling factor for each out-of-vocabulary word, and each factor is at most one. Two texts that differ only in their unknown words receive the same closed probability, so the closed probabilities do not sum to one over texts.
+
+</TheoremBlock>
+
+How much the convention flatters depends on how many words it hides. Send every word seen at most $k$ times in training to `<unk>`, refit interpolated Kneser–Ney, and train the speller on the training occurrences of those words:
+
+| $k$ | $\lvert V_k \rvert$ | out-of-vocabulary tokens | perplexity per token, closed | bits per character, open | EDGAR, closed perplexity | EDGAR, open bpc |
+|---|---|---|---|---|---|---|
+| $0$ (the n-gram topic's $V$) | $3{,}427$ | $0.67\%$ | $17.38$ | $0.6371$ | $6{,}610$ | $5.6605$ |
+| $1$ | $1{,}550$ | $9.13\%$ | $7.99$ | $0.7483$ | $176.2$ | $4.8598$ |
+| $4$ | $879$ | $13.14\%$ | $5.36$ | $0.7954$ | $138.1$ | $4.8670$ |
+| $16$ | $483$ | $16.37\%$ | $4.35$ | $0.8827$ | $93.24$ | $4.4244$ |
+| $64$ | $217$ | $27.35\%$ | $3.69$ | $1.2594$ | $29.42$ | $3.9103$ |
+| all words | $2$ | $91.11\%$ | $\mathbf{1.33}$ | $2.5339$ | $1.21$ | $3.6760$ |
+
+In domain, every step down in vocabulary lowers the closed perplexity and lengthens the honest code. A model that knows no words at all, and predicts only `<unk>` or `</s>`, reports a perplexity of $1.33$. On EDGAR the honest code instead falls from $5.66$ to $3.68$ bits per character as the cutoff rises, though not at every step. Out of domain, the word model's vocabulary is worth less than a speller trained on more words.
+
+---
+
+## Coding a sentence, choosing a unit
+
+The laboratory makes the last two sections visible. In panel A, pick a sentence and a smoother, then step through the symbols. Each row is the current interval, stretched to full width and cut into the slices of the likeliest next symbols. The chosen slice becomes the next row. The ticker below shows the bits of the codeword that are already settled. Under interpolated Kneser–Ney the in-domain sentence costs $16$ bits, and Laplace smoothing needs $60$. In the second sentence, the unknown word *nonroyaltys* (the subword topic's running example) costs $35.9$ of the sentence's $65$ bits: $14.6$ for `<unk>` and $21.3$ for its letters. On the EDGAR sentence the smoothers trade places. Panel B ranks the table's models by the unit you choose, and its slider moves the unknown-word cutoff: the closed perplexity falls toward one while the honest code grows.
+
+<PerplexityCompressionLab client:visible />
+
+---
+
+## Finance case study: out of domain, the zip file wins
+
+<FinanceCaseStudy title="Finance case study: out of domain, the zip file wins">
+
+The n-gram topic found that on three public EDGAR MD&A excerpts, where $57.59\%$ of tokens are words the model never saw, Laplace smoothing beats Kneser–Ney. This page reads that reversal four ways.
+
+**Worse than guessing.** Interpolated Kneser–Ney's per-token perplexity on EDGAR is $6{,}610$, nearly twice $\lvert V \rvert = 3{,}427$. By Proposition 2 it predicts worse than the uniform distribution over its own vocabulary. The model learned how this generator's text continues, and on real filings that knowledge is worse than none.
+
+**What `<unk>` hides.** Counted with `<unk>` as one event, the same model's EDGAR score converts to $2.0067$ "bits per character", which would beat lzma's $2.9080$. Coded honestly, with every unknown word spelled out, it is $5.6605$ bits per character, and $64.5\%$ of those bits are spelling (in domain, $3.4\%$). In honest units the three smoothers rank Laplace ($5.509$), modified Kneser–Ney ($5.616$), then interpolated Kneser–Ney ($5.661$). The laboratory's EDGAR sentence, *book reserves are established for these plans*, shows the same order: $225$, $231$, and $233$ bits.
+
+**The speller overfits too.** The trigram speller, fit to the corpus's planted pseudo-words, beats a plain letter-frequency speller in domain ($0.6371$ against $0.6612$ bits per character) and loses to it on real English ($5.6605$ against $4.9351$). Every component fit to the training distribution pays for the shift.
+
+**The zip file wins.** Given the training text, lzma codes EDGAR at $2.908$ bits per character. The best static model on the page is the $400$-piece BPE $5$-gram at $3.646$. Among the character models, the $3$-gram ($3.720$) beats both the $7$-gram ($3.748$) and the $5$-gram ($4.105$): out of domain, more context is more to unlearn. lzma wins because it adapts within the document it is coding, which no model here does. For a model meant to read filings it was not trained on, that is the case for conditioning on the text so far — cache models first, and eventually the in-context prediction of large language models.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Neural language models.** They are trained by minimizing exactly the cross-entropy of Corollary 1, and reported in perplexity per token of their own tokenizer, which Theorem 5 says to convert before comparing.
+- **Scaling laws.** Loss-versus-compute curves are fit in nats per token. Theorem 5 says such curves are comparable only within one tokenizer; across tokenizers, a tokenizer-free unit is needed. The fits themselves are empirical.
+- **Adaptive prediction.** lzma's EDGAR win is a model that learns from the text it is coding. Cache models, neural models with long contexts, and in-context learning are increasingly capable versions of the same idea.
+- **Calibration and testing.** Strict propriety says the log score rewards honest probabilities on average; the calibration topic asks whether a model's probabilities are honest event by event. Differences like $-0.0143 \pm 0.0006$ are the raw material of the significance-testing topic.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Estimates, not constants.** Perplexity and bits per character are measured on one finite text. They are not properties of a language, and they change with the text.
+2. **The independence is assumed.** Theorem 2's standard errors treat held-out sentences as independent and identically distributed. Ours come from a Pitman–Yor generator whose restaurants carry state across a document, which is neither independent nor stationary, so the intervals are idealizations. Shannon–McMillan–Breiman is cited, not proved, and checked only on Markov chains.
+3. **Characters are a choice too.** Bits per character depend on the character inventory: here lowercase letters, spaces, and sentence ends, with digits and punctuation dropped. A byte-level count on raw text would give other numbers.
+4. **Exactness has conditions.** The arithmetic coder is exact because it uses unbounded-precision integers. Practical coders work in finite precision and lose a little.
+5. **The open-vocabulary code is one design.** It is slightly deficient, and its speller is a modeling choice. The speller that wins in domain loses out of domain.
+6. **Two compressor figures are approximations.** For bz2 and lzma, "given the training text" is a difference of file sizes, not a conditional code. Only the zlib figure is a genuine conditional code.
+7. **A closed-vocabulary perplexity is not a code length.** It gives one probability to infinitely many strings, so no file has that size.
+8. **One corpus.** Every ranking on this page is evidence about one synthetic corpus, and several rankings reverse out of domain.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `perplexity_cross_entropy.py`, which owns every number on this page and imports the n-gram topic's smoothers, the subword topic's BPE, and the shared finance corpus. Running it as a script executes a harness of $23$ assertion-based tests in under twenty seconds on a laptop CPU. The tests cover:
+
+- Proposition 1 against SciPy's entropy and divergence, Corollary 1, Proposition 2, and the out-of-domain comparison with the uniform model.
+- Theorem 1 exactly, by summing over type classes, on random sources, for the model version as well.
+- Theorem 2 against exact targets from absorbing-chain algebra, the coverage of its intervals, and the corpus standard errors; the Shannon–McMillan–Breiman limits on Markov chains; Corollary 2 by exact enumeration.
+- Kraft's inequality both ways, Theorem 3 exhaustively with Sardinas–Patterson cross-checked by brute force, and Proposition 3 on random pairs.
+- Theorem 4 on random models, and on the whole held-out and EDGAR texts, decoded back exactly.
+- The vectorized models against the n-gram topic's scalar recursions, Theorem 5's character factorization on every in-vocabulary sentence, the unit table, Proposition 5 and the cutoff table, and the finance case study.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

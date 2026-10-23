@@ -21,7 +21,7 @@
     {
       "id": "perplexity-cross-entropy",
       "label": "Perplexity, Cross-Entropy, and Compression",
-      "status": "planned",
+      "status": "published",
       "domain": "language-modeling"
     },
     {
