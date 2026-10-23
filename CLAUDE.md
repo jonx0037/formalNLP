@@ -63,12 +63,21 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
 - A dependent topic's `.py` **imports** its prereq's `.py`, never reimplements it: add the prereq's
   hyphenated dir to `sys.path`, import its underscored module. Finance case studies import
   `notebooks/finance-corpus/finance_corpus.py`.
+- `fc.generate_corpus(100, 1)` is a *fresh* generator run (Pitman–Yor restaurants restart from the
+  same seed nouns), not a continuation; for "the same text continued", rebuild with `fc._CorpusGen`
+  (see `continuation_run` in `notebooks/n-gram-models-smoothing/`).
+- Lab data is `src/components/viz/data/<lab>.json` = `json.dumps(viz_payload(), separators=(',', ':'))`,
+  pinned by the `.py`'s `test_viz_mirror_matches_payload` — regenerate it, never hand-edit.
 - `rigorFlag` is load-bearing. Honesty is the differentiator.
 - **`pnpm build` passing ≠ math correct.** KaTeX is non-strict: parse errors render as
   `.katex-error` spans and the build still exits 0. Open the page and assert zero `.katex-error`.
+- MDX: a bare `<` is JSX — use `\lt`/`\gt` in math, backtick `<s>`/`</s>`/`<unk>`. Long inline
+  number lists get one `$…$` per number (one KaTeX span can't wrap); at the mobile preset assert
+  `innerWidth === 375`.
 - **Verify with DOM checks, not screenshots.** Viz uses `client:visible`: `scrollIntoView` and wait
-  ~1–1.5 s before interacting. `/paths`' graph is `hidden md:block` — a narrow or background
-  browser pane never hydrates it; use a foreground pane at desktop width. Scope DOM assertions to
+  ~1–1.5 s before interacting. A hidden browser pane never hydrates any island (server-rendered
+  readouts still look right) — show the preview pane first; `/paths`' graph is also
+  `hidden md:block`, so use desktop width. Scope DOM assertions to
   the lab container (pages carry other SVGs). React-controlled range sliders ignore synthesized
   `input` events — drive them with a real key press after `focus()`.
 - Deeper, topic-specific lessons from 50 shipped topics (numerical traps, nbformat generation,
@@ -84,6 +93,7 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
 - Cover ANN indexes, vector databases, quantization, or retrieval models (TF-IDF, BM25, dense
   retrieval, rerankers) — formalRAG owns them; cross-link instead.
 - Cover agentic topics (MCP, tool calling, workflows, agent security) — reserved for formalAgentic.
-- Cite a sibling slug without checking it exists **and** is `status: published`.
+- Cite a sibling slug without checking it exists **and** is `status: published` on the sibling's
+  GitHub `main` — a local sibling checkout can lag or sit on another branch.
 - Hardcode hex colors in components — use the `--color-*` tokens.
 - Commit `docs/plans/audit-output/`, `cross-site-audit-report.md`, or `deferred-reciprocals.md`.
