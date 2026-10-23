@@ -908,13 +908,15 @@ def context_distribution(name: str, u: NGram, D: float | None = None) -> dict[st
 
 
 def _summarize(p: dict[str, float] | None, u: NGram) -> dict | None:
+    """Top LAB_TOP words as [word, probability, training count c(u w)] (0 = never seen after u), then the
+    rest split into seen and unseen mass, the unseen mass in all, and the watch word's [probability, rank]."""
     if p is None:
         return None
-    seen = _followers().get(u, frozenset())
+    seen, c3 = _followers().get(u, frozenset()), train_counts()[ORDER]
     order = sorted(p, key=lambda w: (-p[w], w))
     top = order[:LAB_TOP]
     rest = order[LAB_TOP:]
-    return {"top": [[w, round(p[w], 6), w in seen] for w in top],
+    return {"top": [[w, round(p[w], 6), c3.get(u + (w,), 0)] for w in top],
             "rest_seen": round(sum(p[w] for w in rest if w in seen), 6),
             "rest_unseen": round(sum(p[w] for w in rest if w not in seen), 6),
             "unseen_mass": round(sum(q for w, q in p.items() if w not in seen), 6),
@@ -1399,6 +1401,19 @@ def test_viz_payload():
     unk = p["contexts"][4]
     assert unk["by_d"]["absdisc"][6]["watch"][1] < 50 < 1000 < unk["by_d"]["ikn"][6]["watch"][1]
     assert p["logloss"]["katz"] is None and p["logloss"]["katz_zero_events"] > 0
+    ikn = p["logloss"]["by_d"]["ikn"]
+    assert 0 < ikn.index(min(ikn)) < len(ikn) - 1  # the slider shows an interior minimum
+
+
+VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / "data" / "n-gram-smoothing-lab.json"
+
+
+def test_viz_mirror_matches_payload():
+    """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
+    Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
+    import json
+
+    assert json.loads(VIZ_JSON.read_text()) == json.loads(json.dumps(viz_payload())), VIZ_JSON
 
 
 def _run_harness() -> int:

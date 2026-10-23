@@ -439,6 +439,23 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with nltk==3.10.4 --with jupyt
 - Doc hygiene: STARTER-PROMPT.md A4's "Known drafts at scaffold time" and the scaffold plan's "Blockers to
   watch" line — `empirical-bayes` is published.
 
-## 11. Phase B record
+## 11. Phase B record (2026-10-23)
 
-*(Filled in at ship.)*
+- Page numbering matches the brief (Defs 1–6, Props 1–6, Thms 1–4, Cor 1); remarks unnumbered. The lab
+  is embedded after §7 as planned, opening "The smoothers side by side"; the Overview points forward to it.
+- The payload's top-word entries became `[word, probability, training count c(u w)]` (was a seen flag) so
+  Panel B's hover highlight ships: hovering r lights the words seen exactly r times after the context.
+  `test_viz_mirror_matches_payload` requires `src/components/viz/data/n-gram-smoothing-lab.json` to equal
+  `viz_payload()` exactly, and `test_viz_payload` now asserts the slider's interior minimum (harness 28/28).
+- Long inline number lists were split into one inline formula per number: a single KaTeX span cannot wrap
+  and overflowed a 375-px viewport.
+- Gates: `pnpm test` 39/39; `astro sync` and `pnpm validate` clean; `pnpm audit:cross-site` exits 0 with
+  the six outward links as missing reciprocals (expected) and no deferred or drifted targets; `pnpm build`
+  exits 0. The local formalStatistics checkout already held published Topic 33, so no export was needed.
+- DOM checks on the built page (foreground pane, desktop width): 0 `.katex-error`, 414 `.katex`; the island
+  hydrates (10 bars, 5 Panel B series, 8 hover targets). Readouts equal the payload for interpolated KN at
+  D = 0.7, 0.9, 1.0 (log-loss 2.889, 2.850, 2.883), Katz on `in osaka` (unseen mass 0, "∞ — 3 events"),
+  `the ⟨unk⟩` (`industrial` #27 under absolute discounting, #1,259 under KN), the MLE's undefined state, and
+  the r = 2 hover (lights `halvorsen`, `marrow`, `ostrander`). At 375 px no visible element overflows.
+- Known, pre-existing: KaTeX's visually hidden MathML is absolutely positioned and can widen the layout
+  viewport on phones (Topic 2 shows it too); a site-wide CSS fix, not part of this topic.

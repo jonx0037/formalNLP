@@ -128,8 +128,11 @@ real prose:
 
 **Verify the target slug exists AND is `status: published` on the sibling before citing it — do not
 invent.** Fast check: `ls ../<sibling>/src/content/topics/` and
-`grep '^status:' ../<sibling>/src/content/topics/<slug>.mdx`. Known drafts at scaffold time:
-formalStatistics `empirical-bayes` and `hidden-markov-models`.
+`grep '^status:' ../<sibling>/src/content/topics/<slug>.mdx`. A sibling checkout can lag its GitHub
+`main` (or sit on another branch), so the authority is `main` itself:
+`gh api "repos/jonx0037/<sibling>/contents/src/content/topics/<slug>.mdx?ref=main" --jq .content | base64 -d | grep '^status:'`.
+Known drafts at scaffold time: formalStatistics `empirical-bayes` (published 2026-10-23) and
+`hidden-markov-models`.
 **Reverse links on the siblings are NOT added per topic** — they are batched into one PR per sibling
 at launch (design doc §10.4). Do not touch sibling repos.
 

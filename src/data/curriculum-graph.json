@@ -15,7 +15,7 @@
     {
       "id": "n-gram-models-smoothing",
       "label": "n-Gram Language Models and Smoothing: From Laplace to Kneser–Ney",
-      "status": "planned",
+      "status": "published",
       "domain": "language-modeling"
     },
     {
