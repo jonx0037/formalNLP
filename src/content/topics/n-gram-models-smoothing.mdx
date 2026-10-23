@@ -1,0 +1,612 @@
+---
+title: "n-Gram Language Models and Smoothing: From Laplace to Kneser–Ney"
+subtitle: "Every smoother is a guess about the words we have not seen — read three ways as empirical Bayes: a Dirichlet prior fit to the data, Robbins' formula on word counts, and Kneser–Ney as a hierarchical Pitman–Yor posterior"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "zipf-heaps-vocabulary-statistics"
+tags:
+  - "n-gram"
+  - "smoothing"
+  - "good-turing"
+  - "kneser-ney"
+  - "empirical-bayes"
+  - "pitman-yor"
+  - "language-model"
+domain: "language-modeling"
+financeCaseStudy: true
+rigorFlag: "The n-gram Markov assumption is false for language; these models are estimators, not truths. Katz's Good–Turing cutoff, Simple Good–Turing's log-linear fit, absolute discounting's constant D, and modified Kneser–Ney's three discounts are heuristics — only the leave-one-out bound D* ≤ n₁/(n₁ + 2n₂) is proved, and Ney's familiar estimate is that bound, not the optimum. Kneser–Ney's marginal matching is exact only for interpolated models with one discount per order; modified KN's lower orders do not preserve the marginals. The HPYLM identity holds for one particular seating; the sampled HPYLM is MCMC run for 40 sweeps with no convergence guarantee. Good–Turing's unseen mass forecasts the continuation of the same process, not new text from another source. The corpus is synthetic and templated, so the ranking of smoothers is evidence about this corpus — out of domain it reverses."
+videoId: null
+notebookPath: "notebooks/n-gram-models-smoothing/01_n_gram_models_smoothing.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/n-gram-models-smoothing.mdx"
+datePublished: 2026-10-23
+estimatedReadTime: 45
+abstract: "An n-gram language model predicts the next word from the few before it, and counting is its obvious estimator. Counting fails on the first sentence it has not seen: a third of our held-out trigrams never occur in training, and the maximum-likelihood model gives them probability zero. Every smoother is a guess about that unseen mass, and we read the classical guesses three ways as empirical Bayes. Additive smoothing is a Dirichlet posterior mean whose strength we fit by Type-II maximum likelihood. Good–Turing's adjusted count is Robbins' formula with word types in place of insurance policy holders, and we prove its missing-mass identity exactly. Katz backoff, absolute discounting (with a proof that Ney's discount estimate is an upper bound on the leave-one-out optimum), and Kneser–Ney follow, the last derived from a marginal constraint whose unique solution is the continuation count. Finally, interpolated Kneser–Ney is exactly the predictive of a hierarchical Pitman–Yor language model in which every word sits at one table, and a Gibbs-sampled version of that model predicts best of all. A finance case study asks what each estimate is an estimate of: Good–Turing forecasts the new-word rate of the same text continued to within two percent, and misses by a factor of four to twenty-one on anything else."
+connections: []
+references:
+  - type: "paper"
+    title: "The Population Frequencies of Species and the Estimation of Population Parameters"
+    authors: "I. J. Good"
+    year: 1953
+    url: "https://doi.org/10.1093/biomet/40.3-4.237"
+    note: "Biometrika 40 (3/4): 237–64. The Good–Turing estimate"
+  - type: "paper"
+    title: "An Empirical Bayes Approach to Statistics"
+    authors: "Herbert Robbins"
+    year: 1956
+    url: "https://projecteuclid.org/euclid.bsmsp/1200501653"
+    note: "Proceedings of the Third Berkeley Symposium on Mathematical Statistics and Probability, vol. 1, 157–63. Robbins' formula"
+  - type: "paper"
+    title: "Estimating the Number of Unseen Species: How Many Words Did Shakespeare Know?"
+    authors: "Bradley Efron and Ronald Thisted"
+    year: 1976
+    url: "https://doi.org/10.1093/biomet/63.3.435"
+    note: "Biometrika 63 (3): 435–47. Good–Turing on words, read as empirical Bayes"
+  - type: "book"
+    title: "Computer Age Statistical Inference"
+    authors: "Bradley Efron and Trevor Hastie"
+    year: 2016
+    url: "https://doi.org/10.1017/CBO9781316576533"
+    note: "Cambridge University Press. Table 6.1, the insurance claims behind Robbins' formula"
+  - type: "paper"
+    title: "Estimation of Probabilities from Sparse Data for the Language Model Component of a Speech Recognizer"
+    authors: "Slava M. Katz"
+    year: 1987
+    url: "https://doi.org/10.1109/TASSP.1987.1165125"
+    note: "IEEE Transactions on Acoustics, Speech, and Signal Processing 35 (3): 400–401. Katz backoff"
+  - type: "paper"
+    title: "A Comparison of the Enhanced Good–Turing and Deleted Estimation Methods for Estimating Probabilities of English Bigrams"
+    authors: "Kenneth W. Church and William A. Gale"
+    year: 1991
+    url: "https://doi.org/10.1016/0885-2308(91)90016-J"
+    note: "Computer Speech & Language 5 (1): 19–54. Good–Turing discounts are nearly constant"
+  - type: "paper"
+    title: "On Structuring Probabilistic Dependences in Stochastic Language Modelling"
+    authors: "Hermann Ney, Ute Essen, and Reinhard Kneser"
+    year: 1994
+    url: "https://doi.org/10.1006/csla.1994.1001"
+    note: "Computer Speech & Language 8 (1): 1–38. Absolute discounting and its leave-one-out discount"
+  - type: "paper"
+    title: "Improved Backing-Off for M-Gram Language Modeling"
+    authors: "Reinhard Kneser and Hermann Ney"
+    year: 1995
+    url: "https://doi.org/10.1109/ICASSP.1995.479394"
+    note: "ICASSP 1995, vol. 1, 181–84. Continuation counts from a marginal constraint"
+  - type: "paper"
+    title: "Good–Turing Frequency Estimation without Tears"
+    authors: "William A. Gale and Geoffrey Sampson"
+    year: 1995
+    url: "https://doi.org/10.1080/09296179508590051"
+    note: "Journal of Quantitative Linguistics 2 (3): 217–37. Simple Good–Turing"
+  - type: "paper"
+    title: "A Hierarchical Dirichlet Language Model"
+    authors: "David J. C. MacKay and Linda C. Bauman Peto"
+    year: 1995
+    url: "https://doi.org/10.1017/S1351324900000218"
+    note: "Natural Language Engineering 1 (3): 289–308. Dirichlet shrinkage toward the lower order"
+  - type: "paper"
+    title: "The Two-Parameter Poisson–Dirichlet Distribution Derived from a Stable Subordinator"
+    authors: "Jim Pitman and Marc Yor"
+    year: 1997
+    url: "https://doi.org/10.1214/aop/1024404422"
+    note: "Annals of Probability 25 (2): 855–900. The Pitman–Yor process"
+  - type: "paper"
+    title: "An Empirical Study of Smoothing Techniques for Language Modeling"
+    authors: "Stanley F. Chen and Joshua Goodman"
+    year: 1999
+    url: "https://doi.org/10.1006/csla.1999.0128"
+    note: "Computer Speech & Language 13 (4): 359–94. Interpolated and modified Kneser–Ney"
+  - type: "paper"
+    title: "Concentration Inequalities for the Missing Mass and for Histogram Rule Error"
+    authors: "David McAllester and Luis Ortiz"
+    year: 2003
+    url: "https://www.jmlr.org/papers/v4/mcallester03a.html"
+    note: "Journal of Machine Learning Research 4: 895–911. The missing mass concentrates"
+  - type: "paper"
+    title: "A Hierarchical Bayesian Language Model Based on Pitman–Yor Processes"
+    authors: "Yee Whye Teh"
+    year: 2006
+    url: "https://aclanthology.org/P06-1124/"
+    note: "COLING/ACL 2006, 985–92. The HPYLM, its Kneser–Ney limit, and its Gibbs sampler"
+  - type: "documentation"
+    title: "nltk.lm — Language Models"
+    authors: "Steven Bird, Ewan Klein, and Edward Loper"
+    year: 2026
+    url: "https://www.nltk.org/api/nltk.lm.html"
+    note: "NLTK 3.10. The reference implementation our Kneser–Ney is checked against"
+formalstatisticsPrereqs:
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "The unsmoothed n-gram model is the maximum-likelihood estimate of each context's next-word multinomial, and its zero-frequency failure is what every smoother repairs."
+  - topic: "hierarchical-bayes-and-partial-pooling"
+    site: "formalstatistics"
+    relationship: "The hierarchical Dirichlet language model shrinks each context toward the lower order and fits its prior strength by Type-II maximum likelihood, the parametric empirical Bayes of §28.7."
+  - topic: "empirical-bayes"
+    site: "formalstatistics"
+    relationship: "Good–Turing's adjusted count (r+1)N_{r+1}/N_r is Robbins' formula (§33.3, Theorem 2) with word types as policy holders, and inherits its instability where counts are sparse."
+formalmlPrereqs:
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "Relative frequencies maximize likelihood by Gibbs' inequality (the gap is the context count times a KL divergence), and smoothers are compared by held-out log-loss."
+  - topic: "bayesian-nonparametrics"
+    site: "formalml"
+    relationship: "Kneser–Ney is read as an approximation to a hierarchical Pitman–Yor process — the two-parameter generalization of the Dirichlet process and its Chinese-restaurant representation."
+formalragPrereqs:
+  - topic: "query-likelihood-language-models"
+    site: "formalrag"
+    relationship: "Dirichlet smoothing as a posterior mean (its Theorem 1) and Jelinek–Mercer interpolation are proved there for document models; here they become the conditional next-word model."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import NGramSmoothingLab from '../../components/viz/NGramSmoothingLab.tsx';
+
+## Overview & Motivation
+
+A language model assigns a probability to the next word given the words before it. The simplest kind looks back a fixed distance: a **trigram** model predicts each word from the two before it, and estimates those predictions by counting. Train one on the finance corpus of the previous topics — $6{,}130$ sentences, $69{,}312$ predicted tokens — and test it on $100$ fresh documents from the same generator. Of the $23{,}055$ held-out trigrams, $32.47\%$ never occur in training; so do $22.17\%$ of the bigrams and $0.67\%$ of the words. The counting model gives every one of them probability zero, and a single zero makes the probability of the whole held-out text zero.
+
+So a language model must reserve probability for events it has never seen, and take it from events it has. How much, from which events, and given to which unseen ones? Each classical **smoother** is an answer, and this topic reads them as one idea seen three ways — **empirical Bayes**, estimating a prior from the data it will be applied to:
+
+1. **A Dirichlet prior fit to the data.** Adding pseudo-counts is a Bayesian posterior mean. Its one free strength can be fit by maximizing the probability of the training data — Type-II maximum likelihood.
+2. **Robbins' formula on word counts.** Good and Turing's estimate of a word's true frequency from how many *other* words share its count turns out to be the empirical-Bayes formula Robbins derived for insurance claims. We prove the identity behind it exactly.
+3. **Kneser–Ney as a hierarchical Pitman–Yor posterior.** The best classical smoother uses a peculiar count — how many *different* words a word follows. We derive it from a constraint on marginals, and then show it is exactly what a hierarchical Pitman–Yor model predicts when every word type sits at a single table.
+
+Along the way we prove that Katz backoff normalizes, that the familiar discount $n_1/(n_1 + 2n_2)$ is an upper bound on the leave-one-out optimum rather than the optimum itself, and that interpolated Kneser–Ney matches a reference implementation to twelve decimals. A laboratory after the Pitman–Yor section puts every smoother side by side on five contexts. Its second panel plots the one curve that connects them all: how much each method subtracts from a count of $r$.
+
+---
+
+## Counting and the zero-count problem
+
+Pad each sentence with $n - 1$ copies of a start symbol `<s>` in front and one end symbol `</s>` behind. Every word and the final `</s>` is a **predicted token**; `<s>` only ever serves as context. The vocabulary $V$ is the set of training word types together with `</s>` and an unknown-word symbol `<unk>`, which stands in for every held-out word never seen in training; here $\lvert V \rvert = 3{,}427$.
+
+<TheoremBlock type="definition" number={1} title="n-gram model and its maximum-likelihood estimate">
+
+An **order-$n$ model** gives each predicted token $w_i$ a probability $P(w_i \mid u_i)$ that depends only on its **context** $u_i = (w_{i-n+1}, \dots, w_{i-1})$, the $n - 1$ tokens before it. Write $c(u\,w)$ for the number of times the $n$-gram $u\,w$ occurs in training, $c(u\,\cdot) = \sum_w c(u\,w)$ for the number of times $u$ occurs as a context, and $u^-$ for $u$ with its oldest word dropped. The **maximum-likelihood estimate (MLE)** is the relative frequency $\hat P(w \mid u) = c(u\,w) / c(u\,\cdot)$.
+
+</TheoremBlock>
+
+Lower-order counts are always taken as marginals of the top-order ones, so the bigram count $c(v\,w)$ is the number of trigrams ending in $v\,w$. That bookkeeping matters twice below.
+
+<TheoremBlock type="proposition" number={1} title="The MLE is the relative frequency">
+
+For a context $u$ and any distribution $q$ on the vocabulary,
+
+$$
+\sum_w c(u\,w)\log \hat P(w \mid u) - \sum_w c(u\,w)\log q(w) \;=\; c(u\,\cdot)\,\mathrm{KL}\bigl(\hat P(\cdot \mid u)\,\big\|\,q\bigr) \;\ge\; 0,
+$$
+
+with equality only at $q = \hat P(\cdot \mid u)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Substitute $c(u\,w) = c(u\,\cdot)\,\hat P(w \mid u)$: the difference becomes $c(u\,\cdot)\sum_w \hat P(w \mid u)\log\frac{\hat P(w \mid u)}{q(w)}$, which is $c(u\,\cdot)$ times the Kullback–Leibler divergence. Gibbs' inequality (formalML, *KL divergence*) makes it nonnegative, and zero only when the two distributions agree.
+
+</TheoremBlock>
+
+We judge a model by its **held-out log-loss**, the average of $-\log P(w_i \mid u_i)$ over the predicted tokens of text it did not train on, in nats per token. (Its exponential is perplexity, the subject of the next language-modeling topic.)
+
+<TheoremBlock type="proposition" number={2} title="The zero-frequency catastrophe">
+
+The maximum-likelihood model's held-out log-loss is infinite if and only if some held-out $n$-gram never occurs in training.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The log-loss is an average of the terms $-\log \hat P(w_i \mid u_i)$. It is finite exactly when every term is, that is, when $\hat P(w_i \mid u_i) = c(u_i\,w_i)/c(u_i\,\cdot) \gt 0$ for every held-out token, which says that every held-out $n$-gram has a positive training count.
+
+</TheoremBlock>
+
+With a third of the held-out trigrams unseen, the catastrophe is not a corner case. On the trigrams that *were* seen, the MLE's log-loss is finite; the problem is entirely the unseen ones.
+
+---
+
+## Smoothing as shrinkage
+
+Picture the MLE for a context as a point in the probability simplex — the set of all distributions on $V$. A context seen a handful of times puts its point on a low-dimensional face of the simplex: every word not yet seen after it has coordinate zero. Smoothing moves the point into the interior. The cleanest way is to slide it along a straight line toward a sensible default, and the sensible default for a trigram context is the bigram model one order down.
+
+<TheoremBlock type="definition" number={2} title="Hierarchical Dirichlet smoothing">
+
+With a strength $\alpha_k \gt 0$ for each order $k$, set
+
+$$
+P_k(w \mid u) \;=\; \frac{c(u\,w) + \alpha_k\,P_{k-1}(w \mid u^-)}{c(u\,\cdot) + \alpha_k},
+\qquad
+P_1(w) \;=\; \frac{c(w) + \alpha_1/\lvert V\rvert}{N + \alpha_1},
+$$
+
+where $N$ is the number of predicted tokens. With the uniform distribution in place of $P_{k-1}$ this is **additive** (Lidstone) smoothing with $\alpha/\lvert V\rvert$ pseudo-counts per word, and **Laplace** smoothing at one pseudo-count.
+
+</TheoremBlock>
+
+This is a posterior mean. Put a $\mathrm{Dirichlet}(\alpha_k\,P_{k-1}(\cdot \mid u^-))$ prior on the next-word distribution of the context $u$; after observing the counts $c(u\,\cdot)$, the posterior mean is exactly $P_k(\cdot \mid u)$ — the theorem behind Dirichlet smoothing in formalRAG's *query-likelihood language models*, applied here once per context instead of once per document (MacKay and Peto 1995).
+
+<TheoremBlock type="proposition" number={3} title="Shrinkage is interpolation">
+
+Definition 2 can be written as
+
+$$
+P_k(w \mid u) \;=\; (1 - \lambda_u)\,\hat P(w \mid u) + \lambda_u\,P_{k-1}(w \mid u^-),
+\qquad \lambda_u = \frac{\alpha_k}{c(u\,\cdot) + \alpha_k},
+$$
+
+and $\lambda_u = 1$ for a context never seen in training.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Split the fraction: $\frac{c(u\,w)}{c(u\,\cdot) + \alpha_k} = \frac{c(u\,\cdot)}{c(u\,\cdot) + \alpha_k}\cdot\frac{c(u\,w)}{c(u\,\cdot)} = (1 - \lambda_u)\,\hat P(w \mid u)$, and $\frac{\alpha_k}{c(u\,\cdot) + \alpha_k}\,P_{k-1}(w \mid u^-) = \lambda_u\,P_{k-1}(w \mid u^-)$. If $c(u\,\cdot) = 0$, then $\lambda_u = 1$ and only the lower order remains.
+
+</TheoremBlock>
+
+So the estimate moves along the segment from the MLE to the lower-order model, and how far it moves depends on how much evidence the context has: a context seen ten thousand times barely moves, one seen once moves a long way. What remains is the strength $\alpha_k$. Empirical Bayes picks it by asking which prior makes the training data most probable.
+
+<TheoremBlock type="theorem" number={1} title="The Dirichlet–multinomial evidence">
+
+Under independent $\mathrm{Dirichlet}(\alpha\,m)$ priors for the contexts, with $m$ a distribution on $V$, the probability of the training word sequences is
+
+$$
+\log p(\text{data} \mid \alpha) \;=\; \sum_u \Bigl[\log\Gamma(\alpha) - \log\Gamma\bigl(\alpha + c(u\,\cdot)\bigr)\Bigr] \;+\; \sum_{(u,\,w)\,:\;c(u w) \gt 0} \Bigl[\log\Gamma\bigl(\alpha m_w + c(u\,w)\bigr) - \log\Gamma(\alpha m_w)\Bigr].
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For one context with next-word distribution $\theta$, the probability of its word sequence is $\prod_w \theta_w^{c(u w)}$. Integrate against the Dirichlet density $\prod_w \theta_w^{\alpha m_w - 1}/B(\alpha m)$, where $B(\beta) = \prod_w \Gamma(\beta_w)/\Gamma(\sum_w \beta_w)$:
+
+$$
+\int \prod_w \theta_w^{\alpha m_w + c(u w) - 1}\,d\theta \,\Big/\, B(\alpha m) \;=\; \frac{B(\alpha m + \mathbf{c}_u)}{B(\alpha m)},
+$$
+
+where $\mathbf{c}_u = (c(u\,w))_{w \in V}$ is the vector of counts after $u$. Since $\sum_w \alpha m_w = \alpha$, the logarithm is the bracketed context term plus one term per word; a word with $c(u\,w) = 0$ contributes $\log\Gamma(\alpha m_w) - \log\Gamma(\alpha m_w) = 0$. Contexts have independent priors, so their log-probabilities add.
+
+</TheoremBlock>
+
+Maximizing this **evidence** over $\alpha$ is Type-II maximum likelihood — the parametric empirical Bayes of formalStatistics' *hierarchical Bayes and partial pooling* (§28.7), where it fits the spread of eight schools' effects. Fit order by order, it gives $\hat\alpha = (1{,}105.5,\ 9.589,\ 25.015)$ for unigrams, bigrams, and trigrams, and a held-out log-loss of $3.534$ nats per token — far better than Laplace's $5.786$. The companion code checks Theorem 1 against SciPy's Dirichlet–multinomial distribution.
+
+<TheoremBlock type="remark">
+
+The evidence does not choose the best $\alpha$ for held-out text. Tuning $\alpha$ on the held-out data itself — an oracle we cannot use in practice — gives $(68{,}911.6,\ 591.4,\ 6.97)$ and a log-loss of $3.243$. The difference has a cause: the evidence is computed on training text, which contains no unseen words at all, so it never pays for the mass that `<unk>` will need, and it under-smooths. Type-II maximum likelihood answers the question it is asked — which prior best explains the training data — and that is not the question held-out text asks.
+
+</TheoremBlock>
+
+---
+
+## Good–Turing: Robbins' formula on word counts
+
+The Dirichlet approach assumes a shape for the prior. Turing, working on wartime codebooks, had a different idea, published by his assistant Good (1953): estimate a word's probability from how many other words share its count. Let $N_r$ be the number of distinct types seen exactly $r$ times in a sample of $n$ tokens — the **spectrum** of the previous topic — and $M_r$ the total true probability of those types. Good–Turing replaces a count of $r$ with
+
+$$
+r^* \;=\; (r + 1)\,\frac{N_{r+1}}{N_r},
+$$
+
+and gives the types never seen the total probability $N_1/n$. On our trigrams the spectrum begins with $N_1, \dots, N_5$ equal to $19{,}521$, $1{,}736$, $748$, $444$, $309$; so singleton trigrams are each worth $r^* = 2 \cdot 1{,}736/19{,}521 \approx 0.18$ of an occurrence, and the unseen trigrams share a large part of the mass. Why should the *next* count up tell us about this one? Because of an exact identity.
+
+<TheoremBlock type="theorem" number={2} title="Good–Turing, exact">
+
+For $n$ independent draws from any distribution $p$ on a countable set of types, and every $r \ge 0$,
+
+$$
+\mathbb{E}\bigl[M_r(n)\bigr] \;=\; \frac{r + 1}{n + 1}\,\mathbb{E}\bigl[N_{r+1}(n + 1)\bigr].
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A type $w$ is seen exactly $r$ times with probability $\binom{n}{r} p_w^{\,r}(1 - p_w)^{n - r}$, so
+
+$$
+\mathbb{E}[M_r(n)] \;=\; \sum_w p_w \binom{n}{r} p_w^{\,r}(1 - p_w)^{n - r} \;=\; \sum_w \binom{n}{r} p_w^{\,r+1}(1 - p_w)^{(n + 1) - (r + 1)}.
+$$
+
+Now $\binom{n}{r} = \frac{r + 1}{n + 1}\binom{n + 1}{r + 1}$, so the sum is $\frac{r + 1}{n + 1}\sum_w \binom{n + 1}{r + 1} p_w^{\,r+1}(1 - p_w)^{(n + 1) - (r + 1)}$, and the last sum is the expected number of types seen exactly $r + 1$ times in $n + 1$ draws.
+
+</TheoremBlock>
+
+Both sides are linear in the distribution of the sample, so the identity also holds for mixtures of independent draws — exchangeable sequences such as the Pitman–Yor process of the previous topic. Setting $r = 0$ says the mass of the unseen types is, in expectation, $N_1(n + 1)/(n + 1)$. The usable estimate $N_1(n)/n$ is off by very little:
+
+<TheoremBlock type="corollary" number={1} title="The missing-mass estimate is nearly unbiased">
+
+$$
+0 \;\le\; \frac{\mathbb{E}[N_1(n)]}{n} - \mathbb{E}[M_0(n)] \;=\; \sum_w p_w^{\,2}(1 - p_w)^{n-1} \;\le\; \frac{1}{n}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Expand: $\mathbb{E}[N_1(n)]/n = \sum_w p_w(1 - p_w)^{n-1}$ and $\mathbb{E}[M_0(n)] = \sum_w p_w(1 - p_w)^{n}$; their difference is $\sum_w p_w \cdot p_w(1 - p_w)^{n-1}$, which is nonnegative. The function $x(1 - x)^{n-1}$ on $[0, 1]$ peaks at $x = 1/n$ with value $\frac1n(1 - \frac1n)^{n-1} \le \frac1n$, so the difference is at most $\frac1n\sum_w p_w = \frac1n$.
+
+</TheoremBlock>
+
+The missing mass also concentrates around its estimate (McAllester and Ortiz 2003, cited). The companion code checks Theorem 2 exactly on random distributions and Corollary 1 by simulation.
+
+<TheoremBlock type="remark">
+
+**Good–Turing is Robbins' formula.** Let each type's count be Poisson, $c_w \sim \mathrm{Poisson}(\lambda_w)$, and read the spread of the rates $\lambda_w$ across the vocabulary as a prior $g$. Robbins' formula ([formalStatistics, *Empirical Bayes*, §33.3, Theorem 2](https://formalstatistics.com/topics/empirical-bayes#section-33-3)) gives the posterior mean rate of a type seen $r$ times as $\mathbb{E}[\lambda \mid c = r] = (r + 1)\,f(r + 1)/f(r)$, where $f(r)$ is the probability that a type is seen $r$ times — estimated by $N_r$ up to a constant. That is Turing's $r^*$: word types in place of insurance policy holders, the spectrum in place of the claim counts. Run on Topic 33's insurance table, the companion code's Good–Turing function reproduces its Robbins row, $0.168$, $0.363$, $0.527$, $1.33$, $1.43$, $6.00$, $1.75$, to the printed digits. The frame is Robbins' compound decision problem (§33.2): estimate every type's frequency at once, judged by total error.
+
+</TheoremBlock>
+
+The kinship carries a warning with it. Robbins' estimate is erratic where the next count is small (Topic 33, Remark 5), and so is Turing's: on our trigrams the discount $r - r^*$ runs $0.822$, $0.707$, $0.626$, $0.520$ for $r = 1, \dots, 4$, then jumps to $1.039$, falls to $-0.382$ — a *negative* discount — and climbs to $2.484$. **Simple Good–Turing** (Gale and Sampson 1995) repairs the tail: it averages $N_r$ over the gaps between observed counts, fits a straight line to $\log N_r$ against $\log r$ — plausible because the spectrum is a power law, as the previous topic showed — and switches from Turing's $r^*$ to the fitted one at the first $r$ where the two agree within about two standard errors (here $r = 3$). The resulting discount — Turing's for $r = 1, 2$, the fit's from then on — is close to constant: $0.822$, $0.707$, $0.648$, $0.688$, $0.714$, $0.733$, $0.747$, $0.758$ for $r = 1, \dots, 8$. Church and Gale (1991) saw the same thing on English bigrams. Hold on to it; it is the reason for absolute discounting. The companion code's Simple Good–Turing matches NLTK's to fifteen decimals.
+
+---
+
+## Backoff
+
+Good–Turing says how much mass to take from the seen $n$-grams. **Backoff** says where to send it: to the next order down.
+
+<TheoremBlock type="definition" number={3} title="Katz backoff">
+
+With Turing's discount ratios $d_r$ for small counts (Katz 1987 renormalizes them so that counts above a cutoff $k = 5$ are left alone, $d_r = 1$ for $r \gt k$),
+
+$$
+P_{\text{katz}}(w \mid u) \;=\; \begin{cases} d_{c(u w)}\;c(u\,w)/c(u\,\cdot) & \text{if } c(u\,w) \gt 0, \\[2pt] \alpha(u)\;P_{\text{katz}}(w \mid u^-) & \text{otherwise,} \end{cases}
+$$
+
+with Laplace smoothing at the unigram level and $\alpha(u) = 1$ for a context never seen.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={4} title="The backoff weight that normalizes">
+
+If
+
+$$
+\alpha(u) \;=\; \frac{1 - \sum_{w\,:\,c(u w) \gt 0} d_{c(u w)}\,c(u\,w)/c(u\,\cdot)}{1 - \sum_{w\,:\,c(u w) \gt 0} P_{\text{katz}}(w \mid u^-)}
+$$
+
+and the denominator is positive, then $P_{\text{katz}}(\cdot \mid u)$ sums to one.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Induct on the order; the Laplace unigram sums to one. The seen words of $u$ carry $\sum_{\text{seen}} d\,c(u\,w)/c(u\,\cdot)$, the numerator's complement. The unseen words carry $\alpha(u)\sum_{\text{unseen}} P_{\text{katz}}(w \mid u^-) = \alpha(u)\bigl[1 - \sum_{\text{seen}} P_{\text{katz}}(w \mid u^-)\bigr]$ by the induction hypothesis, which is the numerator. The two parts sum to one.
+
+</TheoremBlock>
+
+On our corpus every $d_r$ lies strictly between $0$ and $1$ — for trigrams $0.123$, $0.623$, $0.777$, $0.861$, $0.778$ — and the model normalizes for every context tested. But the cutoff has a cost on text like ours, which is generated from templates. Take the context *in osaka*: it occurs seven times in training, followed by `</s>` every time. Seven is above the cutoff, so nothing is discounted and $\alpha(u) = 0$: Katz reserves no mass at all for any other continuation. Of $17{,}269$ contexts, $2{,}170$ reserve nothing (in $1{,}606$ of them the lower order has nothing left to give either, and Katz is undefined; we keep the MLE there). Three held-out tokens fall into such contexts — after *across aerospace*, *in osaka*, and *of fairhaven* — and get probability zero. **Katz's held-out log-loss is infinite**: the zero-count problem, back through the cutoff. On the other $23{,}052$ held-out tokens it scores $3.110$.
+
+---
+
+## Absolute discounting
+
+Simple Good–Turing found that the discount $r - r^*$ is roughly the same for every count. Then why not subtract one constant from every count and interpolate with the lower order, as the Dirichlet model does?
+
+<TheoremBlock type="definition" number={4} title="Interpolated absolute discounting">
+
+With a discount $0 \lt D \le 1$ and $N_{1+}(u\,\bullet) = \lvert\{w : c(u\,w) \gt 0\}\rvert$ the number of distinct words seen after $u$,
+
+$$
+P(w \mid u) \;=\; \frac{\max\bigl(c(u\,w) - D,\, 0\bigr) + D\,N_{1+}(u\,\bullet)\,P(w \mid u^-)}{c(u\,\cdot)},
+$$
+
+with $P(w \mid u) = P(w \mid u^-)$ for a context never seen, and the uniform distribution $1/\lvert V\rvert$ below the unigram level.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={5} title="Absolute discounting normalizes">
+
+If $P(\cdot \mid u^-)$ sums to one, so does $P(\cdot \mid u)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Because $D \le 1$, every seen word has $\max(c(u\,w) - D, 0) = c(u\,w) - D$, so the first terms sum to $c(u\,\cdot) - D\,N_{1+}(u\,\bullet)$. The second terms sum to $D\,N_{1+}(u\,\bullet)$. The numerators sum to $c(u\,\cdot)$; induct down to the uniform base.
+
+</TheoremBlock>
+
+Every subtracted unit of count reappears as mass for the lower order. The one parameter is $D$, and Ney, Essen, and Kneser (1994) proposed choosing it by **leave-one-out**: delete each training token in turn, ask how well the model trained on the rest predicts it, and maximize the total. The answer usually quoted is $D = n_1/(n_1 + 2n_2)$, with $n_r$ the number of $n$-grams seen $r$ times. What the leave-one-out argument actually proves is weaker, and more interesting.
+
+<TheoremBlock type="theorem" number={3} title="The leave-one-out discount">
+
+Consider the backing-off form of absolute discounting, in which a seen $n$-gram gets $(c(u\,w) - D)/c(u\,\cdot)$ and an unseen one gets the freed mass $D\,N_{1+}(u\,\bullet)/c(u\,\cdot)$ shared in proportion to a fixed lower-order distribution. Let $n_1'$ count the singletons whose context occurs at least twice. Then the leave-one-out log-likelihood is
+
+$$
+F(D) \;=\; n_1'\log D \;+\; \sum_{r \ge 2} r\,n_r \log(r - 1 - D) \;+\; C,
+$$
+
+with $C$ independent of $D$. If $n_1', n_2 \gt 0$, then $F$ is strictly concave on $(0, 1)$, has a unique maximizer $D^*$, and
+
+$$
+D^* \;\le\; \frac{n_1'}{n_1' + 2n_2} \;\le\; \frac{n_1}{n_1 + 2n_2}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Remove one occurrence of an $n$-gram seen $r$ times. If $r \ge 2$ it is still seen, with probability $(r - 1 - D)/(c(u\,\cdot) - 1)$. If $r = 1$ and its context occurs at least twice, it becomes unseen in a context that still exists, and its probability is $D\,(N_{1+}(u\,\bullet) - 1)/(c(u\,\cdot) - 1)$ times a factor from the lower-order distribution; only the factor $D$ depends on $D$. If $r = 1$ and the context occurred once, the context disappears and the probability comes from the lower order alone, free of $D$. Summing logarithms over all occurrences gives $F$.
+
+Each $\log(r - 1 - D)$ is concave in $D$ and $n_1'\log D$ is strictly concave, so $F$ is strictly concave. Its derivative $F'(D) = n_1'/D - \sum_{r\ge2} r\,n_r/(r - 1 - D)$ tends to $+\infty$ as $D \to 0$ and to $-\infty$ as $D \to 1$ (the $r = 2$ term), so it has exactly one root $D^*$. At that root,
+
+$$
+\frac{n_1'}{D^*} \;=\; \sum_{r \ge 2}\frac{r\,n_r}{r - 1 - D^*} \;\ge\; \frac{2n_2}{1 - D^*},
+$$
+
+which rearranges to $D^* \le n_1'/(n_1' + 2n_2)$. Finally $x/(x + 2n_2)$ increases in $x$, and $n_1' \le n_1$.
+
+</TheoremBlock>
+
+So $n_1/(n_1 + 2n_2)$ is an upper bound on the leave-one-out optimum, reached only if the counts above two are ignored. The difference is not small here. For bigrams, $D^* = 0.702$ against the familiar $0.805$; for trigrams $D^* = 0.644$ against $0.849$, and over half of the trigram singletons ($10{,}306$ of $19{,}521$) sit alone in their context and drop out of $n_1'$ entirely. The companion code checks that $F$ differs from the exact leave-one-out log-likelihood by a constant, and the bound on random spectra.
+
+---
+
+## Kneser–Ney
+
+Absolute discounting sends the freed mass to the lower-order distribution. Look at what that distribution believes. In the finance corpus, *industrial* occurs $284$ times, and every one of them follows *halvorsen*: it is the second word of a company name, *Halvorsen Industrial*. A unigram model built from raw counts ranks *industrial* as the $27$th most likely word. But the lower order is only consulted when the trigram and bigram are unseen — that is, in a context that is *not* *halvorsen*, where *industrial* almost never appears. The lower order should answer a different question: not *how often does $w$ occur?* but *how likely is $w$ to appear after a context it was not seen in?* Kneser and Ney's answer counts contexts instead of tokens.
+
+<TheoremBlock type="definition" number={5} title="Continuation counts and interpolated Kneser–Ney">
+
+The **continuation count** of an $(n-1)$-gram $v$ is $N_{1+}(\bullet\,v) = \lvert\{x : c(x\,v) \gt 0\}\rvert$, the number of distinct words that precede it. **Interpolated Kneser–Ney** is Definition 4 with raw counts at the top order and continuation counts at every lower order:
+
+$$
+P(w \mid u) \;=\; \frac{\max\bigl(c(u\,w) - D_k(c(u\,w)),\,0\bigr) + \gamma(u)\,P(w \mid u^-)}{c(u\,\cdot)},
+\qquad
+\gamma(u) = \sum_{w\,:\,c(u w) \gt 0} D_k\bigl(c(u\,w)\bigr),
+$$
+
+where at a lower order $c$ means the continuation count. With one discount $D_k$ per order, $\gamma(u) = D_k\,N_{1+}(u\,\bullet)$. **Modified Kneser–Ney** (Chen and Goodman 1999) uses three discounts per order, $D_1$, $D_2$, and $D_{3+}$, for counts of one, two, and more.
+
+</TheoremBlock>
+
+*industrial* has continuation count $1$, and drops from rank $27$ to rank $1{,}259$. The choice of count is not a trick, though: it is forced by a requirement.
+
+<TheoremBlock type="theorem" number={4} title="The marginal constraint">
+
+Take the top order as in Definition 5, with discounts satisfying $c - D(c) \ge 0$ for $c \ge 1$, and an unknown lower-order distribution $\beta(\cdot \mid v)$ in place of $P(\cdot \mid u^-)$. The model reproduces the training data's marginals,
+
+$$
+\sum_x c(x\,v\,\cdot)\;P(w \mid x\,v) \;=\; c(v\,w) \qquad \text{for all } v, w,
+$$
+
+if and only if
+
+$$
+\beta(w \mid v) \;=\; \frac{\sum_x D\bigl(c(x\,v\,w)\bigr)}{\sum_x \gamma(x\,v)}.
+$$
+
+With one discount per order, this is $\beta(w \mid v) = N_{1+}(\bullet\,v\,w)/N_{1+}(\bullet\,v\,\bullet)$: the continuation distribution.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Multiply out:
+
+$$
+\sum_x c(x\,v\,\cdot)\,P(w \mid x\,v) \;=\; \sum_x \Bigl[c(x\,v\,w) - D\bigl(c(x\,v\,w)\bigr)\Bigr] \;+\; \beta(w \mid v)\sum_x \gamma(x\,v).
+$$
+
+Because lower-order counts are marginals, $\sum_x c(x\,v\,w) = c(v\,w)$, so the constraint holds exactly when $\beta(w \mid v)\sum_x \gamma(x\,v) = \sum_x D(c(x\,v\,w))$. When $D(c) = D$ for every $c \ge 1$, the right side is $D$ times the number of $x$ with $c(x\,v\,w) \gt 0$, which is $D\,N_{1+}(\bullet\,v\,w)$, and $\sum_x \gamma(x\,v) = D\,N_{1+}(\bullet\,v\,\bullet)$.
+
+</TheoremBlock>
+
+Kneser and Ney (1995) derived the backing-off version of this approximately; in the interpolated form it is exact. The companion code confirms it on the corpus, and confirms the converse too: with modified Kneser–Ney's three discounts, the marginal-preserving lower order is the *discount-weighted* count of Theorem 4, not the continuation count, and continuation counts miss the bigram marginals by more than one percent. Modified Kneser–Ney uses continuation counts anyway; that part of it is a heuristic. Our interpolated Kneser–Ney, configured the way NLTK's `KneserNeyInterpolated` is (one discount at every order, no uniform base), equals NLTK's to twelve decimals on sixty held-out predictions.
+
+---
+
+## Kneser–Ney as a hierarchical Pitman–Yor posterior
+
+Continuation counts came out of a constraint. They also come out of a prior. In the previous topic, word types arrived through a **Pitman–Yor Chinese restaurant** with discount $d$ and strength $\theta$: each customer (token) joins an occupied table with probability proportional to its occupancy minus $d$, or opens a new table, whose dish (word type) is drawn from a base distribution, with probability proportional to $\theta$ plus $d$ times the number of tables. Teh (2006) stacks these restaurants into a hierarchy.
+
+<TheoremBlock type="definition" number={6} title="The hierarchical Pitman–Yor language model">
+
+Put a Pitman–Yor restaurant in every context $u$, with parameters $(d_k, \theta_k)$ for contexts of order $k$, whose base distribution is the restaurant of $u^-$; the restaurant of the empty context draws from the uniform distribution on $V$. Each table in $u$ sends one customer to $u^-$. Given a seating — $c_{uw}$ customers at $t_{uw}$ tables serving $w$ in restaurant $u$, totals $c_{u\cdot}$ and $t_{u\cdot}$ — the predictive probability is
+
+$$
+P(w \mid u) \;=\; \frac{c_{uw} - d_k\,t_{uw}}{\theta_k + c_{u\cdot}} \;+\; \frac{\theta_k + d_k\,t_{u\cdot}}{\theta_k + c_{u\cdot}}\,P(w \mid u^-).
+$$
+
+</TheoremBlock>
+
+The predictive already has Kneser–Ney's shape: subtract $d$ per table, and give the subtracted mass, plus $\theta$, to the parent. The parent's counts are tables, not tokens. That is the bridge.
+
+<TheoremBlock type="proposition" number={6} title="Kneser–Ney is the one-table seating">
+
+Let the bottom restaurants hold the raw counts as customers, seat every word at exactly one table in every restaurant, $t_{uw} = \min(1, c_{uw})$, and set $\theta_k = 0$. Then (i) the customers of a restaurant below the top are the continuation counts, $c_{uw} = N_{1+}(\bullet\,u\,w)$, and (ii) the predictive of Definition 6 is interpolated Kneser–Ney with $D_k = d_k$ at every order.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(i) Restaurant $u$ receives one customer for each table serving $w$ in each child restaurant $x\,u$, and with one table per type that is one customer for each $x$ with $c_{xu,w} \gt 0$. Directly below the top, $c_{xu,w}$ is the raw count $c(x\,u\,w)$, so $c_{uw} = N_{1+}(\bullet\,u\,w)$. Further down, by induction $c_{xu,w} \gt 0$ exactly when $N_{1+}(\bullet\,x\,u\,w) \gt 0$, which happens exactly when $c(x\,u\,w) \gt 0$ because counts are marginals; so again $c_{uw} = N_{1+}(\bullet\,u\,w)$. (ii) With $\theta_k = 0$ and $t_{uw} = \min(1, c_{uw})$, the predictive is $\bigl[c_{uw} - d_k\,\mathbf{1}\{c_{uw} \gt 0\} + d_k\,N_{1+}(u\,\bullet)\,P(w \mid u^-)\bigr]/c_{u\cdot}$, which is Definition 5 with $D_k = d_k$, the same counts by (i), and the same uniform base.
+
+</TheoremBlock>
+
+The companion code checks the identity to thirteen decimals on $300$ held-out predictions. One table per type is a single, extreme seating, though. The model's posterior spreads frequent words over several tables. Teh's **Gibbs sampler** explores it: remove each training token from its table in turn and reseat it — at an occupied table with weight $c - d$, or at a new one with weight $(\theta + d\,t_{u\cdot})\,P(w \mid u^-)$, which sends a customer to the parent — then resample each order's $(d_k, \theta_k)$ given the seating. Started from the Kneser–Ney seating and run for forty sweeps, it gives:
+
+- **Strengths near zero.** The posterior means are $\theta = (0.962,\ 0.0026,\ 0.0017)$ for orders one to three: above the unigram, the data choose pure discounting — Kneser–Ney's regime.
+- **A discount that grows with the count.** A singleton always sits at one table, so its discount is exactly $d_3 = 0.775$. A trigram seen $r$ times sits at more tables as $r$ grows, so its *effective* discount $d_3\,\mathbb{E}[t \mid c = r]$ climbs: $0.775$, $1.167$, $1.503$, $1.787$, $1.971$, $2.004$, $2.260$, $2.657$ for $r = 1, \dots, 8$ — far past modified Kneser–Ney's top discount of $0.984$. Good–Turing's measured discount stayed near $0.7$; the two are not the same quantity, because in the Pitman–Yor model the subtracted mass flows to the parent, which in a templated context predicts the same word again.
+- **The best held-out score.** Averaging the predictive over sweeps $21$ to $40$ gives $2.822$ nats per token, ahead of modified Kneser–Ney's $2.841$. Three other random seeds give $2.8222$ to $2.8236$.
+
+This is Markov chain Monte Carlo run for forty sweeps; we report averages and claim no convergence guarantee.
+
+---
+
+## The smoothers side by side
+
+The laboratory puts the classical smoothers on five trigram contexts. In panel A, pick a context and a smoother and read the next-word distribution: the eight likeliest words, filled if they followed the context in training and hollow if not, then the remaining mass on words that did and did not. The context *in osaka* shows Katz reserving nothing; *machinery as*, seen once, shows how much each method takes from a singleton; *the ⟨unk⟩* has only the unigram level left, where absolute discounting ranks *industrial* in the top $30$ and Kneser–Ney ranks it past $1{,}000$. The slider sets one discount $D$ at every order for absolute discounting and interpolated Kneser–Ney; their held-out log-loss bottoms out near $D = 0.9$ and rises again at $D = 1$. Panel B plots the discount each method takes from a trigram seen $r$ times — every curve on this page in one picture. Hover a count to light up, in panel A, the words seen exactly that often after the context.
+
+<NGramSmoothingLab client:visible />
+
+Held-out log-loss in nats per token, with the per-order discounts $n_1/(n_1 + 2n_2)$:
+
+| smoother | held out, same generator ($23{,}055$ tokens) | EDGAR MD&A ($830$ tokens) |
+|---|---|---|
+| maximum likelihood | $\infty$ | $\infty$ |
+| Laplace | $5.786$ | $\mathbf{8.133}$ |
+| hierarchical Dirichlet, Type-II $\hat\alpha$ | $3.534$ | $10.787$ |
+| Katz backoff | $\infty$ ($3.110$ on $23{,}052$ tokens) | $\infty$ |
+| absolute discounting | $3.167$ | $9.850$ |
+| interpolated Kneser–Ney | $2.855$ | $8.796$ |
+| modified Kneser–Ney | $2.841$ | $8.602$ |
+| hierarchical Pitman–Yor (sampled) | $\mathbf{2.822}$ | $8.654$ |
+
+In domain the ordering is the textbook one, strictly. The second column is a warning. On three public MD&A excerpts, $57.6\%$ of tokens are words the model never saw and $99\%$ of trigrams are new; there, Laplace's indiscriminate pseudo-counts beat every careful smoother, because the careful ones learned how this generator's text continues and that knowledge does not transfer.
+
+---
+
+## Finance case study: what each estimate estimates
+
+<FinanceCaseStudy title="Finance case study: what each estimate estimates">
+
+**The Halvorsen effect.** Earnings-call text is full of fixed phrases — company names, *year over year*, *basis points* — and fixed phrases inflate raw counts without adding contexts. In the synthetic corpus the frequent words with the fewest distinct predecessors are *management* ($616$ tokens, $2$ contexts), *industrial* ($284$, $1$), *team* ($234$, $1$), *unchanged* ($232$, $1$), *steady* ($210$, $1$), and *plan* ($209$, $1$). At the unigram level, absolute discounting gives *industrial* probability $0.0041$ and rank $27$; Kneser–Ney gives it $0.00007$ and rank $1{,}259$ — fifty-nine times less. In the laboratory's *the ⟨unk⟩* context the two models' top words differ in the same way: absolute discounting proposes the frequent words `</s>`, *and*, *in*, *the*, *of*; Kneser–Ney proposes *and*, `</s>`, *a*, *outlook*, *which* — words that follow many different contexts. For a model of filings, a ticker's company name should not leak into contexts that never mention the company.
+
+**What Good–Turing forecasts.** The training tokens give $N_1/N = 0.0271$: Good–Turing says the next token has a $2.71\%$ chance of being a word not yet seen. Test that on three kinds of new text.
+
+| new text | share of tokens never seen in training | against $N_1/N$ |
+|---|---|---|
+| the training generator, run on for $100$ more documents | $0.0275$ | within $1.6\%$ |
+| a fresh run of the generator, `generate_corpus(100, 1)` | $0.0067$ | four times lower |
+| three EDGAR MD&A excerpts | $0.5759$ | twenty-one times higher |
+
+The forecast is right about exactly one thing: the continuation of the same process, the situation Theorem 2 describes. The first $300$ documents of the continued run are the training corpus token for token, and the next $100$ come from the same Pitman–Yor restaurants, so the identity applies. A fresh run of the generator restarts every restaurant from the same list of seed nouns, so its early words were mostly seen already. And MD&A text from real filings is another source altogether. Good–Turing's estimate is exact about the right question; the practical skill is knowing which question your test data asks.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Perplexity.** The held-out log-loss of this page, exponentiated, is perplexity; the next language-modeling topic connects it to cross-entropy and to compression, and handles the subword-versus-word normalization the previous topic raised.
+- **Markov chains with hidden states.** An $n$-gram model is a Markov chain on words. Putting the chain on hidden tags and emitting words from them gives the hidden Markov models of sequence labeling, whose emission and transition tables need exactly the smoothing developed here.
+- **Association instead of prediction.** Continuation counts measure how many contexts a word completes; collocation measures ask which word pairs occur together more than chance, with likelihood-ratio tests in place of discounts.
+- **Overlap metrics.** BLEU and ROUGE score generated text by its $n$-gram overlap with references — counting again, with its own zero-count problem at higher orders.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **The model is wrong by design.** Language does not forget everything beyond two words; an $n$-gram model is an estimator under a convenient false assumption.
+2. **Most discounts are heuristics.** Katz's cutoff, Simple Good–Turing's log-linear fit, absolute discounting's single constant, and modified Kneser–Ney's three discounts are engineering choices. The proved statement is Theorem 3's: the leave-one-out discount is at most $n_1/(n_1 + 2n_2)$, so the familiar estimate is a bound, not the optimum.
+3. **Marginal matching has conditions.** Theorem 4 is exact for interpolated models with one discount per order. Modified Kneser–Ney's continuation-count lower orders do not preserve the marginals.
+4. **The Pitman–Yor identity is about one seating.** Proposition 6 holds for one table per type with $\theta = 0$. The sampled model is Markov chain Monte Carlo run for forty sweeps, with averages reported and no convergence guarantee.
+5. **Good–Turing answers one question.** Its unseen mass forecasts the continuation of the same process, not a restarted process and not another source.
+6. **The ranking belongs to the corpus.** The corpus is synthetic and generated from templates, which is why Katz meets contexts with a single, frequent follower. On out-of-domain text the ranking of smoothers reverses.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `n_gram_models_smoothing.py`, which owns every number on this page. Running it as a script executes a harness of $28$ assertion-based tests in about fifteen seconds on a laptop CPU, including forty Gibbs sweeps of the hierarchical Pitman–Yor model. The tests cover:
+
+- Propositions 1–3 and Theorem 1, with the evidence checked against SciPy's Dirichlet–multinomial distribution.
+- Theorem 2 exactly on random distributions, Corollary 1 exactly and by simulation, and the Robbins row of Topic 33's insurance table.
+- Simple Good–Turing against NLTK's implementation, and Katz's normalization and its zeros.
+- Theorem 3's concavity and bound on the corpus and on random spectra, and its objective against the exact leave-one-out likelihood.
+- Continuation counts against brute force, Theorem 4's marginal constraint (and its failure for modified Kneser–Ney), normalization at every order, and agreement with NLTK's `KneserNeyInterpolated`.
+- Proposition 6 on held-out predictions, the sampler's seating invariants, the growth of its discounts, the held-out ordering of all smoothers, and the finance case study.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
