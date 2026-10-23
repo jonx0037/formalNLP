@@ -1,6 +1,9 @@
 ---
 import Nav from '../components/ui/Nav.astro';
 import Footer from '../components/ui/Footer.astro';
+// Same katex package rehype-katex renders with, so the CSS can't drift from the HTML.
+// Vite self-hosts its fonts. Imported before global.css so the overrides there win.
+import 'katex/dist/katex.min.css';
 import '../styles/global.css';
 import { PRELAUNCH } from '../lib/siteConfig';
 
@@ -39,14 +42,6 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <meta property="og:type" content="article" />
     <meta property="og:url" content={canonicalURL} />
     {ogImage && <meta property="og:image" content={ogImage} />}
-
-    <!-- KaTeX CSS -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
-      crossorigin="anonymous"
-    />
-
   </head>
   <body class="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] font-[family-name:var(--font-serif)]">
     <Nav />

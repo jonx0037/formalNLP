@@ -89,13 +89,6 @@ html.theme-transitioning, html.theme-transitioning * {
 }
 
 /* === KaTeX overrides === */
-/* KaTeX 0.16.47 (the renderer) ships this rule; the CDN stylesheet in BaseLayout is 0.16.11,
-   which doesn't. Without it the visually hidden .katex-mathml copy is positioned against the
-   page instead of its formula, so inside a scrolling table it widens the mobile viewport. */
-.katex {
-  position: relative;
-}
-
 .katex-display {
   overflow-x: auto;
   overflow-y: hidden;
