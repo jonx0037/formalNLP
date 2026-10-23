@@ -504,3 +504,28 @@ Not cited: formalRAG `significance-testing-calibration` (calibration is #16's, t
   Record* paper has no stable URL, so it is not in the references list. Add it only if one is found.
 - The scope paragraph (above) about formalML Thm 7's converse is a gap observation, not a correction of the
   sibling. Phrase it neutrally on the page ("McMillan's theorem extends Kraft to every uniquely decodable code").
+
+## 11. Phase B record (2026-10-23)
+
+- Page numbering matches the brief: Defs 1–4, Props 1–5, Thms 1–5, Cors 1–2, in page order (verified in the
+  built DOM). Kraft is a cited paragraph; Shannon–McMillan–Breiman is an unnumbered remark block; Bernardo is
+  prose. Special tokens stay out of math: the separator formula writes s(u) for Q′(`</s>` | u), and Prop 5 writes
+  q_unk(u).
+- The lab, `PerplexityCompressionLab`, is embedded after §5 under "Coding a sentence, choosing a unit". It reads
+  `src/components/viz/data/perplexity-compression-lab.json`, and `test_viz_mirror_matches_payload` requires that
+  file to equal `viz_payload()` exactly (harness 23/23). Panel B ranks the closed `<unk>` row by its pseudo-bpc,
+  hatched and labeled "not a code". The test-set toggle and the sentence picker are linked both ways.
+- Cross-site slugs were re-verified `status: "published"` on GitHub `main` for all eight targets. All 17 reference
+  URLs resolve, and every DOI's Crossref title matches the cited work.
+- Gates: the harness passes 23/23; the notebook exits 0; `pnpm test` passes 39/39; `astro sync` and
+  `pnpm validate` are clean. `pnpm audit:cross-site` exits 0 with the eight outward links as missing reciprocals
+  (expected until launch) and 0 deferred or drifted targets for formalNLP. `pnpm build` exits 0.
+- DOM checks on the built page (foreground pane, desktop width): 0 `.katex-error`, 502 `.katex`, and the island
+  hydrates. The readouts equal the payload:
+  - sentence 1 under interpolated KN: 16 bits (−log₂ Q = 14.713), 14 settled bits, 23 Shannon bits; Laplace 60;
+  - sentence 2: 65 bits (64.502), with the spelling rows in letter mode;
+  - per-character and per-word-token rankings are identical, and the per-token ranking differs;
+  - the EDGAR toggle selects sentence 3;
+  - the cutoff slider reads 7.99 / 0.7483 at k = 1 and 1.33 / 2.5339 at "all".
+- Mobile: at 375 px a range input first widened the layout viewport to 414 px. After letting both slider rows
+  wrap and the inputs shrink, `innerWidth === 375` with no unclipped overflow, before and after hydration.
