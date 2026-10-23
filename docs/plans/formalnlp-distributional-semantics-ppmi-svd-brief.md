@@ -640,3 +640,42 @@ Not cited:
   Topic 5's Thm 6 from Thm 3's reading. Topic 5's §"Where this goes next" promised exactly this matrix.
 - Re-run the harness at the B3 gate (≈ 9 s, far under budget). If the lab needs more neighbor cells, the 40 kB
   payload cap in `test_viz_payload` is the constraint to revisit, not the time.
+
+## 11. Phase B record (2026-10-23)
+
+- **Numbering and placement.**
+  - Page numbering matches the brief: Defs 1–4, Props 1–4, Thms 1–3, Cor 1, in page order (verified in the built
+    DOM). Prop 3's large-μ limit is an unnumbered remark.
+  - 𝟙 is written `\mathbf{1}`, as in Topic 5, rather than `\mathbb{1}`.
+  - The lab, `DistributionalLab`, sits after §5 under "The company a word keeps, and the shape of the spectrum."
+- **Payload and component.**
+  - `test_viz_mirror_matches_payload` requires `src/components/viz/data/distributional-lab.json` (37.6 kB) to equal
+    `viz_payload()` exactly. The harness is 16/16 (≈ 9 s), and the notebook exits 0.
+  - Tag chips carry their tag as text: sectors are filled from the badge, definition, and theorem tokens, and lexicon
+    categories are outlined. Color is never the only cue, and no hex is used.
+  - The link between panels: choosing PPMI or SPPMI₅ in Panel A opens Panel B's spectrum for that matrix, and
+    choosing SVD opens the rank view with the selected point enlarged.
+- **Overview hook.** It uses *strong*'s L2 PPMI neighbors (α = 1), the lab's default cell. The finance summary was
+  switched from PPMI_α to PPMI before Phase B so the two agree, and §6's cosines are the PPMI ones (L2: 0.265 / 0.248).
+- **Cross-site.** All eleven targets were re-verified `status: "published"` on GitHub `main`.
+- **Gates.**
+  - `pnpm test` passes 39/39, and `astro sync` and `pnpm validate` are clean.
+  - `pnpm audit:cross-site` exits 0. The eleven outward links appear as missing reciprocals, as expected until
+    launch, and formalNLP has 0 deferred and 0 drifted targets.
+  - `pnpm build` exits 0.
+- **DOM checks** on the built page (preview pane shown, desktop width):
+  - 0 `.katex-error`, 433 `.katex`, and `noindex, nofollow` intact.
+  - The lab hydrates once `[data-lab="distributional"]` is scrolled into view.
+  - Readouts equal the payload:
+    - the default L2 | PPMI | *strong* cell gives improved, stronger, healthy, weak, soft, with AUC 0.712, 1-NN
+      0.826, and SO 0.500 at coverage 0;
+    - document context gives *robust* first and SO 0.829, and sentence context gives SO 0.286;
+    - SVD at L8 shows *loans, stores, trials, software, orders* sector-pure, and *production*'s neighbors are
+      template words;
+    - the rank view shows 0.973 against 0.813, with d = 10 at 0.524 and d = 300 at 0.601; its 1-NN view shows 0.965
+      for both;
+    - the spectra are PPMI 137.4 real against 155.3 shuffled and SPPMI₅ 56.4 against 42.7, with 44 negative
+      eigenvalues and 11.6% residual energy for the ratio matrix.
+  - The console shows no errors.
+- **Mobile.** `innerWidth === 375` before and after hydration, `scrollWidth` 375, no unclipped overflow, and the lab
+  is 343 px wide.

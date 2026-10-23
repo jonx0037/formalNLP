@@ -36,7 +36,6 @@ export const tracks = [
     description:
       'Meaning as geometry: co-occurrence statistics and PPMI, word2vec as implicit matrix factorization, GloVe, and contextual embeddings from masked language modeling.',
     planned: [
-      'Distributional Semantics: PPMI and Truncated SVD',
       'word2vec as Implicit Matrix Factorization',
       'GloVe and the Geometry of Word Embeddings',
       'Contextual Embeddings and the Masked-LM Objective',

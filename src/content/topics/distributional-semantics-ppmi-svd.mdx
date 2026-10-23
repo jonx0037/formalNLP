@@ -1,0 +1,592 @@
+---
+title: "Distributional Semantics: PPMI and Truncated SVD"
+subtitle: "Know a word by the company it keeps: pointwise mutual information subtracts the background every count row shares, a truncated SVD keeps its best low-rank picture, and the context, not the method, decides whether that picture shows topic or polarity"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "zipf-heaps-vocabulary-statistics"
+tags:
+  - "distributional-semantics"
+  - "pointwise-mutual-information"
+  - "ppmi"
+  - "truncated-svd"
+  - "word-embeddings"
+  - "co-occurrence"
+  - "low-rank"
+  - "semantic-orientation"
+domain: "representations"
+financeCaseStudy: true
+rigorFlag: "The corpus is synthetic and its ground truth is planted: a noun's sector is the Pitman–Yor restaurant the generator drew it from, so recovery here measures how well a method reads structure we put there, not how well it captures meaning in English. Document-level co-occurrence reads that label almost directly and is excluded from selection; every reported score is on held-out benchmark nouns, with hyperparameters chosen on the other half, but the benchmark is 227 nouns (115 for testing), 44% from one sector. The grid of contexts, weightings, ranks, and weights, and the decision to exclude document contexts, were shaped by exploratory runs that scored all 227 nouns before the split was fixed. Truncated SVD beats sparse PPMI in global ranking, not in nearest neighbors, and only in a narrow band of rank: 59 of 270 SVD configurations beat the sparse matrix on test nouns, and the selected rank is a sharp peak. Theorem 3's mixture structure holds for the generator only approximately (Pitman–Yor draws are exchangeable, not independent, given the sector) and is checked on 115 frequent nouns. Under independence most positive PPMI entries are noise at this scale: a shuffled corpus has more PPMI energy than the real one. The polarity results use a 35-word hand-written stand-in lexicon, not the Loughran–McDonald dictionary, and the three regimes they show are properties of the generator's templates. The large-sample limit in Proposition 3's remark is asserted numerically, not proved."
+videoId: null
+notebookPath: "notebooks/distributional-semantics-ppmi-svd/01_distributional_semantics_ppmi_svd.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/distributional-semantics-ppmi-svd.mdx"
+datePublished: 2026-10-23
+estimatedReadTime: 40
+abstract: "A word can be described by the company it keeps: the row of a matrix that counts how often it appears near every other word. We prove what each step of the classical recipe does to that row. Raw counts all share the corpus's background, so near the background every word looks alike; pointwise mutual information subtracts the background in log coordinates and leaves what is specific to the word. Plug-in PMI has a ceiling set by frequency, and on a pair seen once it is a function of frequency alone, which is most of the matrix: under independence PPMI is positive on rare pairs with large values, and a shuffled corpus has more PPMI energy than the real one. A truncated SVD keeps the best rank-d approximation, but the eigenvalue weight decides what word vectors' dot products approximate; for a symmetric window the PMI matrix has large negative eigenvalues, which half-power vectors misread and adding context vectors removes. A latent-class model makes the ratio matrix, not the PMI matrix, low rank; the two hypotheses agree only to first order. On a corpus with planted sectors, PPMI beats counts at every window and truncation lifts the ranking AUC from 0.81 to 0.97, but only in a narrow band of rank. Finance words show the limits: antonyms are each other's nearest neighbors in a window, and polarity is recoverable only from whole documents."
+connections: []
+references:
+  - type: "paper"
+    title: "Distributional Structure"
+    authors: "Zellig S. Harris"
+    year: 1954
+    url: "https://doi.org/10.1080/00437956.1954.11659520"
+    note: "Word 10 (2–3): 146–62. The distributional hypothesis"
+  - type: "book"
+    title: "Studies in Linguistic Analysis"
+    authors: "J. R. Firth et al."
+    year: 1957
+    url: "https://archive.org/details/studiesinlinguis0000vari"
+    note: "Oxford: Basil Blackwell. Firth, 'A Synopsis of Linguistic Theory, 1930–1955,' 1–32: the company a word keeps"
+  - type: "paper"
+    title: "Word Association Norms, Mutual Information, and Lexicography"
+    authors: "Kenneth Ward Church and Patrick Hanks"
+    year: 1990
+    url: "https://aclanthology.org/J90-1003/"
+    note: "Computational Linguistics 16 (1): 22–29. PMI as word association, Definition 2"
+  - type: "paper"
+    title: "Indexing by Latent Semantic Analysis"
+    authors: "Scott Deerwester, Susan T. Dumais, George W. Furnas, Thomas K. Landauer, and Richard Harshman"
+    year: 1990
+    url: "https://doi.org/10.1002/(SICI)1097-4571(199009)41:6<391::AID-ASI1>3.0.CO;2-9"
+    note: "Journal of the American Society for Information Science 41 (6): 391–407. LSA, the term-document SVD"
+  - type: "paper"
+    title: "Accurate Methods for the Statistics of Surprise and Coincidence"
+    authors: "Ted Dunning"
+    year: 1993
+    url: "https://aclanthology.org/J93-1003/"
+    note: "Computational Linguistics 19 (1): 61–74. The likelihood-ratio test for rare co-occurrences"
+  - type: "paper"
+    title: "Automatic Word Sense Discrimination"
+    authors: "Hinrich Schütze"
+    year: 1998
+    url: "https://aclanthology.org/J98-1004/"
+    note: "Computational Linguistics 24 (1): 97–123. Second-order co-occurrence"
+  - type: "paper"
+    title: "Probabilistic Latent Semantic Analysis"
+    authors: "Thomas Hofmann"
+    year: 1999
+    url: "https://arxiv.org/abs/1301.6705"
+    note: "Proceedings of UAI 1999, 289–96. The aspect model of Theorem 3 (i)"
+  - type: "paper"
+    title: "Thumbs Up or Thumbs Down? Semantic Orientation Applied to Unsupervised Classification of Reviews"
+    authors: "Peter D. Turney"
+    year: 2002
+    url: "https://aclanthology.org/P02-1053/"
+    note: "Proceedings of ACL 2002, 417–24. Semantic orientation from PMI"
+  - type: "paper"
+    title: "Measuring Praise and Criticism: Inference of Semantic Orientation from Association"
+    authors: "Peter D. Turney and Michael L. Littman"
+    year: 2003
+    url: "https://doi.org/10.1145/944012.944013"
+    note: "ACM Transactions on Information Systems 21 (4): 315–46. Seed sets as paradigm words"
+  - type: "paper"
+    title: "Latent Dirichlet Allocation"
+    authors: "David M. Blei, Andrew Y. Ng, and Michael I. Jordan"
+    year: 2003
+    url: "https://www.jmlr.org/papers/v3/blei03a.html"
+    note: "Journal of Machine Learning Research 3: 993–1022. The topic-model side of Theorem 3"
+  - type: "paper"
+    title: "Extracting Semantic Representations from Word Co-occurrence Statistics: A Computational Study"
+    authors: "John A. Bullinaria and Joseph P. Levy"
+    year: 2007
+    url: "https://doi.org/10.3758/BF03193020"
+    note: "Behavior Research Methods 39 (3): 510–26. PPMI with cosine similarity"
+  - type: "paper"
+    title: "From Frequency to Meaning: Vector Space Models of Semantics"
+    authors: "Peter D. Turney and Patrick Pantel"
+    year: 2010
+    url: "https://doi.org/10.1613/jair.2934"
+    note: "Journal of Artificial Intelligence Research 37: 141–88. Survey"
+  - type: "paper"
+    title: "When Is a Liability Not a Liability? Textual Analysis, Dictionaries, and 10-Ks"
+    authors: "Tim Loughran and Bill McDonald"
+    year: 2011
+    url: "https://doi.org/10.1111/j.1540-6261.2010.01625.x"
+    note: "Journal of Finance 66 (1): 35–65. Finance words that general lexicons misread"
+  - type: "paper"
+    title: "Extracting Semantic Representations from Word Co-occurrence Statistics: Stop-Lists, Stemming, and SVD"
+    authors: "John A. Bullinaria and Joseph P. Levy"
+    year: 2012
+    url: "https://doi.org/10.3758/s13428-011-0183-8"
+    note: "Behavior Research Methods 44 (3): 890–907. SVD and its eigenvalue weighting"
+  - type: "paper"
+    title: "Distributed Representations of Words and Phrases and Their Compositionality"
+    authors: "Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg Corrado, and Jeffrey Dean"
+    year: 2013
+    url: "https://arxiv.org/abs/1310.4546"
+    note: "NeurIPS 2013. Skip-gram with negative sampling"
+  - type: "paper"
+    title: "Neural Word Embedding as Implicit Matrix Factorization"
+    authors: "Omer Levy and Yoav Goldberg"
+    year: 2014
+    url: "https://proceedings.neurips.cc/paper_files/paper/2014/hash/b78666971ceae55a8e87efb7cbfd9ad4-Abstract.html"
+    note: "NeurIPS 2014. Shifted PMI, the matrix the word2vec topic shows skip-gram factorizes"
+  - type: "paper"
+    title: "GloVe: Global Vectors for Word Representation"
+    authors: "Jeffrey Pennington, Richard Socher, and Christopher D. Manning"
+    year: 2014
+    url: "https://aclanthology.org/D14-1162/"
+    note: "Proceedings of EMNLP 2014, 1532–43. A log-bilinear model of co-occurrence counts"
+  - type: "paper"
+    title: "Improving Distributional Similarity with Lessons Learned from Word Embeddings"
+    authors: "Omer Levy, Yoav Goldberg, and Ido Dagan"
+    year: 2015
+    url: "https://doi.org/10.1162/tacl_a_00134"
+    note: "Transactions of the ACL 3: 211–25. Context smoothing, the eigenvalue weight, adding context vectors"
+  - type: "paper"
+    title: "The Approximation of One Matrix by Another of Lower Rank"
+    authors: "Carl Eckart and Gale Young"
+    year: 1936
+    url: "https://doi.org/10.1007/BF02288367"
+    note: "Psychometrika 1 (3): 211–18. Theorem 2 (i)"
+  - type: "paper"
+    title: "Symmetric Gauge Functions and Unitarily Invariant Norms"
+    authors: "L. Mirsky"
+    year: 1960
+    url: "https://doi.org/10.1093/qmath/11.1.50"
+    note: "Quarterly Journal of Mathematics 11 (1): 50–59. Eckart–Young in every unitarily invariant norm"
+  - type: "paper"
+    title: "On a Test of Whether One of Two Random Variables Is Stochastically Larger than the Other"
+    authors: "H. B. Mann and D. R. Whitney"
+    year: 1947
+    url: "https://doi.org/10.1214/aoms/1177730491"
+    note: "Annals of Mathematical Statistics 18 (1): 50–60. The pair AUC of Definition 4"
+  - type: "book"
+    title: "The Jackknife, the Bootstrap and Other Resampling Plans"
+    authors: "Bradley Efron"
+    year: 1982
+    url: "https://doi.org/10.1137/1.9781611970319"
+    note: "SIAM. Jackknife standard errors"
+  - type: "book"
+    title: "Topics in Matrix Analysis"
+    authors: "Roger A. Horn and Charles R. Johnson"
+    year: 1991
+    url: "https://doi.org/10.1017/CBO9780511840371"
+    note: "Cambridge University Press. Hadamard products, Theorem 3 (ii)"
+  - type: "book"
+    title: "ARPACK Users' Guide: Solution of Large-Scale Eigenvalue Problems with Implicitly Restarted Arnoldi Methods"
+    authors: "R. B. Lehoucq, D. C. Sorensen, and C. Yang"
+    year: 1998
+    url: "https://doi.org/10.1137/1.9780898719628"
+    note: "SIAM. The sparse SVD behind Definition 3"
+formalmlPrereqs:
+  - topic: "svd"
+    site: "formalml"
+    relationship: "Truncated SVD gives the word vectors, and Eckart–Young says the word-by-context product is the best rank-d approximation of the PMI matrix; this page proves what word-by-word products approximate."
+  - topic: "spectral-theorem"
+    site: "formalml"
+    relationship: "A symmetric window makes the PMI matrix symmetric, and its eigendecomposition shows why half-power word vectors misread its negative eigenvalues and why adding context vectors removes them."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "The average PMI of a word over its own contexts is the KL divergence from the corpus's context distribution, and its frequency-weighted sum is the mutual information of words and contexts."
+formalmlConnections:
+  - topic: "density-ratio-estimation"
+    site: "formalml"
+    relationship: "The exponentiated PMI matrix is the density ratio of the joint word–context distribution to the product of its marginals; mixtures make this ratio, not its logarithm, low rank."
+  - topic: "pca-low-rank"
+    site: "formalml"
+    relationship: "Word vectors are an uncentered truncated SVD of a sparse PMI matrix, not PCA: centering would destroy sparsity, and the eigenvalue weight replaces PCA's variance scaling."
+formalragConnections:
+  - topic: "pmi-retrieval-value"
+    site: "formalrag"
+    relationship: "Both pages use pointwise mutual information: there it scores what a retrieved document adds to an answer, here it is a word-association matrix estimated from counts and factorized."
+  - topic: "vector-space-model-tfidf"
+    site: "formalrag"
+    relationship: "Word vectors are compared by the cosine defined there; PMI reweights a word's co-occurrence row as IDF reweights a document's term vector, against a background rate."
+  - topic: "pca-dimensionality-reduction"
+    site: "formalrag"
+    relationship: "Latent semantic analysis is the truncated SVD of a term-document matrix; document-level co-occurrence here is that matrix's Gram matrix, reweighted by PMI."
+formalstatisticsPrereqs:
+  - topic: "discrete-distributions"
+    site: "formalstatistics"
+    relationship: "Under independence a pair's co-occurrence count is Poisson, and that model shows why positive PMI on rare pairs is mostly a false positive."
+formalstatisticsConnections:
+  - topic: "multiple-testing-and-false-discovery"
+    site: "formalstatistics"
+    relationship: "Positive PMI tests every word pair at once against independence; its false positives concentrate on rare pairs, a multiple-testing problem that a likelihood-ratio test addresses."
+formalcalculusPrereqs:
+  - topic: "power-taylor-series"
+    site: "formalcalculus"
+    relationship: "The series of log(1 + x) shows that PMI removes the background near independence and that a mixture's PMI departs from low rank only at second order."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import DistributionalLab from '../../components/viz/DistributionalLab.tsx';
+
+## Overview & Motivation
+
+Count, for every word in the finance corpus, which words appear within two positions of it. Then compare words by their counts after one reweighting, the pointwise mutual information that this topic is about. The word whose neighbors look most like those of *strong* is *improved*. Next come *stronger*, *healthy*, and then *weak*. *Soft*, *confident*, and *weaker* follow. Four of the seven are words of the same polarity, and three are its antonyms.
+
+That is the distributional hypothesis at work, and its limit in one list. Harris (1954) and Firth (1957) proposed that words with similar meanings occur in similar contexts; Firth's phrase is that you know a word by the company it keeps. The company of *strong* in an earnings call is *which management described as* and *revenue rose six percent*, and *weak* keeps exactly the same company. A matrix of co-occurrence counts measures substitutability. Meaning is something more.
+
+This topic builds the classical recipe, a co-occurrence matrix, a reweighting by pointwise mutual information (PMI), and a truncated singular value decomposition (SVD), and proves what each step does.
+
+1. **PMI removes the background.** Every raw count row shares the corpus's own word frequencies, so rows of different words point almost the same way. PMI subtracts that background in log coordinates.
+2. **Counts cannot tell association from frequency on rare pairs.** A pair seen once has a PMI determined by frequency alone, and under independence rare pairs produce large false positives. Most of a corpus's PMI matrix is such pairs.
+3. **The eigenvalue weight decides what an SVD embedding measures.** Word vectors' dot products approximate a power of the matrix's Gram matrix, not the matrix itself, and a symmetric window produces large negative eigenvalues that the usual half-power weighting misreads.
+4. **Low rank means two different things.** A latent-class model makes the ratio $P(w, c)/(P(w)P(c))$ low rank, while embeddings assume its logarithm, the PMI, is low rank. The two hypotheses agree only for weak associations.
+
+The finance corpus lets us check everything against a known answer. Its generator draws every content noun from one of six sector vocabularies, so we can ask whether a method puts nouns of the same sector together, choosing settings on half of the nouns and scoring on the other half. The finance case study then asks what distribution cannot see, starting with polarity.
+
+---
+
+## Words as points
+
+The [vocabulary-statistics topic](/topics/zipf-heaps-vocabulary-statistics) counted words. Here we count pairs. The training text is the n-gram topic's training split: $6{,}130$ sentences and $63{,}182$ word tokens over $3{,}425$ word types, which are the rows and columns of every matrix below.
+
+<TheoremBlock type="definition" number={1} title="Co-occurrence matrix">
+
+Fix a **context type**: a symmetric window of $L \in \lbrace 1, 2, 4, 8 \rbrace$ positions inside a sentence, the whole sentence, or the whole document. The **co-occurrence matrix** $C$ counts, for words $w$ and $c$, the ordered pairs of token positions $(i, j)$, $i \ne j$, in one sentence (or one document) with $w$ at position $i$, $c$ at position $j$, and, for a window, $\lvert i - j \rvert \le L$. Write $N = \sum_{w, c} C[w, c]$ and $n_w = \sum_c C[w, c]$.
+
+</TheoremBlock>
+
+$C$ is symmetric, since every pair is counted in both orders, and a word co-occurs with its own other tokens. With a two-word window there are $215{,}948$ pair occurrences spread over $53{,}293$ distinct pairs; with whole sentences, $661{,}904$ over $158{,}054$. A word is now a point: its row of $C$, a vector with one coordinate per context word.
+
+<TheoremBlock type="definition" number={2} title="PMI, PPMI, and shifted PPMI">
+
+Let $P(w, c) = C[w, c]/N$ and $P(w) = n_w / N$, and for $0 \lt \alpha \le 1$ let the **smoothed context distribution** be $P_\alpha(c) = n_c^{\alpha} / \sum_{c'} n_{c'}^{\alpha}$. The **pointwise mutual information** is
+
+$$
+\operatorname{PMI}_\alpha(w, c) = \log \frac{P(w, c)}{P(w)\, P_\alpha(c)},
+$$
+
+which is $-\infty$ when $C[w, c] = 0$. **Positive PMI** is $\operatorname{PPMI}_\alpha = \max(\operatorname{PMI}_\alpha, 0)$, and for $k \ge 1$ the **shifted positive PMI** is $\operatorname{SPPMI}_{\alpha, k} = \max(\operatorname{PMI}_\alpha - \log k, 0)$. Without subscripts, $\alpha = 1$ and $k = 1$.
+
+</TheoremBlock>
+
+PMI compares how often two words occur together with how often they would if they were independent (Church and Hanks 1990). Clipping at zero replaces the $-\infty$ of unseen pairs by "no association". The shifted version of Levy and Goldberg (2014) is the one to remember: before clipping, $\operatorname{PMI} - \log k$ is exactly the matrix that the word2vec topic will show skip-gram with $k$ negative samples factorizes, and the smoothing exponent $\alpha = 0.75$ is the one word2vec uses for its negative samples (Levy, Goldberg, and Dagan 2015).
+
+What kind of coordinates are PMI rows? Write $P_C$ for the distribution of contexts and $P(\cdot \mid w)$ for the contexts of $w$.
+
+<TheoremBlock type="proposition" number={1} title="Log-ratio coordinates">
+
+For a joint distribution of words and contexts whose marginals have full support:
+
+1. $P(c \mid w) = P_C(c)\, e^{\operatorname{PMI}(w, c)}$, so a PMI row and the context distribution determine each other.
+2. $\sum_c P(c \mid w) \operatorname{PMI}(w, c) = \operatorname{KL}\bigl(P(\cdot \mid w) \,\Vert\, P_C\bigr) \ge 0$, with equality exactly when $w$ is independent of its contexts.
+3. $\sum_w P(w)\, \operatorname{KL}\bigl(P(\cdot \mid w) \,\Vert\, P_C\bigr) = I(W; C)$, the mutual information of words and contexts.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Part 1 is the definition rewritten. Substituting it into the Kullback–Leibler divergence gives part 2, and Gibbs' inequality gives the sign (formalML, [KL Divergence](https://www.formalml.com/topics/kl-divergence)). Part 3 is the definition of mutual information as the divergence of the joint distribution from the product of its marginals, the identity formalRAG's [pointwise mutual information topic](https://www.formalrag.com/topics/pmi-retrieval-value) proves (its Theorem 1) for answers and retrieved documents.
+
+</TheoremBlock>
+
+So a PMI row is the context distribution written in log-ratio coordinates relative to the corpus background, and its weighted average says how far the word is from that background. The next theorem says what this buys over raw counts.
+
+<TheoremBlock type="theorem" number={1} title="PMI removes the background">
+
+Let $P$ be a context distribution with full support, and let two words have context distributions $P(\cdot \mid w) = (1 - \varepsilon_w) P + \varepsilon_w q_w$ and $P(\cdot \mid w') = (1 - \varepsilon_{w'}) P + \varepsilon_{w'} q_{w'}$, with $q_w, q_{w'} \ne P$. Write $f_w = q_w / P - \mathbf{1}$, entrywise. As $\varepsilon_w, \varepsilon_{w'} \to 0$:
+
+1. the cosine of the two words' count rows tends to $1$, with $1 - \cos = O(\varepsilon^2)$;
+2. $\operatorname{PMI}_w / \varepsilon_w \to f_w$, so the cosine of their PMI rows tends to $\cos(f_w, f_{w'})$, with error $O(\varepsilon)$;
+3. $\sum_c P(c)\, f_w(c) = 0$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A count row is $n_w \bigl(P + \varepsilon_w (q_w - P)\bigr)$, so its angle to $P$ is $O(\varepsilon_w)$. The angle $\theta$ between the two rows is then $O(\varepsilon)$, and $1 - \cos\theta \le \theta^2/2$. For the PMI row, $\operatorname{PMI}_w(c) = \log\bigl(1 + \varepsilon_w f_w(c)\bigr)$. Once $\varepsilon_w \lVert f_w \rVert_\infty \le \tfrac12$, the series of the logarithm gives $\lvert \log(1 + x) - x \rvert \le x^2$ (formalCalculus, [Power Series & Taylor Series](https://www.formalcalculus.com/topics/power-taylor-series)), so $\operatorname{PMI}_w = \varepsilon_w f_w + O(\varepsilon_w^2 \lVert f_w \rVert_\infty^2)$ uniformly. Cosine does not depend on scale and is continuous away from zero, which gives part 2. For part 3, $\sum_c P(c)\bigl(q_w(c)/P(c) - 1\bigr) = 1 - 1$.
+
+</TheoremBlock>
+
+Every count row contains the corpus background, so near the background all count rows point the same way, and a count cosine measures mostly how corpus-like two words are. PMI subtracts the background, and what remains, $f_w$, is the part of the word's contexts that is its own. The theorem is a statement about words near the background, not a claim that real words are. The corpus shows the effect anyway. With a two-word window, raw count rows of nouns from the same sector have mean cosine $0.648$, and nouns from different sectors $0.638$. Counts can barely tell the sectors apart. Under PPMI the cosines are $0.056$ and $0.029$: smaller, because the shared background is gone, and twice as large within a sector as across.
+
+---
+
+## What counts cannot tell
+
+PMI is a ratio of estimated probabilities, and estimates from small counts are unreliable. How unreliable depends on how rare the pair is, and by Zipf's law most pairs are rare.
+
+<TheoremBlock type="proposition" number={2} title="The ceiling, and the singleton artifact">
+
+1. $\operatorname{PMI}(w, c) \le \min\bigl(-\log P(w),\, -\log P(c)\bigr)$, with equality in the first argument exactly when $c$ occurs only with $w$. Under smoothing, $\operatorname{PMI}_\alpha(w, c) \le -\log P_\alpha(c)$.
+2. For a pair seen exactly once, the plug-in estimate is $\operatorname{PMI}_\alpha(w, c) = -\log n_w - \log P_\alpha(c)$. For $\alpha = 1$ this is $\log N - \log n_w - \log n_c$, a function of the two frequencies alone.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$P(w, c) \le P(c)$ and $P(w, c) \le P(w)$ give the two ceilings. Substituting $C[w, c] = 1$ into Definition 2 gives part 2.
+
+</TheoremBlock>
+
+Rare words have the highest ceilings, and on a pair seen once the estimate says nothing about association at all. How much of the matrix is that? Apply the vocabulary-statistics topic's frequency spectrum to pair counts instead of word counts. With the two-word window, $38{,}674$ of the $53{,}293$ distinct pairs, $72.6\%$, are seen exactly once, and they make up $73.3\%$ of the PPMI matrix's positive entries. The largest PPMI on the row of a word seen once is $10.49$. For words seen $2$ to $4$ times it is $9.80$, then $8.88$, $7.38$, and, for words seen at least $100$ times, $5.73$.
+
+Are these positive entries association, or noise? Suppose words and contexts were independent. With the margins fixed, the count of a pair is then close to a Poisson variable with mean $\mu = n_w n_c / N$ (formalStatistics, [Discrete Distributions](https://www.formalstatistics.com/topics/discrete-distributions)), and its true PMI is zero.
+
+<TheoremBlock type="proposition" number={3} title="PPMI under independence">
+
+Let $X \sim \operatorname{Poisson}(\mu)$ and $\operatorname{PPMI} = \max\bigl(\log(X/\mu), 0\bigr)$. Then
+
+1. $\Pr(\operatorname{PPMI} \gt 0) = \Pr(X \gt \mu)$;
+2. if $\mu \lt 1$, then $\Pr(\operatorname{PPMI} \gt 0) = 1 - e^{-\mu}$, every positive value is at least $\log(1/\mu)$, and $\mathbb{E}[\operatorname{PPMI}] \ge (1 - e^{-\mu}) \log(1/\mu)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\log(X/\mu) \gt 0$ exactly when $X \gt \mu$. When $\mu \lt 1$, $X \gt \mu$ exactly when $X \ge 1$, which has probability $1 - e^{-\mu}$, and then $\log(X/\mu) \ge \log(1/\mu)$. The expectation is at least that value times that probability.
+
+</TheoremBlock>
+
+<TheoremBlock type="remark">
+
+As $\mu \to \infty$, $\Pr(\operatorname{PPMI} \gt 0) \to \tfrac12$ and $\sqrt{2\pi\mu}\; \mathbb{E}[\operatorname{PPMI}] \to 1$: the standardized count is approximately normal, $\log(X/\mu) \approx (X - \mu)/\mu$, and the positive part of a standard normal has mean $1/\sqrt{2\pi}$. We check this numerically rather than prove it here.
+
+</TheoremBlock>
+
+Under independence, then, rare pairs produce rare but large false positives, and frequent pairs produce frequent but tiny ones. PPMI tests every pair against independence at once, a multiple-testing problem (formalStatistics, [Multiple Testing & False Discovery](https://www.formalstatistics.com/topics/multiple-testing-and-false-discovery)), and the cure for the large false positives is a proper significance test (Dunning 1993), the subject of the collocations topic.
+
+The corpus can be put to the test directly. Of the $50{,}648$ positive entries of the two-word PPMI matrix, $90.5\%$ belong to pairs with $\mu \lt 1$, each of which a single co-occurrence could have produced under independence. Now shuffle every token of the training text across the whole corpus, keeping every sentence's length: each word's frequency is unchanged, and every association is destroyed. The shuffled text's PPMI matrix has $94{,}860$ positive entries. Poisson independence with the training margins predicts $93{,}603$, within $1.3\%$. Its squared Frobenius norm is $729{,}130$, **larger** than the real text's $691{,}005$. At this scale, the size of PPMI's entries is mostly sampling noise, and the signal is in which entries are positive. Shifting by $\log 5$ reverses the comparison: the shifted matrix has $234{,}580$ for the real text against $206{,}808$ for the shuffled one.
+
+A second correction targets the context side.
+
+<TheoremBlock type="proposition" number={4} title="Context-distribution smoothing">
+
+For $0 \lt \alpha \lt 1$, let $Z_\alpha = \sum_c n_c^\alpha$. The ratio
+
+$$
+\frac{P_\alpha(c)}{P(c)} = \frac{N}{Z_\alpha}\, n_c^{\alpha - 1}
+$$
+
+is strictly decreasing in $n_c$ and equals $1$ at
+
+$$
+t^\star = \Bigl(\frac{N}{Z_\alpha}\Bigr)^{1/(1 - \alpha)}.
+$$
+
+So smoothing lowers $\operatorname{PMI}$ exactly on contexts seen fewer than $t^\star$ times and raises it on the rest. For $k \ge k'$, the positive entries of $\operatorname{SPPMI}_{\alpha, k}$ are a subset of those of $\operatorname{SPPMI}_{\alpha, k'}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$n \mapsto n^{\alpha - 1}$ is strictly decreasing for $\alpha \lt 1$, and $\operatorname{PMI}_\alpha - \operatorname{PMI} = -\log\bigl(P_\alpha(c)/P(c)\bigr)$. The shift subtracts $\log k$ from every entry, so a larger shift leaves fewer of them positive.
+
+</TheoremBlock>
+
+With the two-word window and $\alpha = 0.75$, $t^\star = 338.4$, and $95.8\%$ of context words, carrying $34.8\%$ of context occurrences, lie below it. The positive entries number $50{,}648$ unsmoothed, $50{,}618$ smoothed, $36{,}382$ after a shift by $\log 5$, and $22{,}795$ after $\log 15$. Smoothing tempers rare contexts. It does not touch the singleton artifact, since a singleton's smoothed PMI is still a function of frequency (Proposition 2).
+
+---
+
+## Truncated SVD
+
+A PPMI row has $3{,}425$ coordinates, most of them zero and many of them noise. The classical response is to keep only the matrix's strongest directions.
+
+<TheoremBlock type="definition" number={3} title="Truncated SVD embedding">
+
+Let $M = U \Sigma V^\top$ be a singular value decomposition, with singular values in decreasing order, and let $U_d, \Sigma_d, V_d$ keep the first $d$. For an **eigenvalue weight** $p \in [0, 1]$, the **word vectors** are the rows of $W_p = U_d \Sigma_d^{\,p}$ and the **context vectors** the rows of $C_p = V_d \Sigma_d^{\,1 - p}$.
+
+</TheoremBlock>
+
+The classical choice is $p = 1$; Levy, Goldberg, and Dagan (2015) found $p = \tfrac12$ and $p = 0$ often better (cf. Bullinaria and Levy 2012). The theorem says what each choice makes the dot product of two word vectors mean.
+
+<TheoremBlock type="theorem" number={2} title="What the eigenvalue weight measures">
+
+1. $W_p C_p^\top = M_d := U_d \Sigma_d V_d^\top$ for every $p$, the best rank-$d$ approximation of $M$ in the Frobenius and spectral norms.
+2. $W_p W_p^\top = U_d \Sigma_d^{\,2p} U_d^\top$, the best rank-$d$ approximation of the positive semidefinite matrix $(M M^\top)^p$. For $p = 1$ it approximates $M M^\top$, whose entries count shared contexts; for $p = 0$ it is the orthogonal projector $U_d U_d^\top$.
+3. Suppose $M$ is symmetric, with eigendecomposition $M = Q \Lambda Q^\top$ and eigenvalues ordered so that $\lvert \lambda_1 \rvert \ge \lvert \lambda_2 \rvert \ge \cdots$. Then $W_{1/2} W_{1/2}^\top = Q_d \lvert \Lambda_d \rvert Q_d^\top$, which equals $M_d$ exactly when $\lambda_1, \dots, \lambda_d \ge 0$, and
+
+$$
+\bigl\lVert Q_d \lvert \Lambda_d \rvert Q_d^\top - M_d \bigr\rVert_F = 2 \Bigl(\sum_{i \le d,\ \lambda_i \lt 0} \lambda_i^2\Bigr)^{1/2}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Part 1 is substitution, and the optimality is the Eckart–Young–Mirsky theorem (Eckart and Young 1936; Mirsky 1960; formalML, [Singular Value Decomposition](https://www.formalml.com/topics/svd), Theorem 2). For part 2, $M M^\top = U \Sigma^2 U^\top$ with $U$ orthonormal, so $(M M^\top)^p = U \Sigma^{2p} U^\top$ is a spectral decomposition of a positive semidefinite matrix, and its best rank-$d$ approximation keeps the top $d$ eigenpairs, which is $U_d \Sigma_d^{2p} U_d^\top = W_p W_p^\top$. For part 3, the spectral theorem (formalML, [The Spectral Theorem](https://www.formalml.com/topics/spectral-theorem), Theorem 1) gives $M = Q \Lambda Q^\top$, and then $\sigma_i = \lvert \lambda_i \rvert$, $u_i = q_i$, and $v_i = \operatorname{sign}(\lambda_i)\, q_i$ is a singular value decomposition. So $W_{1/2} W_{1/2}^\top = \sum_{i \le d} \lvert \lambda_i \rvert q_i q_i^\top$ while $M_d = \sum_{i \le d} \lambda_i q_i q_i^\top$. Their difference is $\sum_{i \le d,\ \lambda_i \lt 0} 2 \lvert \lambda_i \rvert q_i q_i^\top$, whose Frobenius norm follows from the orthonormality of the $q_i$. Flipping the signs of a pair $(u_i, v_i)$ together changes none of these products.
+
+</TheoremBlock>
+
+So a word vector's dot product with a **context** vector approximates PMI whatever the weight, but its dot product with another **word** vector approximates something else: a count of shared contexts for $p = 1$ (second-order co-occurrence, Schütze 1998), and, for a symmetric matrix and $p = \tfrac12$, the matrix with every eigenvalue's sign removed.
+
+That last case is not academic. A symmetric window makes the PMI matrix symmetric, and the two-word PPMI matrix is strongly **indefinite**. Of its $100$ eigenvalues of largest magnitude, $44$ are negative, including the second, $\lambda_2 = -83.9$ (the first is $\lambda_1 = 137.4$). At $d = 100$ the half-power word-word matrix differs from $M_d$ by $1.248$ times $M_d$'s own norm. The eigenvector of $\lambda_2$ shows why. Its two signs separate template words (*and*, *alongside*, *toward*, *in*, *customers*, *added*, *highlighted*, *markets*) from content nouns (*channelline*, *nonreceivables*, *royaltyside*, *wellflow*, …), and $58.7\%$ of the matrix's PPMI mass joins the two sides. In a small window a word keeps company with words of the other kind, and a nearly bipartite matrix has eigenvalues of both signs.
+
+<TheoremBlock type="corollary" number={1} title="Adding context vectors keeps the positive part">
+
+If $M$ is symmetric, then $W_{1/2} + C_{1/2} = 2\, Q_d \bigl[\Lambda_d\bigr]_+^{1/2}$, where $[\cdot]_+$ zeroes the negative eigenvalues. Hence
+
+$$
+\tfrac14 \bigl(W_{1/2} + C_{1/2}\bigr)\bigl(W_{1/2} + C_{1/2}\bigr)^\top = \sum_{i \le d,\ \lambda_i \gt 0} \lambda_i\, q_i q_i^\top ,
+$$
+
+the positive part of $M_d$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Any singular value decomposition of $M$ has $u_i = s_i q_i$ and $v_i = s_i \operatorname{sign}(\lambda_i)\, q_i$ for some signs $s_i$. Then $\sqrt{\sigma_i}\,(u_i + v_i) = s_i \sqrt{\lvert \lambda_i \rvert}\,\bigl(1 + \operatorname{sign} \lambda_i\bigr) q_i$, which is zero for negative eigenvalues and $2 s_i \sqrt{\lambda_i}\, q_i$ for positive ones.
+
+</TheoremBlock>
+
+Levy, Goldberg, and Dagan (2015) recommended adding context vectors to word vectors as a heuristic. For a symmetric window it is an exact operation: it projects out the negative eigenspace, the directions of the bipartite structure. On the corpus, at the setting where we checked Theorem 2 (two-word window, $d = 100$, $p = \tfrac12$, not tuned), adding the context vectors raises the sector-ranking score of the next section's test nouns from $0.712$ to $0.755$, and their nearest-neighbor accuracy from $0.809$ to $0.878$.
+
+---
+
+## Two kinds of low rank
+
+Why should a co-occurrence matrix be approximately low rank at all? There are two classical answers, and they are not the same answer. Write $R$ for the matrix of ratios $P(w, c)/\bigl(P(w)P(c)\bigr)$, so that $\operatorname{PMI} = \log R$ entrywise.
+
+<TheoremBlock type="theorem" number={3} title="Two kinds of low rank">
+
+1. **Mixtures make the ratio low rank.** Suppose words and contexts are independent given a latent class $Z \in \lbrace 1, \dots, K \rbrace$, so that $P(w, c) = \sum_z \pi_z \varphi_z(w) \psi_z(c)$. Let $\Phi$ and $\Psi$ hold the $\varphi_z$ and $\psi_z$ as columns, $\Pi = \operatorname{diag}(\pi)$, and $D_w, D_c$ the diagonal matrices of the marginals. Then
+
+$$
+R = A \Pi B^\top, \qquad A = D_w^{-1} \Phi, \quad B = D_c^{-1} \Psi,
+$$
+
+so $\operatorname{rank} R \le K$, and $R - \mathbf{1}\mathbf{1}^\top = A\bigl(\Pi - \pi\pi^\top\bigr) B^\top$ has rank at most $K - 1$.
+
+2. **Its PMI is low rank only to first order.** If $\delta = \max_{w,c} \lvert R(w, c) - 1 \rvert \lt 1$, then
+
+$$
+\operatorname{PMI} = \sum_{n \ge 1} \frac{(-1)^{n+1}}{n} \bigl(R - \mathbf{1}\mathbf{1}^\top\bigr)^{\circ n},
+$$
+
+where $^{\circ n}$ is the entrywise power. The $n$-th term has rank at most $\binom{K + n - 2}{n}$, and every entry of $\operatorname{PMI} - (R - \mathbf{1}\mathbf{1}^\top)$ is at most $\delta^2 / \bigl(2(1 - \delta)\bigr)$ in absolute value.
+
+3. **Log-bilinear models make the PMI low rank.** If $\operatorname{PMI} = X Y^\top + a \mathbf{1}^\top + \mathbf{1} b^\top$ with $X$ and $Y$ of width $d$, then $\operatorname{rank} \operatorname{PMI} \le d + 2$, while $R$, its entrywise exponential, need not be low rank.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(1) The word marginal is $\Phi \pi$, so $A \pi = D_w^{-1} \Phi \pi = \mathbf{1}$, and likewise $B \pi = \mathbf{1}$. Hence $\mathbf{1}\mathbf{1}^\top = A \pi \pi^\top B^\top$, and $R - \mathbf{1}\mathbf{1}^\top = A(\Pi - \pi\pi^\top)B^\top$. The middle factor sends $\mathbf{1}$ to $\pi - \pi = 0$, so its rank is at most $K - 1$.
+
+(2) Expand $\log(1 + x)$ in its series entrywise (formalCalculus, [Power Series & Taylor Series](https://www.formalcalculus.com/topics/power-taylor-series)). A matrix of rank $r$ is a sum $\sum_{i \le r} a_i b_i^\top$, and its $n$-th entrywise power expands by the multinomial theorem into one rank-one term for each multiset $\lbrace i_1, \dots, i_n \rbrace$, namely a multiple of $(a_{i_1} \circ \cdots \circ a_{i_n})(b_{i_1} \circ \cdots \circ b_{i_n})^\top$. There are $\binom{r + n - 1}{n}$ such multisets (cf. Horn and Johnson 1991 on Hadamard products), and $r = K - 1$. The remainder satisfies $\lvert \log(1 + x) - x \rvert \le \sum_{n \ge 2} \lvert x \rvert^n / 2 = x^2 / \bigl(2(1 - \lvert x \rvert)\bigr)$.
+
+(3) A sum of a rank-$d$ matrix and two rank-one matrices has rank at most $d + 2$.
+
+</TheoremBlock>
+
+Part 1 is the aspect model of probabilistic latent semantic analysis (Hofmann 1999), and with Dirichlet priors on its components it becomes the latent Dirichlet allocation of the topic-models topic (Blei, Ng, and Jordan 2003). Part 3 is the form skip-gram and GloVe fit (Pennington, Socher, and Manning 2014), the subject of the word2vec and GloVe topics. The neural-language-models topic's softmax bottleneck is part 3 for log-probabilities, and its escape, a mixture of softmaxes, escapes part 3 exactly the way part 1's mixtures do. Part 2 says how the two hypotheses relate. For weak associations they coincide to first order, and they part ways as associations grow strong. On random mixtures with weakened association, the share of the PMI's energy beyond rank $K - 1$ falls like the square of the association's strength.
+
+The corpus's generator is close to part 1's model at the document level: every content noun in a document comes from that document's sector vocabulary or from a shared one. Take the $115$ content nouns seen at least $20$ times and their document-level co-occurrences, of which $15.2\%$ are unseen pairs. A six-sector mixture predicts that $R - \mathbf{1}\mathbf{1}^\top$ has rank at most $5$.
+
+| singular value, as a share of the first | 1 | 2 | 3 | 4 | 5 | **6** | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| ratio $R - \mathbf{1}\mathbf{1}^\top$ | $1$ | $0.963$ | $0.924$ | $0.617$ | $0.421$ | $\mathbf{0.184}$ | $0.171$ | $0.157$ |
+| PPMI | $1$ | $0.749$ | $0.588$ | $0.547$ | $0.492$ | $0.344$ | $0.240$ | $0.213$ |
+
+The ratio matrix drops after the fifth singular value, to the level of noise: the shuffled corpus's largest singular value for the same nouns is $0.161$ of the real one. The energy beyond rank $5$ is $11.6\%$ for the ratio matrix and $27.8\%$ for PPMI. A topic model would find this structure more easily than an embedding would.
+
+---
+
+## Recovering the planted sectors
+
+The shared corpus's generator draws each content noun from one sector's vocabulary, which grows by a Pitman–Yor process as the vocabulary-statistics topic described. Rebuilding the generator recovers every noun's sector, which gives us a test with a known answer.
+
+<TheoremBlock type="definition" number={4} title="The planted-sector benchmark">
+
+The **benchmark nouns** are the training nouns drawn from exactly one sector vocabulary and seen at least five times. For a set of word vectors, the **nearest-neighbor accuracy** is the share of nouns whose nearest other noun, by cosine similarity (formalRAG, [The Vector Space Model and TF-IDF](https://www.formalrag.com/topics/vector-space-model-tfidf)), comes from the same sector. The **pair AUC** is the probability that a random same-sector pair of nouns has a higher cosine than a random pair from different sectors, with ties counting one half (Mann and Whitney 1947).
+
+</TheoremBlock>
+
+There are $227$ benchmark nouns: industrials $101$, technology $40$, banking $35$, energy $18$, retail $17$, and healthcare $16$. A seeded split within each sector sends $112$ to a **dev** set and $115$ to a **test** set. Within each family, sparse matrices and SVD embeddings, the setting with the best dev AUC is chosen before any test noun is scored. The families range over the contexts, the weightings (counts, PPMI, smoothed PPMI, and two shifts), and for SVD three base matrices, six ranks $d$ from $10$ to $300$, and $p \in \lbrace 0, \tfrac12, 1 \rbrace$. A neighbor drawn at random from the test nouns would share the sector $26.9\%$ of the time.
+
+One context is held out of the selection. The generator plants a noun's sector at the document level, so document-level co-occurrence reads the label almost directly, and even raw counts recover it perfectly. We report it as an oracle and select among the local contexts, which are what embedding methods use. Document-level co-occurrence is the Gram matrix of the term-document matrix whose SVD is latent semantic analysis (Deerwester et al. 1990; formalRAG, [PCA as Optimal Linear Dimensionality Reduction](https://www.formalrag.com/topics/pca-dimensionality-reduction)).
+
+| context (test nouns) | counts: AUC | counts: nearest neighbor | PPMI: AUC | PPMI: nearest neighbor |
+|---|---|---|---|---|
+| window of $1$ | $0.491$ | $0.304$ | $0.581$ | $0.609$ |
+| window of $2$ | $0.526$ | $0.574$ | $0.712$ | $0.826$ |
+| window of $4$ | $0.548$ | $0.652$ | $0.796$ | $0.957$ |
+| window of $8$ | $0.555$ | $0.652$ | $0.813$ | $0.957$ |
+| sentence | $0.560$ | $0.635$ | $0.813$ | $0.965$ |
+| *document (oracle)* | $0.992$ | $1.000$ | $1.000$ | $1.000$ |
+
+PPMI beats counts at every context, as Theorem 1 predicts, and wider contexts recover more, because sector is a property of a whole document. Smoothing does not help: the selected sparse matrix is unsmoothed sentence-level PPMI, with dev AUC $0.798$ against $0.793$ for its smoothed twin.
+
+| selected on dev | dev AUC | dev nearest neighbor | **test AUC** | **test nearest neighbor** |
+|---|---|---|---|---|
+| sparse: sentence PPMI | $0.798$ | $0.866$ | $0.813$ | $0.965$ |
+| SVD: window of $8$, $\operatorname{SPPMI}_5$, $d = 25$, $p = 0$ | $0.951$ | $0.946$ | $\mathbf{0.973}$ | $0.965$ |
+
+On the test nouns, truncation raises the AUC by $0.160$, with a jackknife standard error of $0.019$ (Efron 1982), at an identical nearest-neighbor accuracy. What the SVD buys is global ranking. Sparse PPMI already puts each noun's nearest neighbor in its sector $96.5\%$ of the time, but it ranks many cross-sector pairs above same-sector ones. The rank-$25$ embedding orders nearly all pairs correctly.
+
+The win is narrow. Only $59$ of the $270$ SVD settings beat the sparse matrix on test AUC, and $62$ on dev. For the selected base and weight, the test AUC by rank is $0.524$ at $d = 10$, $0.973$ at $25$, $0.948$ at $50$, $0.766$ at $100$, $0.631$ at $200$, and $0.601$ at $300$, and dev and test peak at the same rank. With too few dimensions the leading directions are frequency and template structure (Proposition 2, Theorem 2), not sectors; with too many, noise directions dilute the cosine, most of all when $p = 0$ weights every direction equally.
+
+The $396$ sector nouns seen only two to four times were never used in any selection, so they are a second test. Their AUC is $0.517$ for counts, $0.575$ for sparse PPMI, and $0.728$ for the SVD; their nearest-neighbor accuracy is $0.394$, $0.717$, and $0.657$, against $21.6\%$ for chance. On rare words too, truncation improves the ranking and gives up a little at the nearest neighbor.
+
+---
+
+## The company a word keeps, and the shape of the spectrum
+
+The laboratory lets you check these claims yourself. In panel A, pick a word, a context, and a weighting, and read off its five nearest neighbors, each tagged with its planted sector or lexicon category, along with the test scores of that setting. Counts give template and frequency neighbors. PPMI gives sector neighbors once the window is wide enough. At the two-word window, *strong*'s neighbors include *weak* and *soft*, while the document context puts *robust* first. The SVD's neighbors of *loans*, *stores*, *trials*, *software*, and *orders* are sector-pure. *Production* keeps the company of its template, *crude production averaged … thousand barrels per day*. Panel B shows the selected SVD's scores as the rank varies; the real and shuffled spectra, where unshifted PPMI's largest singular value is smaller than the shuffled corpus's; the signed eigenvalues of the two-word matrix; and Theorem 3's two spectra.
+
+<DistributionalLab client:visible />
+
+---
+
+## Finance case study: what distribution cannot see
+
+<FinanceCaseStudy title="Finance case study: what distribution cannot see">
+
+The corpus's polarity words come from a small hand-written stand-in lexicon, $18$ positive and $17$ negative words that occur in training, never from the Loughran–McDonald dictionary itself. In the generator's templates both polarities fill the same slots: *revenue rose six percent, which management described as* **strong**, or **weak**.
+
+**Antonyms are window neighbors.** At the two-word window, the nearest neighbors of *strong* under PPMI are *improved* ($0.408$), *stronger*, *healthy*, *weak* ($0.359$), *soft*, *confident*, and *weaker*. Across all polarity adjectives, mean cosine within a polarity and across polarities are $0.986$ and $0.984$ at the one-word window, $0.265$ and $0.248$ at two, and $0.214$ and $0.212$ at four. Distributional similarity is substitutability, and an antonym is the best substitute there is.
+
+**Polarity from context comes in three regimes.** Turney's (2002) semantic orientation scores a word by $\operatorname{SO}(w) = \operatorname{PMI}(w, \text{POS}) - \operatorname{PMI}(w, \text{NEG})$, its association with a positive seed set minus its association with a negative one. We merge each seed set into a single context (Turney and Littman 2003), add one half to both counts, leave the word out of its own seed set, and give a word with no seed co-occurrence a score of zero, a coin flip.
+
+| context | words with any evidence | accuracy of the sign | mean SO, positive words | mean SO, negative words |
+|---|---|---|---|---|
+| windows of $1$, $2$, $4$ | $0$ | $0.500$ | $0$ | $0$ |
+| window of $8$ | $0.657$ | $\mathbf{0.343}$ | $-0.326$ | $+0.310$ |
+| sentence | $0.657$ | $\mathbf{0.286}$ | $-0.728$ | $+0.384$ |
+| document | $1.000$ | $\mathbf{0.829}$ | $+0.270$ | $-0.363$ |
+
+Within four positions no polarity word ever meets another, so there is no evidence. Within a sentence the evidence points the wrong way: contrastive sentences (*revenue rose …, but costs rose …*) and *not* followed by an opposite-polarity adjective pair the two polarities, so scores fall below chance. Across a whole document the document's tone shows through. In this corpus polarity is a document-level property, as sector is, and only a context that large can see it. The coin-flip rule matters: without it, the seed sets' unequal frequencies alone would assign every word without evidence the same polarity, and an accuracy computed from no evidence would look like a finding.
+
+**The polysemes read as neutral.** Loughran and McDonald (2011) showed that words like *liability*, *tax*, *cost*, *crude*, and *capital*, negative in a general-purpose dictionary, are neutral in financial filings. From document contexts, the eight polyseme forms have median $\lvert \operatorname{SO} \rvert$ of $0.059$, against $0.259$ for the lexicon's own polarity words, and mean $+0.019$. Distribution reaches Loughran and McDonald's conclusion without a hand list, though not word by word: *liability* scores $+0.344$ and *crude* $-0.401$, and orientation from $300$ documents is noisy.
+
+**EDGAR is mostly out of reach.** Of the $797$ word tokens in the public EDGAR excerpts, only $40.0\%$ have a training vector at all, and $39.0\%$ have one estimated from at least five occurrences. A type-level embedding has nothing to say about the rest. The [subword topic](/topics/subword-tokenization-bpe-unigram) and the contextual-embedding topic are the two responses.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Word2vec.** Skip-gram with negative sampling learns word and context vectors whose dot products, at the optimum, equal $\operatorname{PMI} - \log k$, the unclipped shifted matrix of Definition 2. The word2vec topic proves it, and its customary sum of word and context vectors is Corollary 1's projection.
+- **GloVe.** GloVe fits a log-bilinear model to log co-occurrence counts, the form of Theorem 3's third part.
+- **Topic models.** Latent Dirichlet allocation is Theorem 3's first part with priors: low rank in the ratio, not in the PMI.
+- **Contextual embeddings.** One vector per word type cannot separate *liability* the accounting term from *liability* the risk, or tell *strong* from *weak* by their windows. Contextual embeddings give each token its own vector.
+- **Lexicon sentiment.** The lexicon-sentiment topic takes up polarity directly, with the real Loughran–McDonald dictionary fetched at run time.
+- **Collocations.** Dunning's likelihood-ratio test separates association from the rare-pair noise of Proposition 3.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **The ground truth is planted.** A noun's sector is the vocabulary the generator drew it from, so recovery measures how well a method reads structure we put there, not how well it captures meaning in English.
+2. **Document context is excluded from selection** because it reads the planted label almost directly. Every reported score is on held-out nouns, with settings chosen on the other half, but the benchmark is $227$ nouns ($115$ for testing), $44\%$ from one sector.
+3. **Exploratory runs shaped the design.** The grid of contexts, weightings, ranks, and weights, and the decision to exclude document contexts, were set after exploratory runs that scored all $227$ nouns before the split was fixed.
+4. **Truncation's win is narrow.** It improves global ranking, not nearest neighbors, and only near the selected rank: $59$ of $270$ SVD settings beat the sparse matrix on test nouns.
+5. **Theorem 3's mixture is approximate for this generator.** Pitman–Yor draws are exchangeable, not independent, given the sector, and the corpus check uses $115$ frequent nouns.
+6. **Most positive PPMI is noise at this scale.** A shuffled corpus has more PPMI energy than the real one.
+7. **The polarity results use a stand-in lexicon** of $35$ hand-written words, not the Loughran–McDonald dictionary, and the three regimes are properties of the generator's templates.
+8. **The large-sample limit** in Proposition 3's remark is checked numerically, not proved.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `distributional_semantics_ppmi_svd.py`, which owns every number on this page. It imports the vocabulary-statistics topic's frequency spectrum and Zipf law, the n-gram topic's sentence splitter, and the shared finance corpus, whose generator it reruns to recover the planted sectors. Running it as a script executes a harness of $16$ assertion-based tests in about ten seconds on a laptop CPU. The tests cover:
+
+- Definition 1 against a direct double loop, and the symmetry of every matrix; Proposition 1 on random joint distributions, against `scipy.stats.entropy`; Theorem 1's two rates on random instances, and the corpus cosines.
+- Proposition 2 exactly on every pair seen once; Proposition 3 by exact Poisson sums, by Monte Carlo with Zipf margins, and against the shuffled corpus; Proposition 4's threshold and nested supports.
+- The sparse SVD against `numpy.linalg.svd`; Theorem 2 and Corollary 1 on random rectangular, positive semidefinite, and indefinite matrices and on the corpus; Theorem 3 on random mixtures, weakened mixtures, and log-bilinear models, and on the corpus's nouns.
+- The pair AUC against `scipy.stats.mannwhitneyu`; the recovery tables, the selection, and the narrowness of the SVD's win; and the finance case study.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
