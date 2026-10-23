@@ -33,7 +33,7 @@
     {
       "id": "distributional-semantics-ppmi-svd",
       "label": "Distributional Semantics: PPMI and Truncated SVD",
-      "status": "planned",
+      "status": "published",
       "domain": "representations"
     },
     {
