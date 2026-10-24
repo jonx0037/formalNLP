@@ -704,8 +704,11 @@ def lab_cells() -> dict:
     data = sparse.coo_matrix(C).data
     hist = [int(np.sum(data == a)) for a in range(1, 100)] + [int(np.sum(data >= 100))]
     sh_all = weight_shares(False)
+    names = ("cells", "poisson", "sgns", "glove")
     return {"row": w2v.LAB_ROW, "cells": cells, "hist": hist, "bands": list(w2v.BAND_NAMES),
-            "share": {k: [_r(v) for v in sh_all[k]] for k in ("cells", "poisson", "sgns", "glove")}}
+            "share": {k: [_r(v) for v in sh_all[k]] for k in names},
+            # rounded from the exact sum, not summed from rounded bands (0.2964 must read 0.296, as on the page)
+            "rare": {k: _r(sh_all[k][0] + sh_all[k][1]) for k in names}}
 
 
 @lru_cache(maxsize=1)
@@ -1177,6 +1180,15 @@ def test_viz_payload():
                 assert len(v["xy"]) == len(cell["words"]) and all(len(a) == 3 for a in v["answers"])
     assert all(len(v) == len(SCALE_DOCS) for v in p["scale"].values())
     assert len(json.dumps(p, separators=(",", ":"))) < 40_000
+
+
+VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / "data" / "glove-lab.json"
+
+
+def test_viz_mirror_matches_payload():
+    """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
+    Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
+    assert json.loads(VIZ_JSON.read_text()) == json.loads(json.dumps(viz_payload())), VIZ_JSON
 
 
 def _run_harness() -> int:

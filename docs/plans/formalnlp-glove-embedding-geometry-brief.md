@@ -274,7 +274,7 @@ on {X ≤ t} exceeds w₂'s for every t. ∎
 | rows | cells | GloVe f(X) | Poisson X | SGNS ab/(a + b) |
 |---|---|---|---|---|
 | benchmark nouns (Topic 7's §5) | 0.923 | **0.721** | 0.585 | 0.548 (= Topic 7's 54.8%) |
-| all of Ω | 0.885 | 0.523 | 0.296 | 0.300 |
+| all of Ω | 0.885 | 0.523 | 0.296 | 0.301 |
 
   GloVe gives its weight to exactly the cells whose values (mostly log 1 = 0) carry the least.
 
@@ -327,9 +327,9 @@ observed count is the same), then (0, 0, u, v) attains J = 0, the global minimum
 | method | dev AUC / 1-NN | test AUC / 1-NN |
 |---|---|---|
 | GloVe, AdaGrad, W + C | 0.480 / 0.330 | **0.476** / 0.270 |
-| GloVe, AdaGrad, W | 0.485 / 0.339 | 0.469 / 0.322 |
+| GloVe, AdaGrad, W | 0.484 / 0.339 | 0.469 / 0.322 |
 | GloVe, ALS, W + C | 0.517 / 0.330 | 0.507 / 0.348 |
-| SGNS (Topic 7, 40 epochs) | 0.871 / 0.866 | **0.886** / 0.852 |
+| SGNS (Topic 7, 40 epochs) | 0.870 / 0.866 | **0.886** / 0.852 |
 | SVD(SPPMI₅), p = 0 (Topic 6) | 0.951 / 0.946 | **0.973** / 0.965 |
 
   - GloVe's test AUC − ½ = −0.024 (jackknife se 0.022), so it is at chance. Chance 1-NN is 0.269.
@@ -728,3 +728,55 @@ formalML `gradient-descent` treats RMSProp and Adam but not AdaGrad, and the rel
   The payload already rounds to 3 decimals.
 - **Gate.** Re-run the harness at the B3 gate (≈ 46 s). The notebook runs ≈ 51 s: under the 60 s limit, with little
   room for more training.
+
+## 11. Phase B record (2026-10-23)
+
+- **Numbering and placement.**
+  - Page numbering matches the brief: Defs 1–4, Props 1–5, Thms 1–3, Cors 1–2, in page order (verified in the built
+    DOM). The gauge-free solver is unnumbered prose after Cor 2.
+  - No `TheoremBlock` title carries a citation; attribution is in the prose.
+  - The lab, `GloVeLab`, sits after §5 under "Weights, offsets, and more text".
+  - Thm 1 and Prop 4 state their parts as labeled paragraphs rather than list items, so that their display math
+    renders.
+- **Payload and component.**
+  - `test_viz_mirror_matches_payload` requires `src/components/viz/data/glove-lab.json` (11.7 kB) to equal
+    `viz_payload()` exactly. The harness is 19/19 (≈ 46 s), and the notebook exits 0 (≈ 49 s).
+  - The DOM check caught the lab summing two rounded band shares (Poisson 0.297, SGNS 0.301) where the page quoted the
+    rounded sums. The payload now carries `rare`, the share on pairs seen ≤ 4, rounded from the exact sum, and
+    GloVe's share is recomputed live from the count histogram for the chosen x_max and γ.
+  - Curves differ by dash pattern, points by shape, and band segments by order, so color is never the only cue. No
+    hex is used.
+- **Page numbers re-derived at 6 decimals.** Three had come from `summary()`'s 4-decimal print and were corrected on
+  the page and here:
+  - GloVe W dev AUC 0.484454 → 0.484 (not 0.485);
+  - SGNS dev AUC 0.870480 → 0.870 (not 0.871, which agrees with Topic 7's page);
+  - SGNS's all-cells rare share 0.300530 → 0.301 (not 0.300).
+- **Cross-site.** All thirteen targets were re-verified `status: "published"` on GitHub `main`.
+- **Gates.**
+  - `pnpm test` passes 39/39, and `astro sync` and `pnpm validate` are clean (21 roadmap nodes without MDX).
+  - `pnpm audit:cross-site` exits 0. formalNLP: 8 topics, 73 outgoing edges, 0 wrong direction, 0 deferred, 0 slug
+    drift, and no frontmatter flags. The thirteen new outward links appear as missing reciprocals, as expected until
+    launch.
+  - `pnpm build` exits 0.
+- **DOM checks** on the built page (`pnpm preview`, preview pane shown, 1280 × 900):
+  - 0 `.katex-error`, 540 `.katex`, and `noindex, nofollow` intact. The console shows no errors.
+  - The lab hydrates once `[data-lab="glove"]` is scrolled into view (the island's `ssr` attribute is removed).
+  - Readouts equal the payload:
+    - *plantline*: GloVe weight 0.0316, Poisson 1, SGNS 0.340; trained GloVe 0.069 (log a 0.000), SGNS −0.913
+      (x* 0.662);
+    - *fiscal*: f 0.621, SGNS 16.87, GloVe 3.900 (3.970);
+    - *outlook*: "no term", GloVe score 3.558 (free), SGNS −6.282;
+    - x_max = 10, γ = 1 gives f(1) = 0.100 and GloVe's rare share 0.559;
+    - the default rare shares are 0.885 / 0.523 / 0.296 / 0.301, equal to the page's table.
+  - Panel B:
+    - city → region: GloVe as trained 0.367 / 0.580 / 0.040, gauge-free 0.360, defect 1.262, answers *massachusetts*
+      ✓ · *dallas* · *switzerland*;
+    - SGNS as trained 0.633 / 0.707 / 0.027, balanced 0.620, random 0.253 / 0.440, with gauge-free 0.693 and defect
+      1.162 in every variant;
+    - company → sector: SGNS 0.375 / 0.515, balanced 0.373 / 0.510;
+    - the scale table: 0.690 · 0.507 · 0.602 · 0.973, 0.590 · 0.583 · 0.855 · 0.991, and 0.538 · 0.695 · 0.946 ·
+      0.986;
+    - choosing GloVe in Panel B thickens GloVe's curve in Panel A.
+- **Mobile.** At the mobile preset, `innerWidth === 375` before and after hydration, and `scrollWidth` is 375 in every
+  state: all 6 cells, all 6 x_max × γ settings, all 56 relation × method × variant × question combinations, and the
+  scale view. The lab is 343 px wide with no unclipped overflow, and the wide tables scroll inside `.prose table`.
