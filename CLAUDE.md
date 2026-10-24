@@ -67,13 +67,16 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Three pillars per topic: rigorous math (KaTeX) + interactive D3 viz + working Python. The
   notebook contract is in `notebooks/README.md`; the `.py` owns every number the viz mirrors.
 - A dependent topic's `.py` **imports** its prereq's `.py`, never reimplements it: add the prereq's
-  hyphenated dir to `sys.path`, import its underscored module. Finance case studies import
-  `notebooks/finance-corpus/finance_corpus.py`.
+  hyphenated dir to `sys.path`, import its underscored module as a module object (`import … as ak`),
+  never `from … import`: harnesses collect `test_*` globals, so no helper may be named `test_*` either.
+  Finance case studies import `notebooks/finance-corpus/finance_corpus.py`.
 - `fc.generate_corpus(100, 1)` is a *fresh* generator run (Pitman–Yor restaurants restart from the
   same seed nouns), not a continuation; for "the same text continued", rebuild with `fc._CorpusGen`
   (see `continuation_run` in `notebooks/n-gram-models-smoothing/`). For a scale run, generate the
   longest continuation once and take prefixes; `ds.cooccurrence_of` counts new text on Topic 6's
-  vocabulary (new types drop out, and windows close over them).
+  vocabulary (new types drop out, and windows close over them). Synthetic docs carry entity spans
+  (`doc.entities`: ORG, GPE, DATE, MONEY, PERCENT, PERSON, PRODUCT, SECTOR; 1–5 companies/doc); EDGAR
+  excerpts carry none; `fc._tokens` keeps `[a-z]+` only.
 - Lab data is `src/components/viz/data/<lab>.json` = `json.dumps(viz_payload(), separators=(',', ':'))`,
   pinned by the `.py`'s `test_viz_mirror_matches_payload` — regenerate it, never hand-edit.
 - `rigorFlag` is load-bearing. Honesty is the differentiator.
@@ -92,25 +95,41 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
   stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
   two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
-  the payload.
+  the payload. When the page quotes a number the lab shows, copy the payload's value
+  (`round(0.2865, 3)` is `0.286`). When the page narrates a lab example, assert it in
+  `test_viz_payload` and pick the lab's default by a rule that finds it, not a hard-coded index.
+- Check a one-pass/vectorized evaluator against the plain forward pass on full log-probs at every
+  position (≤ 10⁻⁹), not argmaxes at a few: Topic 10's filing reader applied ALiBi's bias before 1/τ.
 - Quote page numbers from the harness at ≥ 6 decimals, never from `summary()`'s 4-decimal print
   (0.9405 → 0.940, 0.7285 → 0.728).
 - Mobile: assert `scrollWidth === 375` in *every* lab view/toggle. A `nowrap` readout inside a grid
-  `minmax(0, 1fr)` cell overflows — use flex-wrap rows.
+  `minmax(0, 1fr)` cell overflows — use flex-wrap rows. To find the culprit, list elements with no
+  overflow-clipped ancestor whose `getBoundingClientRect().right > 375`.
 - `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose.
 - NumPy SGD: scatter-add minibatch gradients as `csc_matrix((ones, idx, arange(n+1)), shape=(V, n)) @ g`,
   >10× faster than `np.add.at`. Draw an epoch's random numbers in one call (same stream, same results).
   Time one epoch before fixing a grid.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
-  helpers (`complex_step_grad`, `log_softmax`) only.
+  helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
+  (`tournament()` trains 15, `filing_benchmark()` 12); import its pure helpers (`frequencies`,
+  `sinusoidal`, `rotate`, `kernel`) instead.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
+- Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
+  large sparse block matrices raise spurious FP flags — check such determinants block by block.
+- Test a published bound's stated constant on adversarial instances before citing it (Chen et al.
+  2023's PI bound fails as stated for d ≤ 128). Prototype trained experiments in the scratchpad before
+  the scaffold, but treat spike numbers as provisional.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
   breaks cell 1's import. Check titles: arXiv `curl -sL arxiv.org/abs/<id> | grep citation_title`,
   DOIs `api.crossref.org/works/<doi>`, sibling theorem numbers by grepping `<TheoremBlock … number=`.
+  `jupyter execute … | tail` hides the exit code; to read outputs run `jupyter nbconvert --to notebook
+  --execute <nb> --output-dir <scratchpad>` from the repo root. Reddit, OpenReview, Semantic Scholar, and
+  DBLP refuse fetches: verify via the citing paper's bibliography (`pypdf` on its arXiv PDF),
+  `proceedings.iclr.cc/paper_files/paper/<year>` (lists 2024, not 2022), or arXiv's Comments field.
 - Deeper, topic-specific lessons from 50 shipped topics (numerical traps, nbformat generation,
   hydration quirks) live in `../formalRAG/CLAUDE.md` — read the relevant section rather than
   re-learning it. formalRAG is **read-only** from this repo.
