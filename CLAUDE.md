@@ -80,6 +80,21 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
   `hidden md:block`, so use desktop width. Scope DOM assertions to
   the lab container (pages carry other SVGs). React-controlled range sliders ignore synthesized
   `input` events — drive them with a real key press after `focus()`.
+- Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
+  stored `0.9005` renders `0.900` while the page says `0.901`.
+- Quote page numbers from the harness at ≥ 6 decimals, never from `summary()`'s 4-decimal print
+  (0.9405 → 0.940, 0.7285 → 0.728).
+- Mobile: assert `scrollWidth === 375` in *every* lab view/toggle. A `nowrap` readout inside a grid
+  `minmax(0, 1fr)` cell overflows — use flex-wrap rows.
+- `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose.
+- NumPy SGD: scatter-add minibatch gradients as `csc_matrix((ones, idx, arange(n+1)), shape=(V, n)) @ g`,
+  >10× faster than `np.add.at`. Draw an epoch's random numbers in one call (same stream, same results).
+  Time one epoch before fixing a grid.
+- Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s; never call Topic 5's trained models
+  (~50 s). Import its pure helpers (`complex_step_grad`, `log_softmax`) only.
+- `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
+  breaks cell 1's import. Check titles: arXiv `curl -sL arxiv.org/abs/<id> | grep citation_title`,
+  DOIs `api.crossref.org/works/<doi>`, sibling theorem numbers by grepping `<TheoremBlock … number=`.
 - Deeper, topic-specific lessons from 50 shipped topics (numerical traps, nbformat generation,
   hydration quirks) live in `../formalRAG/CLAUDE.md` — read the relevant section rather than
   re-learning it. formalRAG is **read-only** from this repo.
