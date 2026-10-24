@@ -1031,6 +1031,10 @@ def _r(x, nd: int = 3):
     return None if not math.isfinite(x) else round(x, nd)
 
 
+def _sig(x: float, n: int = 3) -> float:
+    return float(f"{x:.{n}g}")
+
+
 def _circle_case(cfg: DenoiserConfig) -> dict:
     power = SPECTRA[cfg.spectrum]
     risks = [circle_risk(c, cfg.n, power, SIGMA) for c in LAB_C_GRID]
@@ -1042,6 +1046,8 @@ def _circle_case(cfg: DenoiserConfig) -> dict:
             "bias2": _r([r["bias2"] for r in risks], 4), "var": _r([r["var"] for r in risks], 4),
             "gains": [_r(circle_gains(cfg.n, c, np.arange(1, 9)), 3) for c in LAB_C_GRID],
             "c_star": _r(tr.c_star), "c_learned": _r(tr.c), "risk_star": _r(circle_risk(tr.c_star, cfg.n, power, SIGMA)["risk"], 4),
+            "risk_learned": _r(circle_risk(tr.c, cfg.n, power, SIGMA)["risk"], 4),
+            "start": int(1 + np.argmin(np.abs(np.log(np.array(LAB_C_GRID[1:])) - math.log(tr.c_star)))),
             "theta": _r(th, 4), "f": _r(f[0], 3), "y": _r(y[0], 3)}
 
 
@@ -1056,10 +1062,12 @@ def _lab_doc(name: str, doc: Doc, beta: float, lam: float, tk: TrainedKernel, cu
         bits[key] = lp
     bits["learned"] = _mix(doc, cache_probs(doc, tk.beta, tk.params, True), tk.lam, True)
     W = cache_weights(doc, beta)
+    pc = cache_probs(doc, beta, open_vocab=True, weights=W)
     attn = []
     for t in curated:
-        top = np.argsort(-W[t])[:LAB_ATTN_TOP]
-        attn.append({"t": int(t), "pos": [int(i) for i in top], "w": _r(W[t, top], 3)})
+        top = np.argsort(-W[t], kind="stable")[:LAB_ATTN_TOP]  # ties go to the earlier position
+        attn.append({"t": int(t), "pos": [int(i) for i in top], "w": _r(W[t, top], 3), "copy": _r(pc[t], 3),
+                     "sources": [int(i) for i in np.flatnonzero(doc.raw[:t] == doc.raw[t])]})
     return {"name": name, "tokens": list(doc.targets), "sent": doc.sent.tolist(), "oov": doc.oov.astype(int).tolist(),
             "bits": {k: _r(-v / LN2, 2) for k, v in bits.items()},
             "bpc": {k: _r(-v.sum() / doc.chars / LN2, 3) for k, v in bits.items()}, "attn": attn}
@@ -1095,7 +1103,7 @@ def viz_payload() -> dict:
     return {
         "circle": {"c_grid": [float(c) for c in LAB_C_GRID], "sigma": SIGMA,
                    "cases": {k: _circle_case(cfg) for k, cfg in LAB_CASES.items()}},
-        "reach": {"lags": sweep["lags"], **{k: _r(np.log10(sweep[k]), 2) for k in ("attention", "elman", "lstm-1", "lstm-3")},
+        "reach": {"lags": sweep["lags"], **{k: [_sig(v) for v in sweep[k]] for k in ("attention", "elman", "lstm-1", "lstm-3")},
                   "accuracy": {"attention": _r(lt["accuracy"]), "attention_lag600": _r(lt["accuracy_lag600"]),
                                **TOPIC5_LAG_ACCURACY}},
         "cache": {"beta": None if math.isinf(beta) else beta, "lambda": lam,
@@ -1584,8 +1592,19 @@ def test_viz_payload():
     assert all(len(p["reach"][k]) == len(LAG_SWEEP) for k in ("attention", "elman", "lstm-1", "lstm-3"))
     for doc in p["cache"]["documents"]:
         assert all(len(v) == len(doc["tokens"]) for v in doc["bits"].values()) and doc["attn"]
+        for a in doc["attn"]:  # every marked token is copied from at least one earlier occurrence of itself
+            assert a["sources"] and all(doc["tokens"][i] == doc["tokens"][a["t"]] for i in a["sources"]) and a["copy"] > 0
     assert p["cache"]["held_by_beta"] == _r([cache_benchmark()[f"beta={b}"]["held"] for b in BETAS], 4)
     assert len(json.dumps(p, separators=(",", ":"))) < 60_000
+
+
+VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / "data" / "attention-kernel-lab.json"
+
+
+def test_viz_mirror_matches_payload():
+    """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
+    Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
+    assert json.loads(VIZ_JSON.read_text()) == json.loads(json.dumps(viz_payload())), VIZ_JSON
 
 
 def _run_harness() -> int:

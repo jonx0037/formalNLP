@@ -47,7 +47,6 @@ export const tracks = [
     description:
       'The transformer as mathematics: attention as kernel smoothing, positional encodings as rotations, the residual stream, and empirical scaling laws.',
     planned: [
-      'Attention as Kernel Smoothing',
       'Positional Encodings: Sinusoids, Rotations, and RoPE',
       'The Transformer Block and the Residual Stream',
       'Neural Scaling Laws and Compute-Optimal Training',

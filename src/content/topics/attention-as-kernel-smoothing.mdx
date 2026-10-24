@@ -1,0 +1,725 @@
+---
+title: "Attention as Kernel Smoothing"
+subtitle: "Softmax attention is the Nadaraya–Watson estimator with an exponential kernel: the temperature is a bandwidth whose trade-off is exact on the circle, the 1/√d scale keeps the kernel from collapsing into a lookup, and a weighted lookup over every earlier position reaches in one step what a recurrent state forgets"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "neural-language-models"
+tags:
+  - "attention"
+  - "kernel-smoothing"
+  - "nadaraya-watson"
+  - "softmax"
+  - "temperature"
+  - "transformers"
+  - "random-features"
+  - "linear-attention"
+  - "cache-language-model"
+domain: "attention-transformers"
+financeCaseStudy: true
+rigorFlag: "Propositions 1 and 2 are exact for one head with given keys, but a trained transformer learns its keys, so its design points are fitted and the asymptotics of kernel regression do not describe it. Theorem 1 is exact only for equispaced keys and one frequency of position; the trained denoiser is a one-layer toy from one seed, and Collins and colleagues' theorem concerns their setting, not this one. Theorem 2's saturation result is about Gaussian queries and keys at initialization. The long-lag task is built for content addressing, since its bit symbols differ from its noise symbols, and the trained recurrent accuracies are quoted from the neural-language-models topic rather than re-run. The document cache adds information, not only a method: its gain comes from memory across sentences that Kneser–Ney and the per-sentence recurrent network never had, so it does not show that attention beats recurrence. On the synthetic corpus, which repeats itself little within a document, the gain is 0.027 nats per token (0.005 bits per character); on three EDGAR filings it is 1.16 bits per character, almost all from copying words the synthetic training text never contained, with the mixture weight tuned in domain, and lzma and the adaptive recurrent network still code the filings shorter. As the inverse bandwidth grows the cache pools words whose vectors coincide, not only identical words. Positive random features are least accurate exactly where the kernel is sharp, and every trained result is one seed."
+videoId: null
+notebookPath: "notebooks/attention-as-kernel-smoothing/01_attention_as_kernel_smoothing.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/attention-as-kernel-smoothing.mdx"
+datePublished: 2026-10-23
+estimatedReadTime: 40
+abstract: "A recurrent language model compresses its whole prefix into one state vector; attention instead looks up every earlier position, weighting each by the exponential of a query–key dot product. We prove that this lookup is the Nadaraya–Watson kernel smoother: the exponential kernel is a Gaussian in the distance between query and key, tilted by the keys' lengths, and its weights are the posterior responsibilities of a Gaussian mixture centered on the keys. The temperature is the bandwidth. On equispaced keys around a circle the smoother is diagonalized by the Fourier basis, with gains that are ratios of modified Bessel functions, so its bias–variance trade-off is a closed form whose optimal concentration grows like the two-fifths power of the number of keys; a one-layer attention model trained to denoise random functions finds that optimum to within half a percent. The scale 1/√d keeps random dot products from saturating the softmax, whose Jacobian vanishes as it saturates. A lookup's gradient reaches an earlier position in one step, diluted by the number of competitors rather than decayed through a product of Jacobians, so one attention layer trained on the recurrent topic's long-lag task reads the bit at ten times the training lag. On text, a kernel cache over a document's own earlier words, mixed with Kneser–Ney, helps a little on synthetic filings and a lot on real ones, by copying words the training text never contained. Factoring the kernel with positive random features turns the lookup back into a fixed-size recurrent state, at a cost that grows exponentially with the kernel's sharpness."
+connections: []
+references:
+  - type: "paper"
+    title: "On Estimating Regression"
+    authors: "E. A. Nadaraya"
+    year: 1964
+    url: "https://doi.org/10.1137/1109020"
+    note: "Theory of Probability and Its Applications 9 (1): 141–42. The kernel regression estimator, Definition 1"
+  - type: "paper"
+    title: "Smooth Regression Analysis"
+    authors: "Geoffrey S. Watson"
+    year: 1964
+    url: "https://www.jstor.org/stable/25049340"
+    note: "Sankhyā, Series A 26 (4): 359–72. The same estimator, independently, Definition 1"
+  - type: "paper"
+    title: "Neural Machine Translation by Jointly Learning to Align and Translate"
+    authors: "Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio"
+    year: 2015
+    url: "https://arxiv.org/abs/1409.0473"
+    note: "ICLR 2015. Attention as a soft lookup over every source position, Definition 2"
+  - type: "paper"
+    title: "Attention Is All You Need"
+    authors: "Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, and Illia Polosukhin"
+    year: 2017
+    url: "https://papers.nips.cc/paper_files/paper/2017/hash/3f5ee243547dee91fbd053c1c4a845aa-Abstract.html"
+    note: "NeurIPS 30. Scaled dot-product attention, Definition 2, and the 1/√d scale of Theorem 2"
+  - type: "paper"
+    title: "Transformer Dissection: An Unified Understanding for Transformer's Attention via the Lens of Kernel"
+    authors: "Yao-Hung Hubert Tsai, Shaojie Bai, Makoto Yamada, Louis-Philippe Morency, and Ruslan Salakhutdinov"
+    year: 2019
+    url: "https://aclanthology.org/D19-1443/"
+    note: "Proceedings of EMNLP-IJCNLP 2019, 4344–53. Attention read as a kernel smoother, Proposition 1"
+  - type: "paper"
+    title: "Probabilistic Attention for Interactive Segmentation"
+    authors: "Prasad Gabbur, Manjot Bilkhu, and Javier Movellan"
+    year: 2021
+    url: "https://arxiv.org/abs/2106.15338"
+    note: "NeurIPS 34. Dot-product attention as inference in a Gaussian mixture, Proposition 2"
+  - type: "paper"
+    title: "Transformer Language Models without Positional Encodings Still Learn Positional Information"
+    authors: "Adi Haviv, Ori Ram, Ofir Press, Peter Izsak, and Omer Levy"
+    year: 2022
+    url: "https://aclanthology.org/2022.findings-emnlp.99/"
+    note: "Findings of EMNLP 2022, 1382–90. The causal mask leaks order, Proposition 3 (iii)"
+  - type: "paper"
+    title: "Hopfield Networks is All You Need"
+    authors: "Hubert Ramsauer, Bernhard Schäfl, Johannes Lehner, Philipp Seidl, Michael Widrich, Thomas Adler, Lukas Gruber, et al."
+    year: 2021
+    url: "https://arxiv.org/abs/2008.02217"
+    note: "ICLR 2021. One-step retrieval with exponentially small error, Proposition 4 (i)"
+  - type: "paper"
+    title: "In-Context Learning with Transformers: Softmax Attention Adapts to Function Lipschitzness"
+    authors: "Liam Collins, Advait Parulekar, Aryan Mokhtari, Sujay Sanghavi, and Sanjay Shakkottai"
+    year: 2024
+    url: "https://arxiv.org/abs/2402.11639"
+    note: "NeurIPS 37. A trained attention unit's window adapts to the tasks' smoothness and noise, the trained denoiser"
+  - type: "documentation"
+    title: "NIST Digital Library of Mathematical Functions, §10.35 and §10.40"
+    authors: "F. W. J. Olver et al., eds."
+    url: "https://dlmf.nist.gov/10.35"
+    note: "The generating function of the modified Bessel functions (10.35.1), Theorem 1, and their large-argument expansions (10.40.1), Corollary 1"
+  - type: "paper"
+    title: "Low-Rank Bottleneck in Multi-head Attention Models"
+    authors: "Srinadh Bhojanapalli, Chulhee Yun, Ankit Singh Rawat, Sashank J. Reddi, and Sanjiv Kumar"
+    year: 2020
+    url: "https://arxiv.org/abs/2002.07028"
+    note: "ICML 2020, PMLR 119. One head's rank limit, Proposition 7"
+  - type: "paper"
+    title: "Random Features for Large-Scale Kernel Machines"
+    authors: "Ali Rahimi and Benjamin Recht"
+    year: 2007
+    url: "https://papers.nips.cc/paper_files/paper/2007/hash/013a006f03dbc5392effeb8f18fda755-Abstract.html"
+    note: "NeurIPS 20. Trigonometric random features, Proposition 8"
+  - type: "paper"
+    title: "Rethinking Attention with Performers"
+    authors: "Krzysztof Choromanski, Valerii Likhosherstov, David Dohan, Xingyou Song, Andreea Gane, Tamas Sarlos, Peter Hawkins, et al."
+    year: 2021
+    url: "https://arxiv.org/abs/2009.14794"
+    note: "ICLR 2021. Positive random features for the softmax kernel, Proposition 8"
+  - type: "paper"
+    title: "Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention"
+    authors: "Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, and François Fleuret"
+    year: 2020
+    url: "https://arxiv.org/abs/2006.16236"
+    note: "ICML 2020, PMLR 119. Causal linear attention as a recurrence, Proposition 9"
+  - type: "paper"
+    title: "A Cache-Based Natural Language Model for Speech Recognition"
+    authors: "Roland Kuhn and Renato De Mori"
+    year: 1990
+    url: "https://doi.org/10.1109/34.56193"
+    note: "IEEE Transactions on Pattern Analysis and Machine Intelligence 12 (6): 570–83. The unigram cache, Definition 3 at β = 0"
+  - type: "paper"
+    title: "Improving Neural Language Models with a Continuous Cache"
+    authors: "Edouard Grave, Armand Joulin, and Nicolas Usunier"
+    year: 2017
+    url: "https://arxiv.org/abs/1612.04426"
+    note: "ICLR 2017. A cache read through a kernel on hidden states, Definition 3"
+  - type: "paper"
+    title: "Pointer Sentinel Mixture Models"
+    authors: "Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher"
+    year: 2017
+    url: "https://arxiv.org/abs/1609.07843"
+    note: "ICLR 2017. Training a pointer over the recent context, Definition 4"
+  - type: "paper"
+    title: "Breaking the Softmax Bottleneck: A High-Rank RNN Language Model"
+    authors: "Zhilin Yang, Zihang Dai, Ruslan Salakhutdinov, and William W. Cohen"
+    year: 2018
+    url: "https://arxiv.org/abs/1711.03953"
+    note: "ICLR 2018. The rank argument Proposition 7 repeats for keys"
+  - type: "paper"
+    title: "Poisson Mixtures"
+    authors: "Kenneth W. Church and William A. Gale"
+    year: 1995
+    url: "https://doi.org/10.1017/S1351324900000139"
+    note: "Natural Language Engineering 1 (2): 163–90. Words recur within a document more than a constant rate predicts"
+formalmlPrereqs:
+  - topic: "kernel-regression"
+    site: "formalml"
+    relationship: "Softmax attention is its Nadaraya–Watson estimator with a Gaussian kernel and key-norm design weights; on the circle its bias–variance trade-off and AMISE rate become an exact closed form."
+formalmlConnections:
+  - topic: "gaussian-processes"
+    site: "formalml"
+    relationship: "A Gaussian-process posterior mean is also a linear smoother of the responses, but it inverts the kernel matrix where Nadaraya–Watson and attention only normalize each row."
+  - topic: "message-passing"
+    site: "formalml"
+    relationship: "Graph attention aggregates a node's neighbors with softmax weights, which is this page's kernel smoother restricted to a neighborhood of the graph."
+formalstatisticsPrereqs:
+  - topic: "kernel-density-estimation"
+    site: "formalstatistics"
+    relationship: "Attention's output is the conditional mean of a kernel density estimate whose components sit on the keys, so its weights are the mixture's posterior responsibilities."
+formalcalculusPrereqs:
+  - topic: "fourier-series"
+    site: "formalcalculus"
+    relationship: "On equispaced keys around a circle, attention is diagonalized by the Fourier basis, and its exact risk is computed by Parseval's identity from the Bessel gains."
+formalragPrereqs:
+  - topic: "hypersphere-vmf-geometry"
+    site: "formalrag"
+    relationship: "Attention between unit vectors is a von Mises–Fisher kernel; its Bessel normalizer and mean resultant length are the gains of the circle theorem."
+formalragConnections:
+  - topic: "retrieval-vs-long-context"
+    site: "formalrag"
+    relationship: "That page prices attention's quadratic cost in long contexts; this page factors the kernel with random features to make it linear, and measures what the factorization loses."
+  - topic: "late-interaction-learned-sparse"
+    site: "formalrag"
+    relationship: "ColBERT's MaxSim keeps each query token's best-matching document token, the zero-temperature limit of the attention lookup analyzed here."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import AttentionKernelLab from '../../components/viz/AttentionKernelLab.tsx';
+
+## Overview & Motivation
+
+The [neural-language-models topic](/topics/neural-language-models) gave a recurrent network a long-lag task: read a bit, read $60$ noise symbols, then report the bit. At initialization the gradient that reaches the bit from the final loss is $2.45 \times 10^{-10}$ for an Elman network, because it passes through $60$ step Jacobians and its Theorem 5 says how fast their product shrinks. Give the same task to one layer of attention, which reads every earlier position directly, and the same census gives $3.76 \times 10^{-5}$. Trained by the same protocol at lag $60$, the attention layer reports the bit correctly on every fresh sequence, at lag $60$ and at lag $600$.
+
+That topic ended with a promise: attention replaces the recurrent state's compression with a weighted lookup over every earlier position, and this topic reads that lookup as kernel smoothing. The reading is exact, and it explains the experiment above and several others.
+
+1. **Attention is a kernel smoother.** Softmax attention is the Nadaraya–Watson estimator of nonparametric regression, with the kernel $e^{\langle q, k \rangle / \tau}$. That kernel is a Gaussian in the distance between query and key, tilted toward long keys.
+2. **The temperature is a bandwidth.** At low temperature attention is a lookup, at high temperature an average. On keys spaced around a circle the smoother is a Fourier low-pass filter whose gains are ratios of Bessel functions, so its bias–variance trade-off is a closed form, and a trained attention layer finds its optimum.
+3. **The $1/\sqrt d$ scale** keeps random dot products from saturating the softmax, whose Jacobian vanishes as it saturates.
+4. **A lookup's gradient takes one step.** It is diluted by the number of positions competing for weight, not decayed through a product of Jacobians. Between lags $10$ and $480$ the gradient reaching the bit falls from $2.22 \times 10^{-4}$ to $4.88 \times 10^{-6}$ for attention, and from $1.88 \times 10^{-4}$ to $9.41 \times 10^{-46}$ for the Elman network.
+
+Then the lookup goes to work on text. A kernel over a document's own earlier words, mixed with the [n-gram topic](/topics/n-gram-models-smoothing)'s Kneser–Ney, reads across sentence boundaries that no earlier model on this site could see. On three real 10-K excerpts it cuts Kneser–Ney's code from $5.660$ to $4.498$ bits per character, mostly by copying words the training text never contained, though lzma, at $2.908$, still codes them shorter.
+
+---
+
+## A weighted lookup
+
+Rows are tokens, as in the neural-language-models topic. The inputs $x_1, \dots, x_n \in \mathbb{R}^p$ are mapped to **queries** $q_t = x_t W_Q$, **keys** $k_j = x_j W_K$ in $\mathbb{R}^{d_k}$, and **values** $v_j = x_j W_V$ in $\mathbb{R}^{d_v}$. Position $t$ may read the positions $\mathcal{J}_t$: all of them in **bidirectional** attention, and $j \le t$ in **causal** attention, the kind a language model uses. Write $V_{\max} = \max_j \lVert v_j \rVert$.
+
+Before attention, there was regression. Given design points $k_j$ and responses $v_j$, a kernel smoother predicts at a new point by averaging the responses, each weighted by how close its design point is.
+
+<TheoremBlock type="definition" number={1} title="Kernel smoother">
+
+For design points $k_1, \dots, k_n$, responses $v_1, \dots, v_n$, and a positive kernel $\kappa$, the **kernel smoother** at $q$ is
+
+$$
+\hat m(q) = \frac{\sum_j \kappa(q, k_j)\, v_j}{\sum_j \kappa(q, k_j)}.
+$$
+
+With $\kappa(q, k) = K_h(q - k)$, a scaled density of bandwidth $h$, it is the **Nadaraya–Watson estimator**. With positive **design weights** $\omega_j$, the kernel is $\omega_j K_h(q - k_j)$.
+
+</TheoremBlock>
+
+This is Nadaraya's (1964) and Watson's (1964) estimator, whose bias, variance, and optimal bandwidth formalML develops ([Kernel Regression](https://www.formalml.com/topics/kernel-regression), its Definition 2 and Theorems 1–2).
+
+<TheoremBlock type="definition" number={2} title="Scaled dot-product attention">
+
+The **scores** are $s_{tj} = \langle q_t, k_j \rangle / \tau$, with temperature $\tau = \sqrt{d_k}$ unless stated, and the **attention weights** are $\alpha_t = \operatorname{softmax}(s_t)$ over $\mathcal{J}_t$. The output is $o_t = \sum_{j \in \mathcal{J}_t} \alpha_{tj} v_j$. In matrix form,
+
+$$
+\operatorname{Attn}(Q, K, V) = \operatorname{softmax}\!\Bigl(\frac{Q K^\top}{\tau} + B\Bigr) V,
+$$
+
+row by row, where the mask $B$ is $0$ on $\mathcal{J}_t$ and $-\infty$ off it.
+
+</TheoremBlock>
+
+Bahdanau, Cho, and Bengio (2015) introduced attention as a soft lookup over every source position. Vaswani and colleagues (2017) gave the scaled dot-product form. Put the two definitions side by side and the first proposition is nearly immediate. Its content is in what the kernel turns out to be.
+
+<TheoremBlock type="proposition" number={1} title="Attention is a Nadaraya–Watson smoother">
+
+**(i)** The output $o_t$ is Definition 1's smoother at $q_t$, with the kernel $\kappa_\tau(q, k) = e^{\langle q, k \rangle / \tau}$, design points $k_j$, and responses $v_j$.
+
+**(ii)** For all $q$ and $k$,
+
+$$
+e^{\langle q, k \rangle / \tau} = e^{\lVert q \rVert^2 / 2\tau} \cdot e^{\lVert k \rVert^2 / 2\tau} \cdot e^{-\lVert q - k \rVert^2 / 2\tau}.
+$$
+
+So $o_t$ is the Gaussian Nadaraya–Watson estimator with bandwidth $h = \sqrt\tau$, which is $d_k^{1/4}$ at the default scale, and design weights $\omega_j = e^{\lVert k_j \rVert^2 / 2\tau}$.
+
+**(iii)** If all keys have the same norm, $o_t$ is the unweighted Gaussian estimator. If queries and keys lie on a sphere of radius $r$, the kernel is $e^{(r^2/\tau)\cos\angle(q, k)}$, the von Mises–Fisher kernel with concentration $r^2/\tau$.
+
+**(iv)** $o_t$ lies in the convex hull of the values it reads, so $\lVert o_t \rVert \le V_{\max}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Part (i) is the definition of the softmax: $\alpha_{tj} = e^{s_{tj}} / \sum_i e^{s_{ti}}$. Part (ii) is the polarization identity $\lVert q - k \rVert^2 = \lVert q \rVert^2 + \lVert k \rVert^2 - 2\langle q, k \rangle$, divided by $-2\tau$ and exponentiated. The factor $e^{\lVert q \rVert^2/2\tau}$ is the same for every key, so it cancels between the numerator and the denominator of Definition 1, and what remains is $\omega_j$ times a Gaussian kernel of variance $\tau$. Part (iii) follows because equal norms make every $\omega_j$ equal, and on the sphere $\langle q, k \rangle = r^2 \cos\angle(q, k)$. For (iv), the weights are positive and sum to $1$.
+
+</TheoremBlock>
+
+Tsai and colleagues (2019) read attention as a kernel smoother. The factorization in (ii) says which kernel smoother it is. The temperature sets a squared bandwidth, so the default bandwidth grows like $d_k^{1/4}$. The keys' lengths act as a design density: of two keys equally far from the query, the longer one gets exactly $e^{(\lVert k_j \rVert^2 - \lVert k_i \rVert^2)/2\tau}$ times the weight. On the sphere the kernel is the von Mises–Fisher one that formalRAG develops ([Hypersphere and von Mises–Fisher Geometry](https://www.formalrag.com/topics/hypersphere-vmf-geometry), its Definition 1).
+
+A kernel smoother is also a conditional mean. Put a Gaussian bump on every key and a point mass on every value, and attention computes the posterior.
+
+<TheoremBlock type="proposition" number={2} title="The mixture posterior">
+
+Let $J$ take the value $j$ with probability $\pi_j \propto \omega_j$, let $Q \mid J \sim N(k_J, \tau I)$, and let $V = v_J$. Then
+
+$$
+P(J = j \mid Q = q) = \alpha_j(q) \qquad \text{and} \qquad E[V \mid Q = q] = o(q).
+$$
+
+Equivalently, $o$ is the conditional mean of $V$ under the joint density $\hat p(q, v) = \sum_j \pi_j \varphi_\tau(q - k_j)\, \delta_{v_j}(v)$, a kernel density estimate in $q$ with point masses in $v$, where $\varphi_\tau$ is the $N(0, \tau I)$ density.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Bayes' rule, $P(J = j \mid Q = q) \propto \pi_j \varphi_\tau(q - k_j) \propto \omega_j e^{-\lVert q - k_j \rVert^2 / 2\tau}$, and by Proposition 1 (ii) this is proportional to $e^{\langle q, k_j \rangle / \tau}$, with a constant that does not depend on $j$. Normalizing gives $\alpha_j(q)$. Then $E[V \mid Q = q] = \sum_j P(J = j \mid Q = q)\, v_j = o(q)$.
+
+</TheoremBlock>
+
+The attention weights are the responsibilities of an isotropic Gaussian mixture whose means are the keys: one soft assignment of the query to a key, then the mean of the assigned values. Gabbur, Bilkhu, and Movellan (2021) give a probabilistic reading of dot-product attention along these lines. The joint $\hat p$ is a valid density, as formalStatistics proves for kernel density estimates ([Kernel Density Estimation](https://www.formalstatistics.com/topics/kernel-density-estimation), its Theorem 1). The notebook checks the conditional mean the way it is defined: on $10^5$ draws from the mixture, the residual $V - o(Q)$ is uncorrelated with $1$, $Q_1$, and $Q_2$, while the smoother that drops the design weights fails the same test.
+
+A smoother averages over a set, and a set has no order. The next proposition is why the positional-encodings topic exists.
+
+<TheoremBlock type="proposition" number={3} title="Order blindness">
+
+**(i)** Bidirectional attention is permutation-equivariant: permuting the inputs permutes the outputs in the same way. So is any stack of bidirectional layers with position-wise maps between them.
+
+**(ii)** In one causal layer, $o_t$ depends on $x_1, \dots, x_{t-1}$ only through their multiset. Two prefixes that rearrange the same tokens, followed by the same $x_t$, give the same output.
+
+**(iii)** Two causal layers do not have property (ii).
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For (i), relabeling the positions relabels the scores, and the softmax and the sum over $j$ commute with relabeling; position-wise maps commute with it trivially. For (ii), the sum $\sum_{j \le t} \alpha_{tj} v_j$ is a symmetric function of the pairs $(k_j, v_j)$ with $j \lt t$, given $q_t$, $k_t$, and $v_t$. For (iii), the second layer at position $t$ reads the first layer's outputs at $j \lt t$, and each of those depends on its own prefix $x_1, \dots, x_j$, which a rearrangement changes. The notebook exhibits a counterexample.
+
+</TheoremBlock>
+
+One causal layer without positions reads *the dog bit the man* exactly as it reads *the man bit the dog*. The notebook reverses the held-out prefix *good morning and welcome to the brightwater analytics*, keeping its last word, and one random causal layer's output at the last position is unchanged to rounding. Two layers differ by more than $10^{-3}$, asserted. The causal mask itself leaks order, which is why causal language models trained without positional encodings still learn some (Haviv et al. 2022).
+
+---
+
+## Temperature is bandwidth
+
+Take one query and a fixed set of scores, and turn the temperature. At $\tau \to 0$ the weight piles onto the best-scoring key; at $\tau \to \infty$ it spreads evenly. Both limits come with rates.
+
+<TheoremBlock type="proposition" number={4} title="The two temperature limits">
+
+Fix scores $s_j$ over a set $\mathcal{J}$ of $n$ positions. Let $S^*$ be the set of maximizers, $\Delta$ the gap between the maximum and the largest score off $S^*$, and $R$ the range of the scores. Write $\bar v_A$ for the mean of the values over $A$. Then
+
+$$
+\lVert o_\tau - \bar v_{S^*} \rVert \le \frac{2 V_{\max} (n - \lvert S^* \rvert)}{\lvert S^* \rvert} e^{-\Delta/\tau} \qquad \text{and} \qquad \lVert o_\tau - \bar v_{\mathcal{J}} \rVert \le V_{\max}\bigl(e^{R/\tau} - 1\bigr).
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For the first bound, every weight on $S^*$ is the same, and each weight off $S^*$ is at most $e^{-\Delta/\tau}$ times it, so the mass off $S^*$ is $\varepsilon \le (n - \lvert S^* \rvert) e^{-\Delta/\tau} / \lvert S^* \rvert$. The weights on $S^*$ are then $(1 - \varepsilon)/\lvert S^* \rvert$ each, so $o_\tau - \bar v_{S^*} = \sum_{j \notin S^*} \alpha_j (v_j - \bar v_{S^*})$, whose norm is at most $2 V_{\max} \varepsilon$. For the second, $n \alpha_j = e^{s_j/\tau} / \bigl(\tfrac1n \sum_i e^{s_i/\tau}\bigr)$ lies in $[e^{-R/\tau}, e^{R/\tau}]$, so $\lvert \alpha_j - 1/n \rvert \le (e^{R/\tau} - 1)/n$, and $\lVert o_\tau - \bar v_{\mathcal{J}} \rVert = \lVert \sum_j (\alpha_j - 1/n) v_j \rVert \le V_{\max}(e^{R/\tau} - 1)$.
+
+</TheoremBlock>
+
+The first limit is retrieval: when the best key is separated from the rest, attention returns its value with an error exponentially small in the gap. That is the one-step retrieval of Ramsauer and colleagues' (2021) modern Hopfield networks, and its zero-temperature end is the MaxSim lookup of late-interaction retrieval in formalRAG. The second limit is a bag-of-values average. Between them lies the bandwidth.
+
+How should the bandwidth be set? formalML answers for the Nadaraya–Watson estimator asymptotically: bias of order $h^2$, variance of order $1/(nh)$, and an optimal bandwidth of order $n^{-1/5}$ in one dimension. For attention there is a setting where the answer is exact at every $n$. Place $n$ keys at equally spaced angles around a circle, which is what a sinusoidal positional encoding of a single frequency does.
+
+<TheoremBlock type="theorem" number={1} title="Attention on the circle is a Fourier multiplier">
+
+Let $\theta_j = \theta_0 + 2\pi j/n$ for $j = 0, \dots, n - 1$, give every token the features $u(\theta) = (\cos\theta, \sin\theta)$ for its query and key, and let the scores be $s_{ij} = c \cos(\theta_i - \theta_j)$ with $c \ge 0$. Let the values be $y_j = f(\theta_j) + \varepsilon_j$, with the $\varepsilon_j$ independent of mean $0$ and variance $\sigma^2$. Let $A$ be the bidirectional attention matrix, and $F_k = \frac1n \sum_j f(\theta_j) e^{-ik\theta_j}$ the discrete Fourier coefficients of $f$.
+
+**(i)** $A$ is circulant. The Fourier vectors $(e^{ik\theta_j})_j$ are its eigenvectors, with eigenvalues
+
+$$
+\rho_k(c) = \frac{\sum_{m \equiv k \ (\mathrm{mod}\ n)} I_m(c)}{\sum_{m \equiv 0 \ (\mathrm{mod}\ n)} I_m(c)},
+$$
+
+where $I_m$ is the modified Bessel function of the first kind. For $c \gt 0$, $0 \lt \rho_k \lt 1 = \rho_0$ for every $k \not\equiv 0$; at $c = 0$, $\rho_k = 0$.
+
+**(ii)** The exact risk at the design points is
+
+$$
+R(c) = \frac1n \sum_i E\bigl(o_i - f(\theta_i)\bigr)^2 = \sum_{k=0}^{n-1} \bigl(1 - \rho_k(c)\bigr)^2 \lvert F_k \rvert^2 + \sigma^2\, \frac{\sum_{m \equiv 0} I_m(2c)}{n \bigl(\sum_{m \equiv 0} I_m(c)\bigr)^2}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The score $c\cos(\theta_i - \theta_j)$ depends only on $j - i$ modulo $n$, so $A_{ij} = a_{(j - i) \bmod n}$ with $a_m = e^{c\cos(2\pi m/n)}/Z$ and $Z = \sum_m e^{c\cos(2\pi m/n)}$: $A$ is circulant. Applied to $e^{(k)} = (e^{ik\theta_j})_j$, it gives $(A e^{(k)})_i = e^{ik\theta_i} \sum_m a_m e^{2\pi i k m/n}$. The generating function $e^{c\cos\varphi} = \sum_{l \in \mathbb{Z}} I_l(c) e^{il\varphi}$ (DLMF 10.35.1), summed over the $n$ angles $\varphi = 2\pi m/n$, keeps exactly the terms with $l + k \equiv 0 \pmod n$:
+
+$$
+\sum_{m=0}^{n-1} e^{c\cos(2\pi m/n)} e^{2\pi i k m/n} = n \sum_{l \equiv -k} I_l(c) = n \sum_{l \equiv k} I_l(c),
+$$
+
+since $I_{-l} = I_l$. The normalizer $Z$ is the case $k = 0$, which gives (i)'s formula. For $c \gt 0$ every $I_l(c)$ is positive, so $\rho_k \gt 0$. Because $a$ is symmetric, $\rho_k = \sum_m a_m \cos(2\pi k m/n) \le \sum_m a_m = 1$, with equality only if $\cos(2\pi k m/n) = 1$ for every $m$, that is, $k \equiv 0$. At $c = 0$, $I_l(0) = 0$ for $l \ne 0$.
+
+For (ii), split the error into bias and noise. The mean output is $Af$, and in the Fourier basis $Af - f = \sum_k (\rho_k - 1) F_k e^{(k)}$. The vectors $e^{(k)}$ are orthogonal with squared norm $n$, so by the discrete form of Parseval's identity $\frac1n \lVert Af - f \rVert^2 = \sum_k (1 - \rho_k)^2 \lvert F_k \rvert^2$. The noise contributes $\frac1n E\lVert A\varepsilon \rVert^2 = \frac{\sigma^2}{n} \operatorname{tr}(A^\top A) = \sigma^2 \sum_m a_m^2$, since every row of $A$ is a rotation of $a$. Finally $\sum_m a_m^2 = Z^{-2} \sum_m e^{2c\cos(2\pi m/n)}$, which is the generating-function sum at $2c$ with $k = 0$.
+
+</TheoremBlock>
+
+With one frequency of position, attention is a low-pass filter. The Fourier mode $k$ keeps the fraction $\rho_k$ of its amplitude, and once $n$ is large enough that the aliased terms vanish, $\rho_k = I_k(c)/I_0(c)$; at $n = 64$ and $c = 7.3$ the first six gains are $0.929$, $0.746$, $0.520$, $0.318$, $0.172$, and $0.083$. The first gain $I_1(c)/I_0(c)$ is formalRAG's mean resultant length of the von Mises–Fisher distribution on the circle (its Proposition 2), and the Bessel normalizer is its Theorem 2. Raising $c$, which lowers the temperature, opens the filter: less bias, more noise. This is the trade-off formalML derives asymptotically for kernel regression, here as a closed form at every $n$, and it rests on the orthogonality and Parseval's identity of formalCalculus ([Fourier Series & Orthogonal Expansions](https://www.formalcalculus.com/topics/fourier-series)). The notebook checks (i) against numpy's FFT on a grid of $n$ and $c$, to $10^{-12}$, and (ii) against simulated noise.
+
+<TheoremBlock type="corollary" number={1} title="The bandwidth rate">
+
+For a fixed nonconstant trigonometric polynomial $f$, write $P_k = \lvert F_k \rvert^2 + \lvert F_{-k} \rvert^2$ for its power at frequency $k \ge 1$, and $B = \tfrac14 \sum_k k^4 P_k$. The risk-minimizing $c^*(n)$ satisfies
+
+$$
+c^*(n) \sim \Bigl(\frac{4 B n}{\sigma^2 \sqrt\pi}\Bigr)^{2/5}
+$$
+
+as $n \to \infty$. So the angular bandwidth $1/\sqrt{c^*}$ is of order $n^{-1/5}$, and the optimal risk is of order $n^{-4/5}$, the rate of kernel regression in one dimension.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The large-argument expansion $I_\nu(c) = \frac{e^c}{\sqrt{2\pi c}}\bigl(1 - \frac{4\nu^2 - 1}{8c} + O(c^{-2})\bigr)$ (DLMF 10.40.1) gives $I_k(c)/I_0(c) = 1 - k^2/(2c) + O(c^{-2})$ and $I_0(2c)/I_0(c)^2 = \sqrt{\pi c}\,\bigl(1 + O(c^{-1})\bigr)$. The aliased terms $I_{k + mn}(c)$ with $m \ne 0$ are super-exponentially smaller than $I_k(c)$ while $c = o(n^2)$. So
+
+$$
+R(c) = \frac{B}{c^2} + \frac{\sigma^2 \sqrt{\pi c}}{n} + o\Bigl(\frac{1}{c^2} + \frac{\sqrt c}{n}\Bigr).
+$$
+
+For bounded $c$ the bias term is bounded away from $0$, while $R(n^{2/5}) \to 0$, so $c^*(n) \to \infty$. Setting the derivative of the two leading terms to zero gives $c^{5/2} = 4Bn/(\sigma^2\sqrt\pi)$.
+
+</TheoremBlock>
+
+The asymptote is approached quickly. Two spectra are used below: a *smooth* one, with random Fourier coefficients of variance $1$ at frequency $1$ and $\tfrac14$ at frequency $2$, and a *rough* one, with variance $\tfrac14$ at each of the frequencies $1$ through $6$, both with noise $\sigma = \tfrac12$. Computed from Theorem 1's exact formula, the ratio $c^*(n)/(Cn^{2/5})$, where $C = (4B/\sigma^2\sqrt\pi)^{2/5}$, is:
+
+| spectrum | $C$ | $n = 32$ | $64$ | $128$ | $1{,}024$ | $10^6$ | $10^8$ |
+|---|---|---|---|---|---|---|---|
+| smooth | $2.636$ | $0.949$ | $0.962$ | $0.972$ | $0.988$ | $0.9993$ | $0.9999$ |
+| rough | $17.513$ | $0.816$ | $0.906$ | $0.929$ | $0.970$ | $0.9981$ | $0.9997$ |
+
+Between $n = 10^6$ and $10^8$ the log–log slope of $c^*$ is $0.4001$ for the smooth spectrum and $0.4003$ for the rough one.
+
+Does a trained attention layer find this optimum? Collins and colleagues (2024) prove that a softmax attention unit trained on regression tasks learns a window that narrows as the tasks' functions grow less smooth and widens with label noise. Here the optimum is known exactly. One attention layer reads the tokens $(\cos\theta_j, \sin\theta_j, y_j)$; its queries and keys see the position only, so its scores are $u(\theta_i) M u(\theta_j)^\top$ with $M = W_Q W_K^\top/\sqrt2$, and its values are the $y_j$. Adam trains it on fresh random functions from one spectrum, at random rotations $\theta_0$, to minimize the squared error against the clean $f$. Because the task distribution is invariant under rotations and reflections, the population optimum is $M = c^* I$, with $c^*$ from Theorem 1.
+
+| spectrum, $n$ | learned $c$ | Theorem 1's $c^*$ | $\lVert M - c^* I \rVert / \lVert c^* I \rVert$ | $R(c^*)$ |
+|---|---|---|---|---|
+| smooth, $32$ | $10.006$ | $10.011$ | $0.12\%$ | $0.0546$ |
+| smooth, $64$ | $13.320$ | $13.391$ | $0.53\%$ | $0.0316$ |
+| rough, $32$ | $57.201$ | $57.130$ | $0.13\%$ | $0.1405$ |
+
+The trained layer lands on the theorem's optimum, nearly isotropic, from a start near uniform attention. It learns a kernel more than five times sharper for the rough functions than for the smooth ones, and a sharper one for the longer context.
+
+---
+
+## Why $1/\sqrt d$
+
+The temperature of Definition 2 is not a tuned constant but $\sqrt{d_k}$. Vaswani and colleagues gave the reason in a footnote: dot products of random vectors grow with the dimension, and large scores push the softmax into a region with tiny gradients. Both halves can be made exact.
+
+<TheoremBlock type="theorem" number={2} title="Why 1/√d">
+
+**(i)** If $q$ and $k$ are independent with i.i.d. coordinates of mean $0$ and variance $1$, then $E\langle q, k \rangle = 0$ and $\operatorname{Var}\langle q, k \rangle = d$.
+
+**(ii)** The softmax Jacobian $J = \operatorname{diag}(\alpha) - \alpha\alpha^\top$ satisfies
+
+$$
+\lVert J \rVert_2 \le \operatorname{tr} J = 1 - \lVert \alpha \rVert^2 \le 2(1 - \alpha_{\max}).
+$$
+
+**(iii)** Let $q \sim N(0, I_d)$, and let $k_1, \dots, k_n$ be i.i.d. $N(0, I_d)$, independent of $q$, with $n$ fixed. For the unscaled scores $\langle q, k_j \rangle$, $1 - \alpha_{\max} \to 0$ almost surely as $d \to \infty$. For the scaled scores $\langle q, k_j \rangle/\sqrt d$, $\alpha$ converges in distribution to $\operatorname{softmax}(g)$, with $g_1, \dots, g_n$ i.i.d. standard normal.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For (i), $\langle q, k \rangle = \sum_i q_i k_i$ is a sum of $d$ independent terms of mean $0$ and variance $E q_i^2\, E k_i^2 = 1$. For (ii), $J$ is the covariance of the one-hot vector of a draw from $\alpha$ (the neural-language-models topic's Proposition 2), so it is positive semidefinite, and its largest eigenvalue is at most its trace, $\sum_j \alpha_j(1 - \alpha_j) = 1 - \lVert \alpha \rVert^2$. And $1 - \lVert \alpha \rVert^2 \le 1 - \alpha_{\max}^2 = (1 - \alpha_{\max})(1 + \alpha_{\max})$.
+
+For (iii), condition on $q$. The scores $\langle q, k_j \rangle$ are then i.i.d. $N(0, \lVert q \rVert^2)$, which is the law of $\lVert q \rVert g_j$ with $g$ i.i.d. standard normal and independent of $q$. If $G \gt 0$ is the gap between the two largest $g_j$, every non-maximal weight is at most $e^{-\lVert q \rVert G}$ times the largest, so $1 - \alpha_{\max} \le (n - 1) e^{-\lVert q \rVert G}$. By the strong law of large numbers $\lVert q \rVert^2 / d \to 1$ almost surely, so $\lVert q \rVert \to \infty$, and $G \gt 0$ almost surely. Scaled, the scores are $(\lVert q \rVert/\sqrt d)\, g$, which converges almost surely to $g$, and the softmax is continuous.
+
+</TheoremBlock>
+
+Without the scale, the kernel's bandwidth shrinks like $d^{-1/2}$ in units of the scores, attention collapses into a lookup at initialization, and by (ii) the gradient through the scores vanishes with it. The neural-language-models topic's covariance identity, there a fact about the output layer, is here a cost. With $16$ keys, mean $1 - \alpha_{\max}$ and mean $\lVert J \rVert_2$ over $600$ random draws at each dimension are:
+
+| $d$ | $4$ | $16$ | $64$ | $256$ | $1{,}024$ |
+|---|---|---|---|---|---|
+| $1 - \alpha_{\max}$, unscaled | $0.571$ | $0.309$ | $0.139$ | $0.073$ | $0.041$ |
+| $1 - \alpha_{\max}$, scaled | $0.766$ | $0.755$ | $0.748$ | $0.751$ | $0.759$ |
+| $\lVert J \rVert_2$, unscaled | $0.257$ | $0.250$ | $0.157$ | $0.093$ | $0.056$ |
+| $\lVert J \rVert_2$, scaled | $0.192$ | $0.203$ | $0.208$ | $0.207$ | $0.203$ |
+
+---
+
+## A lookup instead of a state
+
+The neural-language-models topic's Theorem 5 bounds the gradient that reaches state $k$ from the loss at step $t$ by a product of $t - k$ step Jacobians. Attention has no such product.
+
+<TheoremBlock type="proposition" number={5} title="One hop">
+
+In one causal layer, for $k \lt t$,
+
+$$
+\frac{\partial o_t}{\partial x_k} = \alpha_{tk} \Bigl[ W_V + \tau^{-1} (W_K q_t) \otimes (v_k - o_t) \Bigr],
+$$
+
+acting on row perturbations of $x_k$, where $(a \otimes b)$ is the outer product $a b^\top$. Hence
+
+$$
+\Bigl\lVert \frac{\partial o_t}{\partial x_k} \Bigr\rVert \le \alpha_{tk} \Bigl( \lVert W_V \rVert + \tau^{-1} \lVert W_K \rVert \lVert q_t \rVert \lVert v_k - o_t \rVert \Bigr).
+$$
+
+When all scores are equal, $\alpha_{tk} = 1/(t + 1)$ for positions numbered from $0$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For $k \lt t$, $x_k$ enters $o_t = \sum_j \alpha_{tj} v_j$ in two places: through $v_k = x_k W_V$, and through the score $s_{tk} = \langle q_t, x_k W_K \rangle / \tau$, since $q_t$ depends on $x_t$ alone. The first contributes $\alpha_{tk} W_V$. For the second, the softmax gives $\partial \alpha_{tj} / \partial s_{tk} = \alpha_{tj}(\delta_{jk} - \alpha_{tk})$, so $\partial o_t / \partial s_{tk} = \alpha_{tk}(v_k - o_t)$, and $\partial s_{tk} / \partial x_k = W_K q_t / \tau$. The bound follows from the triangle inequality and $\lVert a b^\top \rVert = \lVert a \rVert \lVert b \rVert$.
+
+</TheoremBlock>
+
+The lookup's path from $t$ back to $k$ has length one. Its only loss is the factor $\alpha_{tk}$, a dilution by the positions competing for weight, and the scores can undo it by concentrating the weight. That is what "replaces the compression with a weighted lookup" means as a derivative. The long-lag task shows it.
+
+<TheoremBlock type="proposition" number={6} title="Content addressing solves the lag task">
+
+In the neural-language-models topic's task, the input is $x_0 \in \{0, 1\}$, then $L$ noise symbols drawn from $\{2, 3\}$, and the target is $x_0$. Take one causal layer read at the last position, with one-hot inputs, equal scores, values $+1$ for the symbol $0$, $-1$ for the symbol $1$, and $0$ for noise, and logits $(w\, o, -w\, o)$. Then
+
+$$
+o = \frac{1 - 2x_0}{L + 1},
+$$
+
+the prediction is correct for every $L$, and the cross-entropy is $\log\bigl(1 + e^{-2w/(L + 1)}\bigr)$, which tends to $0$ as $w \to \infty$. Keys that score the bit symbols $\beta$ above the noise raise the margin to $e^\beta / (e^\beta + L)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+With equal scores every one of the $L + 1$ positions gets weight $1/(L + 1)$, and only position $0$ has a nonzero value, $1 - 2x_0$. The logits are $\pm w(1 - 2x_0)/(L + 1)$, whose sign picks $x_0$, and the cross-entropy of the correct class is $\log(1 + e^{-2w/(L+1)})$. With the bit's score raised by $\beta$, its weight is $e^\beta/(e^\beta + L)$.
+
+</TheoremBlock>
+
+The bit symbols differ from the noise symbols, so the layer can find the bit by content alone, with no notion of position; the honest caveats return to this. The census below repeats the neural-language-models topic's protocol: the norm of the gradient of the batch-mean loss reaching the bit's own representation, at initialization, the median over $12$ initializations on batches of $256$. The recurrent rows at lag $60$ are that topic's own census, re-run.
+
+| lag $L$ | $10$ | $30$ | $60$ | $120$ | $240$ | $480$ |
+|---|---|---|---|---|---|---|
+| attention | $2.22 \times 10^{-4}$ | $5.71 \times 10^{-5}$ | $3.76 \times 10^{-5}$ | $2.77 \times 10^{-5}$ | $9.81 \times 10^{-6}$ | $4.88 \times 10^{-6}$ |
+| Elman | $1.88 \times 10^{-4}$ | $2.78 \times 10^{-7}$ | $2.45 \times 10^{-10}$ | $1.37 \times 10^{-15}$ | $1.87 \times 10^{-33}$ | $9.41 \times 10^{-46}$ |
+| LSTM, forget bias $1$ | $1.98 \times 10^{-4}$ | $3.28 \times 10^{-5}$ | $2.42 \times 10^{-7}$ | $3.35 \times 10^{-11}$ | $1.73 \times 10^{-16}$ | $1.83 \times 10^{-31}$ |
+| LSTM, forget bias $3$ | $1.12 \times 10^{-3}$ | $8.73 \times 10^{-4}$ | $1.42 \times 10^{-3}$ | $2.36 \times 10^{-4}$ | $1.51 \times 10^{-4}$ | $1.29 \times 10^{-7}$ |
+
+Attention's gradient times $L + 1$ stays between $1.77 \times 10^{-3}$ and $3.35 \times 10^{-3}$ across the whole range: dilution, as Proposition 5 says. The Elman network's falls by $41$ orders of magnitude. The LSTM with forget bias $3$ is ahead of attention at lag $60$, because its cell path carries the bit almost undamped for a while (that topic's Proposition 4), but its gradient still decays geometrically, and by lag $480$ attention has overtaken it. A forget gate postpones the decay; a lookup has none.
+
+Trained by the same protocol, $600$ Adam steps at lag $60$, the attention layer answers all $2{,}000$ fresh test sequences correctly, at a test loss of $3.0 \times 10^{-6}$. That topic reported $0.485$ for the Elman network, $0.531$ for the LSTM with forget bias $1$, and $1.000$ with forget bias $3$. The attention layer also answers every sequence correctly at lag $600$, ten times the lag it was trained on: a lookup never counted the steps.
+
+---
+
+## Attention over a document
+
+The recurrent network of the neural-language-models topic reset its state at every sentence, and Kneser–Ney never looks past two words. Neither can use the fact that a company named in one sentence is likely to be named again three sentences later. A lookup over the whole document can. To see what such a lookup buys on text, before any training, take its keys from fixed word vectors.
+
+<TheoremBlock type="definition" number={3} title="Kernel cache">
+
+A document's predicted positions run across its sentences in the n-gram topic's order: each word, then each sentence's end marker. Position $t$ has the target $w_t$ and the preceding token $u_t$, which is the sentence-start marker at the start of a sentence. Its **key** $\hat e(u_t)$ is $u_t$'s unit vector in the distributional-semantics topic's truncated SVD (positive PMI shifted by $\log 5$, a two-word window, $d = 100$), with one extra coordinate for the sentence-start marker and one for each distinct out-of-vocabulary string. The **kernel cache** with inverse bandwidth $\beta \ge 0$ is
+
+$$
+p_\beta(w \mid t) = \sum_{i \lt t} \alpha_{ti}\, \mathbb{1}[w_i = w], \qquad \alpha_{ti} \propto \exp\bigl(\beta \langle \hat e(u_t), \hat e(u_i) \rangle\bigr),
+$$
+
+over the document's earlier positions, and the model is $\lambda\, p_{\mathrm{KN}} + (1 - \lambda)\, p_\beta$, with Kneser–Ney alone at a document's first position. Over the open vocabulary, an out-of-vocabulary word costs Kneser–Ney the probability of `<unk>` times its spelling, $p_{\mathrm{KN}}(\mathrm{unk})\, S(w)$, with $S$ the [perplexity topic](/topics/perplexity-cross-entropy)'s speller, while the cache's values are the raw strings.
+
+</TheoremBlock>
+
+This is attention with fixed queries and keys, a value per position, and Nadaraya–Watson's estimator applied to classification: the cache predicts a word in proportion to the kernel weight of the earlier positions where it occurred. Grave, Joulin, and Usunier (2017) built such a cache over a recurrent network's hidden states; here the keys are word vectors, so there is nothing to train. The two ends of the bandwidth are older models.
+
+<TheoremBlock type="corollary" number={2} title="The cache's two limits">
+
+At $\beta = 0$, Definition 3 is the unigram document cache, $p_0(w \mid t) = \#\{i \lt t : w_i = w\}/t$. As $\beta \to \infty$, if some earlier position has the key $\hat e(u_t)$, the cache puts all its weight on those positions: it is the document's bigram cache over the key's occurrences. Otherwise it puts its weight on the earlier positions whose keys are nearest to $\hat e(u_t)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+At $\beta = 0$ every weight is $1/t$. As $\beta \to \infty$, Proposition 4 (i) sends the weight to the maximizers of $\langle \hat e(u_t), \hat e(u_i) \rangle$, whose maximum value $1$ is attained exactly at the positions with $\hat e(u_i) = \hat e(u_t)$, when there are any, since the keys are unit vectors.
+
+</TheoremBlock>
+
+The unigram cache is Kuhn and De Mori's (1990). The exact-context limit is a bigram cache, with one caveat that the corpus forces: $1{,}225$ pairs of training words, $358$ of the $3{,}425$, have identical vectors, because they were seen in identical contexts (once-seen pseudo-words, and first names in fixed templates), so the limit pools them. Between the limits, a context never seen before in the document borrows from the earlier contexts nearest to it, the neural-language-models topic's smoothing by geometry, now over a document.
+
+Inverse bandwidth $\beta$ and mixture weight $\lambda$ are chosen on the development documents, never on held-out text. For each $\beta$, the table gives the dev-chosen $\lambda$, the development loss, and the held-out loss, in nats per token over the closed vocabulary.
+
+| $\beta$ | $0$ | $\tfrac12$ | $1$ | $2$ | $4$ | $8$ | $16$ | $\infty$ |
+|---|---|---|---|---|---|---|---|---|
+| dev $\lambda$ | $0.99$ | $0.99$ | $0.98$ | $0.98$ | $0.98$ | $0.99$ | $0.99$ | $0.99$ |
+| dev | $2.7898$ | $2.7894$ | $2.7887$ | $2.7870$ | $2.7871$ | $2.7918$ | $2.7925$ | $2.7937$ |
+| held out | $2.8361$ | $2.8353$ | $2.8306$ | $2.8282$ | $2.8284$ | $2.8386$ | $2.8408$ | $2.8424$ |
+
+The bandwidth trade-off appears on text. Development data chooses $\beta = 2$, between the unigram cache and the exact-context cache, and on held-out text that choice beats both. With standard errors clustered by document, because a cache makes a document's sentences dependent, Kneser–Ney scores $2.855$ nats per token ($\pm 0.026$) and the mixture $2.828$ ($\pm 0.025$). The paired gain, $0.0269 \pm 0.0025$, is more than ten standard errors.
+
+The gain is where a cache should help. On the $41.9\%$ of positions whose target already occurred in the document, the loss falls from $1.798$ to $1.706$ nats; on first mentions it rises from $3.617$ to $3.637$, the price of the weight the cache takes. By distance back to the previous mention:
+
+| previous mention | share of repeats | in an earlier sentence | Kneser–Ney | mixture |
+|---|---|---|---|---|
+| $1$–$12$ tokens back | $36.3\%$ | $89.1\%$ | $1.427$ | $1.380$ |
+| $13$–$50$ | $45.5\%$ | $99.2\%$ | $1.764$ | $1.682$ |
+| more than $50$ | $18.2\%$ | $100\%$ | $2.621$ | $2.414$ |
+
+The farther back the previous mention, the more the cache gains, and nearly every repeat's previous mention is in an earlier sentence, where the per-sentence recurrent network had nothing. The gain on those repeats alone is $1.31$ times the net gain. The net gain is still small, $0.637$ to $0.632$ bits per character over the open vocabulary, because the synthetic generator draws its words from corpus-wide restaurants: a document repeats itself only a little more than the corpus does. Real text repeats itself more (Church and Gale 1995), and the finance case study below is where that shows.
+
+The keys so far were fixed. Learning them is the step from a cache to attention.
+
+<TheoremBlock type="definition" number={4} title="Learned kernel">
+
+Add a trained bilinear term to Definition 3's scores,
+
+$$
+\beta \langle \hat e(u_t), \hat e(u_i) \rangle + \langle F_t A, F_i B \rangle, \qquad A, B \in \mathbb{R}^{102 \times 16},
+$$
+
+where $F_t$ is the preceding token's SVD vector together with indicators of the sentence start and of an out-of-vocabulary word. Train $A$ and $B$ on the training documents to minimize the **pointer loss**, $-\log \sum_{i \lt t :\, w_i = w_t} \alpha_{ti}$ averaged over the positions whose target occurred earlier in the document.
+
+</TheoremBlock>
+
+The pointer loss asks the kernel to put its weight where the target is, as in Merity and colleagues' (2017) pointer sentinel, and it needs no Kneser–Ney, whose probabilities on its own training text are overfit. Starting from Definition 3 at $\beta = 2$, twelve epochs of Adam lower the training pointer loss at every epoch, from $3.001$ to $2.073$, and development data chooses the eleventh epoch with $\lambda = 0.97$. On held-out text the learned kernel's own pointer loss falls from $3.256$ to $2.383$, and the mixture improves to $2.821$ nats per token, a further $0.0071 \pm 0.0011$, more than six standard errors.
+
+---
+
+## Bandwidth, reach, and memory
+
+The laboratory puts the last three sections side by side. Panel A is the circle: drag the concentration $c$ and watch the smoothed curve, the Fourier gains, and the exact risk; $c^*$ and the trained layer's $c$ are marked. Panel B is the lookup: one held-out document and the three filings of the case study below, token by token, with the bits each variant of the cache spends on every token and, for selected tokens, where the kernel looks; and the gradient census of the long-lag task.
+
+<AttentionKernelLab client:visible />
+
+---
+
+## Kernels that factor
+
+A head's scores $QK^\top/\tau$ form a matrix of rank at most $d_k$. That limits what one head can express, and a stronger factorization makes attention cheap.
+
+<TheoremBlock type="proposition" number={7} title="One head's rank bound">
+
+For one bidirectional head over $n$ positions, $\log A = QK^\top/\tau - \lambda \mathbf{1}^\top$, where $\lambda_i$ is row $i$'s log-sum-exp, so $\operatorname{rank} \log A \le d_k + 1$. A positive row-stochastic pattern $P$ is realizable by one head with key dimension $d_k$ if and only if some row shift $\log P - c \mathbf{1}^\top$ has rank at most $d_k$. The least Frobenius distance from $\log P$ to the set $\{S + c \mathbf{1}^\top : \operatorname{rank} S \le d_k\}$ is the norm of the singular values of $\log P\, J_n$ beyond the $d_k$-th, where $J_n = I - \mathbf{1}\mathbf{1}^\top/n$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The first claim is subadditivity of rank. The softmax is unchanged by adding a constant to a row, so $P$ is realizable exactly when $\log P = S + c\mathbf{1}^\top$ for some $S$ of rank at most $d_k$, and any such $S$ factors as $QK^\top/\tau$. For the distance, fix $S$: the best shift is the row means of $\log P - S$, which leaves $(\log P - S) J_n$. As $S$ ranges over matrices of rank at most $d_k$, $S J_n$ ranges over those whose rows are orthogonal to $\mathbf{1}$, and $\log P\, J_n$ has rows orthogonal to $\mathbf{1}$ too, so Eckart–Young applies to $\log P\, J_n$.
+
+</TheoremBlock>
+
+This is the neural-language-models topic's softmax bottleneck (its Theorem 6; Yang et al. 2018), with keys in the place of the vocabulary, and it is Bhojanapalli and colleagues' (2020) case for wider heads. Hard patterns escape it in the zero-temperature limit of Proposition 4: with $d_k = 2$, keys on a circle and queries pointed at the right angles realize any permutation. Several heads give several kernels, which is where the transformer-block topic begins.
+
+The softmax kernel can also be factored approximately, with features that turn $e^{\langle x, y \rangle}$ into an inner product.
+
+<TheoremBlock type="proposition" number={8} title="Positive random features">
+
+For $w \sim N(0, I)$, the feature $\varphi_w(x) = e^{\langle w, x \rangle - \lVert x \rVert^2/2}$ satisfies
+
+$$
+E\bigl[\varphi_w(x)\varphi_w(y)\bigr] = e^{\langle x, y \rangle}, \qquad \operatorname{Var}\bigl[\varphi_w(x)\varphi_w(y)\bigr] = e^{2\langle x, y \rangle}\bigl(e^{\lVert x + y \rVert^2} - 1\bigr).
+$$
+
+For the kernel $e^{\beta\langle \hat x, \hat y \rangle}$ on unit vectors, $m$ independent features have relative variance $(e^{\beta \lVert \hat x + \hat y \rVert^2} - 1)/m \le (e^{4\beta} - 1)/m$. Positive features never give a nonpositive attention denominator; trigonometric features can.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For $w \sim N(0, I)$, $E e^{\langle w, a \rangle} = e^{\lVert a \rVert^2/2}$. At $a = x + y$, $E[\varphi_w(x)\varphi_w(y)] = e^{\lVert x + y \rVert^2/2 - \lVert x \rVert^2/2 - \lVert y \rVert^2/2} = e^{\langle x, y \rangle}$. At $a = 2(x + y)$ the second moment is $e^{2\lVert x + y \rVert^2 - \lVert x \rVert^2 - \lVert y \rVert^2}$, and subtracting the squared mean gives the variance. Apply it to $x = \sqrt\beta\, \hat x$ and $y = \sqrt\beta\, \hat y$, and use $\lVert \hat x + \hat y \rVert^2 \le 4$. Positivity is immediate; the notebook exhibits trigonometric features, those of Rahimi and Recht (2007), with a negative denominator.
+
+</TheoremBlock>
+
+These are Choromanski and colleagues' (2021) features. Their variance is largest exactly where the kernel is largest: the sharp kernel that makes a lookup useful is the one that does not compress. The point of factoring is the next proposition.
+
+<TheoremBlock type="proposition" number={9} title="Causal linear attention is a recurrence">
+
+With a kernel $\varphi(q)^\top \varphi(k)$ for nonnegative features $\varphi: \mathbb{R}^{d_k} \to \mathbb{R}^m$, the causal smoother is
+
+$$
+\hat o_t = \frac{\varphi(q_t)^\top S_t}{\varphi(q_t)^\top z_t}, \qquad S_t = S_{t-1} + \varphi(k_t)\, v_t^\top, \quad z_t = z_{t-1} + \varphi(k_t),
+$$
+
+with $S_0 = 0$ and $z_0 = 0$. Its state $(S_t, z_t)$ has $m(d_v + 1)$ numbers, whatever $t$ is.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\sum_{j \le t} \bigl(\varphi(q_t)^\top \varphi(k_j)\bigr) v_j = \varphi(q_t)^\top \sum_{j \le t} \varphi(k_j) v_j^\top = \varphi(q_t)^\top S_t$ by associativity, and likewise for the denominator.
+
+</TheoremBlock>
+
+Katharopoulos and colleagues (2020) named the result: transformers with factored kernels are recurrent networks. The lookup has been compressed back into a fixed-size state, the neural-language-models topic's design, and Proposition 8 gives the price. formalRAG's [Retrieval versus Long Context](https://www.formalrag.com/topics/retrieval-vs-long-context) counts what the unfactored lookup costs; here is what factoring it loses. Replace the kernel cache's exponential by $m$ positive random features and measure, on the held-out documents, the mean total-variation distance between the approximate attention weights and the exact ones:
+
+| $\beta$ | $m = 16$ | $64$ | $256$ | $1{,}024$ |
+|---|---|---|---|---|
+| $\tfrac12$ | $0.082$ | $0.047$ | $0.023$ | $0.013$ |
+| $1$ | $0.169$ | $0.096$ | $0.049$ | $0.029$ |
+| $2$ (dev) | $0.264$ | $0.221$ | $0.117$ | $0.096$ |
+| $4$ | $0.422$ | $0.394$ | $0.319$ | $0.266$ |
+| $8$ | $0.734$ | $0.589$ | $0.495$ | $0.434$ |
+
+The error falls with the number of features and grows with the kernel's sharpness, at every entry. At the dev-chosen setting the mixture's loss hardly registers it, because the cache carries only $2\%$ of the probability: $2.8327$, $2.8282$, $2.8297$, and $2.8304$ nats per token for $m = 16$, $64$, $256$, and $1{,}024$, against $2.8282$ for the exact cache.
+
+---
+
+## Finance case study: the filing as memory
+
+<FinanceCaseStudy title="Finance case study: the filing as memory">
+
+The three EDGAR excerpts are the MD&A sections of Apple's, ExxonMobil's, and Microsoft's 10-K filings, $830$ tokens in all, $57.6\%$ of them out of the synthetic training vocabulary. The neural-language-models topic found that on this text the spelling of the unknown words costs more than lzma's whole code. Each filing's own earlier words are its cache here, with $\beta = 2$ and $\lambda = 0.98$ from synthetic development data, never re-tuned. In bits per character over the open vocabulary:
+
+| model | EDGAR bits per character |
+|---|---|
+| Kneser–Ney | $5.660$ |
+| Kneser–Ney with the neural-language-models topic's PPM-C spelling cache | $4.767$ |
+| **Kneser–Ney ⊕ kernel cache** | $\mathbf{4.498}$ |
+| Kneser–Ney ⊕ learned kernel | $4.480$ |
+| recurrent network with dynamic evaluation and the spelling cache (that topic) | $3.650$ |
+| lzma, given the training text | $2.908$ |
+
+By filing, the cache takes Apple from $5.650$ to $4.153$, ExxonMobil from $5.647$ to $4.575$, and Microsoft from $5.682$ to $4.764$. Of the gain, $97.7\%$ comes from repeated out-of-vocabulary words, $2.5\%$ from repeated vocabulary words, and $-0.2\%$ from first mentions. The words are mostly not exotic. Ranked by repetition, the two most repeated out-of-vocabulary words of at least three letters in each filing include *other*, *are*, *our*, and *that*, ordinary English the synthetic generator never writes. Their second mentions:
+
+| filing | word | mentions | Kneser–Ney bits | cache bits |
+|---|---|---|---|---|
+| Apple | *other* | $9$ | $48.9$ | $12.1$ |
+| Apple | *tariffs* | $8$ | $30.6$ | $9.6$ |
+| ExxonMobil | *plans* | $8$ | $28.2$ | $8.5$ |
+| ExxonMobil | *are* | $7$ | $33.1$ | $11.2$ |
+| Microsoft | *our* | $8$ | $43.2$ | $12.5$ |
+| Microsoft | *that* | $4$ | $52.1$ | $11.3$ |
+
+A first mention costs the cache about $0.03$ bits more than Kneser–Ney. After that, the word is copied from the filing for about $10$ bits instead of spelled for $30$ to $50$. The neural-language-models topic's spelling floor (its Proposition 6) is lowered by copying, not by spelling better.
+
+The development data under-trusts the cache. Tuned on the filings themselves, which is a diagnostic and not a result, $\lambda$ would be $0.6$, giving $4.353$: real filings repeat themselves far more than the synthetic generator does. And the cache does not close the gap. lzma, which copies every byte string it has seen, and that topic's recurrent network, which adapts its weights to the text, both still code the filings shorter.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Positions.** Proposition 3 says one layer of attention cannot tell *the dog bit the man* from *the man bit the dog*. The positional-encodings topic adds position, and Theorem 1's features $(\cos\theta, \sin\theta)$ are already a sinusoidal encoding of one frequency: several frequencies, and rotations of the queries and keys, are its subject.
+- **The transformer block.** A block runs several heads, each a smoother with its own kernel (Proposition 7), and adds their outputs to a residual stream; the transformer-block topic assembles it.
+- **Contextual embeddings.** Stacking blocks gives each occurrence of a word its own vector, the subject of the contextual-embeddings topic.
+- **Aspect-based sentiment.** Attention to the words that carry an aspect's sentiment is a kernel lookup whose query is the aspect; the aspect-based sentiment topic asks how far its weights explain its predictions.
+- **Retrieval.** formalRAG's [late interaction](https://www.formalrag.com/topics/late-interaction-learned-sparse) scores a document by each query token's best match, the zero-temperature lookup of Proposition 4, and its [long-context topic](https://www.formalrag.com/topics/retrieval-vs-long-context) prices the full lookup.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **The identities are for given keys.** Propositions 1 and 2 are exact for one head with its keys fixed. A trained transformer learns its keys, so its design points are fitted, and the asymptotics of kernel regression do not describe it.
+2. **Theorem 1 is narrow.** It is exact for equispaced keys and one frequency of position. The trained denoiser is a one-layer toy trained from one seed, and Collins and colleagues' theorem concerns their setting, not this one.
+3. **Theorem 2 (iii) is about initialization.** Its queries and keys are Gaussian; trained scores are not.
+4. **The lag task suits a lookup.** Its bit symbols differ from its noise symbols, so content alone finds the bit. With identical symbols, finding position $0$ needs positional information. The trained recurrent accuracies are quoted from the neural-language-models topic, not re-run.
+5. **The cache adds information, not only a method.** Its gain comes from memory across sentences that Kneser–Ney and the per-sentence recurrent network never had, so it does not show that attention beats recurrence.
+6. **The in-domain gain is small, and the large one is out of domain.** On the synthetic corpus, which repeats itself little within a document, the cache gains $0.027$ nats per token ($0.005$ bits per character). On three EDGAR filings it gains $1.16$ bits per character, almost all from copying words the synthetic training text never contained, with $\lambda$ tuned in domain, and lzma and the adaptive recurrent network still code the filings shorter.
+7. **The exact-context limit pools look-alikes.** As $\beta \to \infty$ the cache pools words whose vectors coincide ($1{,}225$ pairs here), not only identical words.
+8. **Factored kernels fail where they are needed.** Positive random features are least accurate exactly where the kernel is sharp.
+9. **One seed.** Every trained result is one run.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `attention_as_kernel_smoothing.py`, which owns every number on this page. It imports the neural-language-models topic's module for its gradient checkers, its long-lag task and census, its Kneser–Ney scores, and its spelling cache; the distributional-semantics topic's module for the word vectors; and the perplexity topic's speller and ratio estimator. It trains the circle denoiser, the lag-task attention layer, and the learned kernel from scratch in NumPy, and runs a harness of $19$ assertion-based tests in under a minute on a laptop CPU. The tests cover:
+
+- Propositions 1–3 on random instances and a held-out prefix; Proposition 2's conditional mean by Monte Carlo.
+- Proposition 4's bounds; Theorem 1 against numpy's FFT and simulated noise; Corollary 1 on the exact formula to $n = 10^8$; the trained denoiser against Theorem 1's optimum.
+- Theorem 2 by Monte Carlo; Proposition 5 against complex-step derivatives; Proposition 6, the census, the lag sweep, and training.
+- Definition 3's limits, the development grid, and the held-out benchmark with document-clustered standard errors; Definition 4's gradient and training.
+- Propositions 7–9 on random instances; the random-feature cache; the finance case study.
+
+Every hand-written gradient is checked against complex-step derivatives and central differences. The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

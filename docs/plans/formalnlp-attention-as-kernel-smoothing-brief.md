@@ -133,7 +133,7 @@ printed or asserted by it, and none may change without it.
 | § | Title | Opens with | Math | Notebook |
 |---|---|---|---|---|
 | 0 | Overview | trained at lag 60, one attention layer reads the bit at lag 600 with accuracy 1.000; at initialization its gradient falls like 1/(L + 1) (2.2·10⁻⁴ at lag 10, 4.9·10⁻⁶ at 480) while Elman's falls to 9.4·10⁻⁴⁶; on EDGAR, a cache over each filing's own words cuts KN from 5.6605 to 4.4982 bpc | — | cells 0–1 |
-| 1 | A weighted lookup | two keys equally far from the query, of different lengths: weight ratio 0.701003 = e^{Δ‖k‖²/2τ} | Def 1; Def 2; **Prop 1**; **Prop 2**; **Prop 3** | cells 2–5 |
+| 1 | A weighted lookup | two keys equally far from the query, of different lengths: weight ratio e^{Δ‖k‖²/2τ} | Def 1; Def 2; **Prop 1**; **Prop 2**; **Prop 3** | cells 2–5 |
 | 2 | Temperature is bandwidth | the gains ρ₁…ρ₆ at c = 7.3, n = 64: 0.9287, 0.7456, 0.5202, 0.3180, 0.1717, 0.0827 | **Prop 4**; **Thm 1**; **Cor 1**; the trained denoiser | cells 6–9 |
 | 3 | Why 1/√d | mean 1 − α_max at d = 4 → 1,024: unscaled 0.571 → 0.041, scaled 0.766 → 0.759 | **Thm 2** | cells 10–11 |
 | 4 | A lookup instead of a state | Topic 5's census at lag 60: Elman 2.45·10⁻¹⁰, LSTM (b_f = 3) 1.42·10⁻³, attention 3.76·10⁻⁵ | **Prop 5**; **Prop 6**; the sweep and training | cells 12–15 |
@@ -227,8 +227,9 @@ explicit: a longer key is a design point of exponentially greater weight.
 
 **Asserted** (`test_attention_is_nadaraya_watson`):
 - 50 random instances: (i)–(ii) to 10⁻¹², (iii) on spheres, and (iv);
-- two keys at equal distance 1.736396 from the query, with squared norms 5.1082 and 3.6872, get the weight ratio
-  0.701003 = e^{Δ‖k‖²/2τ} at τ = 2.
+- two keys equally far from a random query, of different lengths, get the weight ratio e^{Δ‖k‖²/2τ} to 10⁻¹² at τ = 2.
+- The notebook's own draw (distance 1.736396, squared norms 5.1082 and 3.6872, ratio 0.701003) is a demo from its
+  own seed, not a harness number, and the page does not quote it.
 
 ### Proposition 2 (the mixture posterior)
 If J ~ π ∝ ω, Q | J ~ N(k_J, τI), and V = v_J, then P(J = j | Q = q) = α_j(q) and E[V | Q = q] = o(q). Equivalently, o
@@ -265,8 +266,10 @@ asserted. ∎
 **Asserted** (`test_order_blindness`):
 - (i) to 10⁻¹² at depths 1 and 3;
 - (ii) on the held-out prefix *good morning and welcome to the brightwater analytics* and its reversal (the last word
-  kept), through Topic 6's vectors: |Δ| = 2.2·10⁻¹⁶;
-- (iii) with two layers, |Δ| = 2.415.
+  kept), through Topic 6's vectors: equal to 10⁻¹²;
+- (iii) with two layers, |Δ| > 10⁻³.
+- The notebook's draw gives |Δ| = 2.2·10⁻¹⁶ and 2.415 with its own seed. These are demos, and the page quotes only the
+  asserted bounds.
 
 ### Proposition 4 (the two temperature limits)
 With S* = argmax s, Δ the gap to the runner-up, and R the score range:
@@ -816,3 +819,73 @@ carries it.
 - **Overview hook:** the lag-600 accuracy and the 1/(L + 1) against 10⁻⁴⁶ comparison; EDGAR 5.6605 → 4.4982 bpc, with
   lzma's 2.9080 stated in the same sentence.
 - **Gate.** Re-run the harness (≈ 17 s) and the notebook (≈ 21 s) at B3.
+
+## 12. Phase B record (2026-10-24)
+
+- **Numbering and placement.**
+  - The built DOM numbers Defs 1–4, Props 1–9, Thms 1–2, and Cors 1–2 in page order: D1 D2 P1 P2 P3 P4 T1 C1 T2
+    P5 P6 D3 C2 D4 P7 P8 P9, with 13 proofs.
+  - The trained denoiser is unnumbered prose after Cor 1. No `TheoremBlock` title carries a citation.
+  - The lab, `AttentionKernelLab`, sits after §5 under "Bandwidth, reach, and memory".
+  - Prop 1 and Thm 1 state their parts as bold labeled paragraphs.
+- **Payload changes** (made in the `.py`, then mirrored):
+  - **Reach values** are stored at three significant figures instead of log₁₀ at two decimals, so the lab prints
+    "3.76 × 10⁻⁵" exactly as the page does.
+  - **Each circle case** carries `risk_learned` and `start`, the c-grid index nearest c*.
+  - **Each marked token's attention row** carries `copy` (the open-vocabulary cache probability at β = 2) and
+    `sources` (the earlier occurrences it is copied from).
+  - **Why `sources` was added:** the DOM check showed that the top-8 weights of *multibroker* include none of its own
+    earlier occurrences (they carry about 0.03 each). Weight ties are now broken by position (stable argsort).
+  - **New asserts:**
+    - `test_viz_payload` asserts every marked token has a source of its own string and a positive copy probability;
+    - `test_viz_mirror_matches_payload` requires `src/components/viz/data/attention-kernel-lab.json` (55.5 kB) to
+      equal `viz_payload()` exactly.
+  - The harness is 20/20 (≈ 16 s), and the notebook exits 0 (≈ 23 s).
+- **Page precision.** Every page number traces to this brief's 6-decimal values. The two notebook-only demos (the tilt
+  ratio, and the reversed prefix's 2.415) are not quoted. Lab readouts round the payload: risk 4 decimals, c 3,
+  document bpc 3, token bits 2. The page's 1-decimal curated bits agree with them (for example, 9.5507 → 9.55 → 9.6).
+- **Cross-site.** All eight targets were re-verified `status: "published"` on GitHub `main`, along with the cited
+  theorem numbers:
+  - formalRAG `hypersphere-vmf-geometry` Def 1, Thm 2, and Prop 2;
+  - formalML `kernel-regression` Def 2 and Thms 1–2;
+  - formalStatistics `kernel-density-estimation` Thm 1;
+  - formalML `message-passing`'s graph attention layer.
+
+  Watson's JSTOR id is still taken from formalML's citation. JSTOR rejects automated fetches, so it is unverified by
+  tool.
+- **Gates.**
+  - `pnpm test` passes 39/39, and `pnpm exec astro sync` is clean.
+  - `pnpm validate` is clean (20 roadmap nodes without MDX).
+  - `pnpm audit:cross-site` exits 0. formalNLP: 9 topics, 81 outgoing edges, 0 wrong direction, 0 deferred, 0 slug
+    drift. The eight new outward links appear as missing reciprocals, as expected until launch.
+  - `pnpm build` exits 0 (≈ 9 s).
+- **DOM checks** on the built page (this session's `pnpm preview`, port 4331, preview pane shown):
+  - **The page:** 0 `.katex-error`, 761 `.katex`, `noindex, nofollow` intact, and no console errors.
+  - **Hydration:** the island's `ssr` attribute is gone once `[data-lab="attention"]` is scrolled into view.
+  - **Panel A** (readouts equal the payload):
+    - c*, the learned c, and R(c*): smooth-32 10.011, 10.006, 0.0546; smooth-64 13.391, 13.320, 0.0316; rough-32
+      57.130, 57.201, 0.1405;
+    - at c = 0 the risk is the spectrum's power plus σ²/n (1.2578, 1.2539, 1.5078);
+    - at c = 400 it is ≈ σ² (0.2495 for n = 32);
+    - three real ArrowRight presses move the slider from index 21 to 24 (c = 19.3887: risk 0.0636, bias² 0.0032,
+      variance 0.0604, ρ₁ 0.974, all equal to the payload).
+  - **Panel B, document bits per character** (KN / β = 0 / β = 2 / β = ∞ / learned):
+    - held-out 0.742 / 0.716 / 0.713 / 0.738 / 0.713;
+    - Apple 5.650 / 4.235 / 4.153 / 4.642 / 4.112;
+    - ExxonMobil 5.647 / 4.632 / 4.575 / 5.092 / 4.569;
+    - Microsoft 5.682 / 4.798 / 4.764 / 5.288 / 4.756.
+  - **Panel B, curated second mentions** (KN → β = 2): *other* 48.94 → 12.14, *tariffs* 30.64 → 9.55, *plans*
+    28.22 → 8.55, *our* 43.19 → 12.54.
+    - *multibroker*: cache probability 0.029 from 1 earlier occurrence (position 13, outlined);
+    - *plans*: 0.133.
+  - **Panel B, U-curve readouts:** 2.8282, 2.8361, and 2.8424.
+  - **Panel B, reach readouts** equal the page's table: lag 10 2.22 × 10⁻⁴ / 1.88 × 10⁻⁴ / 1.98 × 10⁻⁴ / 1.12 ×
+    10⁻³; lag 60 3.76 × 10⁻⁵ / 2.45 × 10⁻¹⁰ / 2.42 × 10⁻⁷ / 1.42 × 10⁻³; lag 480 4.88 × 10⁻⁶ / 9.41 × 10⁻⁴⁶ / 1.83 ×
+    10⁻³¹ / 1.29 × 10⁻⁷. The accuracies are 1.000 · 1.000 and 0.485 · 0.531 · 1.000.
+- **Mobile.** At the mobile preset, `innerWidth === 375` before and after hydration, and `scrollWidth` is 375 in
+  every one of 113 lab states:
+  - Panel A: 3 cases × 2 views × 3 c positions, and a query click per case;
+  - Panel B: 4 documents × 5 variants × every marked token plus one unmarked;
+  - the reach view at all 6 lags.
+
+  The lab is 343 px wide with no element past its right edge. The wide tables scroll inside `.prose table`.

@@ -57,7 +57,7 @@
     {
       "id": "attention-as-kernel-smoothing",
       "label": "Attention as Kernel Smoothing",
-      "status": "planned",
+      "status": "published",
       "domain": "attention-transformers"
     },
     {
