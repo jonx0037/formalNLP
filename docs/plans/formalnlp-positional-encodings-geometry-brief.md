@@ -3,27 +3,67 @@
 **Positional Encodings: Sinusoids, Rotations, and RoPE.** Roadmap #10. Prerequisite: `attention-as-kernel-smoothing`
 (#9, PR #17), published. This topic is a prerequisite of `transformer-block-residual-stream` (#11).
 
-**Status: Phase A scaffold** (2026-10-24). This draft holds the outline, statements with proof sketches, function
-signatures, and the cell map, for Jonathan's reaction before any function body is written. Numbers marked *spike*
-come from throwaway runs in this session's planning scratchpad: a NumPy prototype of the tournament, with every
-hand-written gradient checked against central differences to ≤ 3.4·10⁻¹⁰, three seeds, and about 1 s per training
-run. Each number will be re-derived and asserted by the `.py`, or dropped.
+**Phase A** (this brief and the verified notebook), 2026-10-24:
+- The harness passes 20/20 under Python 3.15.0, numpy==2.5.4, and scipy==1.18.1, in ≈ 33 s. It also passes with
+  warnings promoted to errors.
+- The narrative notebook (30 cells) executes with exit 0 in ≈ 48 s, including environment and kernel start, and is
+  committed without outputs.
 
 **Scope decisions** (Jonathan, 2026-10-24):
 - **Computational pillar:** a trained length-generalization tournament in NumPy.
   - Single causal heads, with hand-written gradients and Adam.
   - Schemes: NoPE, sinusoidal-absolute, learned-absolute, RoPE, and ALiBi.
-  - Trained at L = 32 and tested to 8× that length.
-  - The trained RoPE head is re-read under three context-extension rescalings.
+  - Trained at L = 32 and read to 256.
+  - The RoPE head is re-read zero-shot under PI, NTK-aware scaling, and YaRN.
 - **Context extension:** a full section, flagged.
-  - The wavelength census is a theorem.
-  - Position interpolation (PI) is a theorem.
-  - The NTK-aware endpoints are a theorem.
-  - The interpolation bound is proved in its sharp form.
-  - YaRN is described and labeled a heuristic.
-- **Relative schemes:** ALiBi in full (a product kernel), with Shaw et al. and T5 in one definitional paragraph.
-- **Difficulty:** `intermediate`, as for #9 (open point 5).
+- **Relative schemes:** ALiBi in full, with Shaw et al. and T5 in one definitional paragraph.
+- **The scaffold's six open points, all resolved on Claude's recommendations:**
+  1. The finance heads are retrained on 32-token filing windows.
+  2. ALiBi's horizon is the case study's punchline, checked as a forecast.
+  3. Three seeds; the page quotes means and ranges.
+  4. YaRN is evaluated zero-shot.
+  5. Difficulty is `intermediate`.
+  6. The `fourier-series` folklore goes into the rigorFlag and the launch reciprocal-PR notes.
 - **Authorship:** every function body is written by Claude for Jonathan's review, as in Topics 5–9.
+
+**Changes from the scaffold, each forced by the harness:**
+1. **The filing-trained ALiBi heads do not collapse as the scaffold's spike did.** Past 32 tokens they read
+   0.580 (0.378–0.759 across seeds), not 0.085. The spike's heads were trained on the synthetic stream, and those heads
+   still collapse when read on filings: 0.087–0.112 past their horizon. The case study now carries both, because
+   Thm 3 (iii) forecasts both:
+   - inside half the horizon, every one of the six heads answers every query (1.000);
+   - past the horizon, filing-trained heads fall to 0.319–0.723, and synthetic-trained heads to 0.087–0.112.
+2. **Thm 3 is stated with the content scores' width W = max − min,** not a bound |c| ≤ B. The horizon is W/s, which is
+   at most 2B/s, and the bound is tighter.
+3. **A bug was caught, and the test that should have caught it was strengthened.**
+   - The one-pass filing reader first subtracted ALiBi's bias before the 1/τ scale, so it read every ALiBi head at
+     slope 1/8 instead of 1/2.
+   - The reader test compared only argmaxes at seven positions, and passed. It now matches the plain forward pass's
+     log-probabilities to 10⁻⁹ at every position of a held-out filing, for every scheme and rescue.
+   - Every filing number below is from the corrected reader.
+4. **Chen et al.'s Theorem 2.1 is false as stated, not merely loose.**
+   - Their eq. (14) uses c^x ≤ 1 + x ln c for x < 0. Convexity gives the reverse, so their d/(4 ln c) is a lower bound
+     on Σ_j θ_j².
+   - With h_j = 1 on [0, 1] at s = ½, the interpolation error exceeds their stated bound at d = 16, 64, and 128. At
+     d = 128, LLaMA-7B's head dimension and their own setting, it is 0.459282 against 0.434294.
+   - The sharp constant Σ_j θ_j² = (1 − c^{−2})/(1 − c^{−4/d}) holds. arXiv v2 (2023) is the latest version.
+5. **T5's last bucket starts at offset 113, not 128.** The log map reaches bucket 31 at 16 · 8^{15/16} ≈ 113.
+6. **Thm 1 (ii)'s finite-d convergence is not monotone pointwise at large |Δ|.** At Δ = 256 the gap is 0.018819 at
+   d = 64 and 0.021398 at d = 512. The assert is therefore on the largest gap over |Δ| ≤ 64.
+7. **The RoPE rebound is sharper than the scaffold's claim.** The scaffold's "rises above the score at the median
+   gap" failed for seed 0 (84.137 < 91.984). As measured, every seed:
+   - falls monotonically to a trough at 32–34, within 3 of λ₂/2 = 31.4;
+   - has its largest amplitude in plane 3 (λ₃ = 198.7);
+   - rebounds to a peak at 181–182, near 3λ₂ ≈ 188 and λ₃;
+   - and the peak is above the score of every in-window cue 16 or more back.
+8. **The rescues split by task.** On the synthetic stream at 256, NTK-aware scaling leads (0.977000; PI 0.917000). On
+   filings past 32, PI leads (0.985645; NTK 0.788389). At d = 16, YaRN is PI with mild corrections on planes 0 and 1
+   (γ = 0.132 and 0.021), plus its logit scale, and it tracks PI on both tasks.
+9. **One NoPE filing seed answered "the first-named company" at every position.** Its 0.766 equals the share of
+   queries whose answer is that company. The other two seeds learned the same multiset rule (0.536 each).
+
+**Source of truth:** `notebooks/positional-encodings-geometry/positional_encodings_geometry.py`. Every number below is
+printed or asserted by it, and none may change without it.
 
 **Binding forward promise, and where it is kept.**
 - **Topic 9, §"Where this goes next":** "Proposition 3 says one layer of attention cannot tell *the dog bit the man*
@@ -34,29 +74,27 @@ run. Each number will be re-derived and asserted by the `.py`, or dropped.
   - *Several frequencies:* Def 2, Prop 2, Thm 1.
   - *Rotations of the queries and keys:* Def 4, Prop 3, Thm 4.
   - Topic 9's Prop 3 (iii), "the causal mask itself leaks order," is made exact by Prop 1.
-- **A callback Topic 9 earned without naming it.** Its trained circle denoiser landed on M ≈ cI because its task
-  distribution is rotation-invariant (brief §3 of #9). cI is the one-plane case of this topic's commutant (Thm 2):
-  the denoiser learned a relative-only score because nothing else was rewarded.
+- **A callback.** Topic 9's trained circle denoiser landed on M ≈ cI because its task distribution is
+  rotation-invariant. cI is the one-plane case of Thm 2's commutant.
 
-**Thesis.** A positional encoding is a choice of kernel over offsets, and length generalization asks what that
-kernel does past the training window.
-- **Sinusoids** give a fixed stationary kernel. With geometric frequencies it is a *logarithmic ruler*: similarity
-  falls by ln 2/ln b per doubling of distance (§2).
-- **Added to the content, a stationary code does not make attention relative.** Only a d-dimensional commutant of
-  score matrices sees offsets alone, and a learned W_Q W_Kᵀ is generically outside it (§2).
-- **ALiBi** multiplies Topic 9's content kernel by an exponential kernel in time. It extrapolates in length because
-  it cannot look far, and the same inequality gives both facts (§3).
-- **RoPE** rotates queries and keys so that every score depends only on the offset. Up to the learned projections it
-  is the only linear way to do so (§4).
-- **The offset score is a trigonometric polynomial.** Planes whose wavelength exceeds the training length see unseen
-  angles past it, and position interpolation keeps every angle inside the trained arc (§5).
+**Thesis.** A positional encoding is a choice of kernel over offsets, and length generalization asks what that kernel
+does past the training window.
+- **Sinusoids** are a fixed stationary kernel that rules distance logarithmically (§2).
+- **Added to the content, they do not make attention relative.** Trained sinusoidal heads sit as far from the
+  commutant as a random matrix, and they collapse at 2× length (§§2, 5).
+- **ALiBi** is Topic 9's smoother with a content × exponential product kernel. One inequality bounds its reach at every
+  length and puts a horizon on what it can retrieve (§§3, 6).
+- **RoPE** makes every score a function of the offset. Up to the learned projections, it is the only linear way to do so
+  (§4).
+- **Its offset score is a trigonometric polynomial.** Training pins it on [0, 32) only; past that, the planes that never
+  completed a turn rebound. Interpolating positions keeps every angle inside the trained arc (§5).
 
 ## 0. Placeholder table
 
 | Placeholder | Value |
 |---|---|
 | `{{TITLE}}` | Positional Encodings: Sinusoids, Rotations, and RoPE |
-| `{{SUBTITLE}}` | *(draft)* A positional encoding is a kernel over offsets: sinusoids are a fixed stationary kernel that rules distance logarithmically, RoPE rotates queries and keys so every learned score sees only the offset, and ALiBi multiplies in an exponential kernel that extrapolates in length because it cannot look far. |
+| `{{SUBTITLE}}` | A positional encoding is a kernel over offsets: sinusoids are a fixed stationary kernel that rules distance logarithmically, RoPE rotates queries and keys so every learned score sees only the offset, and ALiBi multiplies in an exponential kernel that extrapolates in length because it cannot look far. |
 | `{{SLUG}}` | `positional-encodings-geometry` (= graph node id) |
 | `{{DOMAIN}}` | `attention-transformers` |
 | `{{DIFFICULTY}}` | `intermediate` |
@@ -76,650 +114,640 @@ kernel does past the training window.
 
 **Scope.** This topic is not on the design doc's §6 watch-list, but these sibling topics adjoin it:
 - **formalRAG `retrieval-vs-long-context`** owns attention's Θ(n²) cost and lost-in-the-middle, which it models as an
-  assumed U-shaped weight. This topic offers one partial mechanism, a recency kernel (Thm 3, Prop 4). It does not
-  re-model the U-curve or the cost, and it does not claim RoPE explains the U-curve.
-- **formalML `gaussian-processes`** owns positive-definite kernels, the Matérn family, stationarity, and Bochner (all
-  in prose). We cite its Def 2, Def 3 (ν = ½), and Prop 2 (products).
-- **formalCalculus `fourier-series`** owns the orthogonality of the trigonometric system (its Thm 1). Its §12 also
-  says sinusoidal encodings "generalize to unseen lengths" and that the columns are orthogonal.
-  - Thm 1 there covers integer harmonics over a full period, and 10000^{−2j/d} frequencies are not harmonics.
-  - The tournament contradicts the extrapolation claim (sinusoidal-absolute falls from 0.998 to 0.19 at 2×, *spike*).
-  - We cite Thm 1 as the contrast, and log the claim for the launch reciprocal PR (§5). The sibling is not touched.
-- **formalCalculus `linear-systems`** owns the matrix exponential. R(k) = exp(kA) with A block-skew is its Ex 5.
+  assumed U-shaped weight. This topic offers one partial mechanism, a recency kernel with a horizon (Thm 3). It does
+  not re-model the U-curve or the cost, and it does not claim RoPE explains the U-curve.
+- **formalML `gaussian-processes`** owns positive-definite kernels, Matérn, stationarity, and Bochner (in prose). We cite
+  its Def 2, Def 3 (ν = ½), and Prop 2.
+- **formalCalculus `fourier-series`** owns the orthogonality of the trigonometric system (its Thm 1). Its §12 says
+  sinusoidal encodings generalize to unseen lengths and that the columns are orthogonal. We cite its Thm 1 as the
+  contrast, and the claim is logged for the launch reciprocal PR (§5, item 7). The sibling is not touched.
+- **formalCalculus `linear-systems`** owns the matrix exponential (R(k) = exp(kA), its Ex 5).
 - **formalStatistics `central-limit-theorem`** owns the characteristic function (its Def 1) and Lévy's continuity
-  theorem (its Thm 3). Thm 1 (ii) is a weak limit of characteristic functions.
+  theorem (its Thm 3).
 - **This topic owns:**
-  - the causal counter (Prop 1);
-  - the shift-as-rotation identity (Prop 2);
-  - the sinusoidal kernel and its logarithmic ruler (Thm 1);
-  - the commutant of relative-only scores (Thm 2);
-  - ALiBi as a product kernel, with its locality bound and horizon (Thm 3);
-  - RoPE's relativity and its characterization (Prop 3, Thm 4);
-  - what long-term decay means (Prop 4);
-  - the wavelength census and the rescalings (Thm 5);
-  - the tournament and the finance case.
+  - the causal counter;
+  - shift-as-rotation;
+  - the sinusoidal kernel and its logarithmic ruler;
+  - the commutant;
+  - ALiBi's product kernel, locality, and horizon;
+  - RoPE's relativity and its characterization;
+  - what long-term decay means;
+  - the census and the rescalings, including the corrected interpolation bound;
+  - the tournament and the filings.
 - **Out of scope:**
   - multi-head and multi-layer position, and the residual stream (#11);
-  - BERT's learned table in practice (#12);
+  - BERT's learned table (#12);
   - scaling (#13);
-  - fine-tuning after rescaling (#20 and the literature; we evaluate zero-shot only);
-  - FlashAttention and long-context engineering (formalRAG);
-  - 2-D and graph positional encodings (a pointer to formalML `graph-laplacians` at most).
+  - fine-tuning after rescaling;
+  - long-context engineering (formalRAG);
+  - 2-D and graph encodings.
 
 ## 1. Section outline (geometric first)
 
 | § | Title | Opens with | Math | Notebook |
 |---|---|---|---|---|
-| 0 | Overview | *spike:* trained at 32 tokens and read at 256, sinusoidal-absolute 0.15, RoPE 0.41, RoPE + PI 0.95, ALiBi 0.97. On filings, when the last company was named > 32 tokens back, ALiBi 0.09 and RoPE + PI 0.98 | — | cells 0–1 |
-| 1 | Order, and how a mask leaks it | Topic 9's Prop 3 by link; a BOS token's value through a causal layer reads 1, ½, ⅓, … | **Prop 1** | cells 2–3 |
-| 2 | Position as a set of clocks | the hands of d/2 clocks, turning at rates 1, b^{−2/d}, …; two positions, one rotation apart | Def 1; Def 2; **Prop 2**; **Thm 1**; **Thm 2** | cells 4–9 |
-| 3 | Relative position: biases and the ALiBi kernel | Shaw's clipped offsets and T5's log buckets; ALiBi's weights as a product of two kernels | Def 3; **Thm 3** | cells 10–11 |
-| 4 | Rotations: RoPE | rotate the query by m and the key by n; only n − m survives the dot product | Def 4; **Prop 3**; **Thm 4**; **Prop 4** | cells 12–16 |
-| 5 | Past the training window | the tournament table; the RoPE head's learned cue score, falling over [0, 32) and *rising again* (*spike:* 94.3 at Δ = 1, 3.8 at 31, 91.9 at 182) | the tournament; Def 5; **Thm 5** | cells 17–23 |
+| 0 | Overview | trained at 32 tokens and read at 256: sinusoidal-absolute 0.142500, RoPE 0.465667, RoPE + PI 0.917000, ALiBi 0.977833. On whole filings, past 32 tokens: ALiBi 0.580072, RoPE + PI 0.985645 | — | cells 0–1 |
+| 1 | Order, and how a mask leaks it | Topic 9's Prop 3 by link; a BOS value through one causal layer reads 1, ½, ⅓, … | **Prop 1** | cells 2–3 |
+| 2 | Position as a set of clocks | the hands of d/2 clocks turning at rates 1, b^{−2/d}, …; two positions one rotation apart | Def 1; Def 2; **Prop 2**; **Thm 1**; **Thm 2** | cells 4–9 |
+| 3 | Relative position: biases and the ALiBi kernel | Shaw's clipped offsets; T5's buckets, the last of which holds every offset from 113 on; ALiBi's weights as a product of two kernels | Def 3; **Thm 3** | cells 10–11 |
+| 4 | Rotations: RoPE | rotate the query by m and the key by n; only n − m survives the dot product | Def 4; **Prop 3**; **Thm 4**; **Prop 4** | cells 12–17 |
+| 5 | Past the training window | the tournament table; the RoPE head's cue score falling over [0, 32) and rebounding to a peak at 181 | the tournament; Def 5; **Thm 5** | cells 18–23 |
 | — | The lab | `<PositionalEncodingLab client:visible />` | — | cells 27–28 |
-| 6 | Finance case study: which company was named last? | a held-out MD&A where the parent was named 60 tokens back and the subsidiary since | Thm 3 (iii) as a forecast | cells 24–26 |
-| 7 | Where this goes next | — | #11 (Prop 1's counter, written into the residual stream; heads with several slopes and frequencies), #12 (BERT's learned table), formalRAG `retrieval-vs-long-context` | — |
+| 6 | Finance case study: which company was named last? | held-out filing 92: the parent named early, a subsidiary since | Thm 3 (iii) as a forecast | cells 24–26 |
+| 7 | Where this goes next | — | #11 (Prop 1's counter written into the residual stream; many heads, many slopes and frequencies); #12 (BERT's learned table); formalRAG `retrieval-vs-long-context` | — |
 
 - **Lab placement:** after §5. Figure A needs §§2–4, and Figure B needs §5. Figure B's filing view previews §6.
 - **Back-links to Topic 9:**
-  - Prop 3 (order blindness) from §1;
-  - Prop 1 (iii) (the vMF reading, equal norms) from Prop 3;
-  - Def 1 (the kernel smoother) from Thm 3 (i);
-  - Thm 1 (the circle, one frequency) from Def 2 and Thm 2;
-  - Prop 8 (random Fourier features) from Thm 1 (i)'s spectral reading;
+  - Prop 3 from §1;
+  - Prop 1 (iii) from Prop 3 (ii);
+  - Def 1 from Thm 3 (i);
+  - Thm 1 (the circle) from Def 2 and Thm 2;
+  - Prop 8 (random Fourier features) from Thm 1 (i);
   - `attention()` and the lag-task training pattern from §5.
 
 ## 2. Definitions
 
 **Notation.**
 - d is even, and the planes are j = 0, …, d/2 − 1.
-- The frequencies are ω_j = b^{−2j/d}, with base b = 10⁴ unless stated.
-- R(φ) = [[cos φ, −sin φ], [sin φ, cos φ]] and J = R(π/2).
-- R_ω(k) = ⊕_j R(kω_j) is the block-diagonal rotation by k steps.
-- Rows are tokens. Queries and keys are q_t = h_t W_Q and k_j = h_j W_K, so the content score is h_t M h_jᵀ with
-  M = W_Q W_Kᵀ, over τ = √d_k.
-- Offsets are r = t − j ≥ 0 under the causal mask, and Δ = n − m in general.
+- The frequencies are ω_j = θ_j = b^{−2j/d}, with b = 10⁴ unless stated.
+- R(φ) is the plane rotation, J = R(π/2), and R_ω(k) = ⊕_j R(kω_j).
+- Rows are tokens: q_t = h_t W_Q and k_j = h_j W_K, so the content score is h_t M h_jᵀ/τ with M = W_Q W_Kᵀ and
+  τ = √d_k.
+- Under the causal mask the offset is r = t − j ≥ 0. In general Δ = n − m.
 
 **Definitions.**
-- **Def 1 (absolute additive encoding).** h_m = x_m E + p(m), for a code p: {0, 1, …} → ℝ^d. Two kinds:
-  - *learned*: a table P ∈ ℝ^{L×d}, undefined past L;
-  - *fixed*: Def 2.
-- **Def 2 (sinusoidal code; Vaswani et al. 2017).** p(m) = (cos mω_0, sin mω_0, …, cos mω_{d/2−1},
-  sin mω_{d/2−1}).
-  - Vaswani's interleaving puts sin before cos in each plane. That is a fixed reflection per plane, and it leaves every
-    inner product unchanged.
-  - Topic 9's u(θ) is the one-plane case.
+- **Def 1 (absolute additive encoding).** h_m = x_m E + p(m), with a learned table (undefined past its length) or a
+  fixed code.
+- **Def 2 (sinusoidal code; Vaswani et al. 2017).** p(m) = (cos mω_0, sin mω_0, …). Vaswani's sin-before-cos order is
+  a fixed reflection per plane, which leaves every inner product unchanged. Topic 9's u(θ) is the one-plane case.
 - **Def 3 (relative schemes).**
-  - *Shaw, Uszkoreit, and Vaswani (2018):* s_tj = q_t(k_j + a_{clip(j−t, K)})ᵀ/τ, with learned vectors for each
-    clipped offset.
-  - *T5 (Raffel et al. 2020):* a learned scalar b_{bucket(t−j)}. The buckets are exact for small offsets,
-    log-spaced up to 128, and shared across layers.
-  - *ALiBi (Press, Smith, and Lewis 2022):* s_tj = q_t k_jᵀ/τ − s_h (t − j) for j ≤ t, with fixed slopes
-    s_h = 2^{−8h/H} for h = 1, …, H.
+  - *Shaw, Uszkoreit, and Vaswani (2018):* q_t(k_j + a_{clip(j−t, K)})ᵀ/τ.
+  - *T5 (Raffel et al. 2020):* a learned scalar per bucket of t − j. The causal buckets are exact below 16,
+    log-spaced to 128, and shared from 113 on.
+  - *ALiBi (Press, Smith, and Lewis 2022):* q_t k_jᵀ/τ − s_h(t − j), with fixed s_h = 2^{−8h/H}.
   - Our single head uses s = ½, ALiBi's first slope at H = 8.
-- **Def 4 (RoPE; Su et al. 2024).** q̃_m = R_θ(m) q_m and k̃_n = R_θ(n) k_n, with θ_j = b^{−2j/d}.
-  - The frequencies are Def 2's. RoPE is the sinusoidal code applied multiplicatively.
-  - Complex form: each plane z_j ↦ z_j e^{imθ_j}.
-- **Def 5 (context-extension maps)**, for target length L' = κL:
+- **Def 4 (RoPE; Su et al. 2024).** q̃_m = R_θ(m)q_m and k̃_n = R_θ(n)k_n: Def 2's frequencies, applied
+  multiplicatively. In complex form, z_j ↦ z_j e^{imθ_j}.
+- **Def 5 (context-extension maps)**, for target length L′ = κL:
   - *PI (Chen et al. 2023):* m ↦ m/κ.
   - *NTK-aware (bloc97 2023):* b ↦ bκ^{d/(d−2)}.
-  - *YaRN (Peng et al. 2024):* a per-plane ramp. With r_j = L/λ_j, the plane gets PI when r_j < α = 1, is unchanged
-    when r_j > β = 32, and is linear in between. Logits are scaled by (0.1 ln κ + 1)².
+  - *YaRN (Peng et al. 2024):* with r_j = L/λ_j and γ ramping linearly from 0 at r ≤ α = 1 to 1 at r ≥ β = 32,
+    θ′_j = (1 − γ)θ_j/κ + γθ_j. Logits are scaled by (0.1 ln κ + 1)².
 
-**Configurations** (to be fixed by the harness; *spike* values shown).
+**Configurations.**
 - **The cue task.**
-  - The alphabet has V = 8 symbols, and each token carries a cue bit with probability 0.1. At least one cue is
-    forced, and a query token ends the sequence.
-  - The target is the symbol on the most recent cue, so it needs content (*is this a cue?*) and order (*which is
-    latest?*).
+  - Each sequence is n − 1 tokens, then a query token. Each token has a uniform symbol from V = 8 and carries a cue bit
+    with probability 0.1. At least one cue is forced.
+  - The target is the symbol on the most recent cue.
   - Inputs are one-hot: [symbol, cue, query] ∈ ℝ^{10}.
 - **The head.**
-  - E ∈ ℝ^{10×16}, and W_Q, W_K, W_V ∈ ℝ^{16×16}. The readout is W_o ∈ ℝ^{16×8} with a bias. Causal, read at the last
-    position.
-  - Training: 1,500 Adam steps on fresh batches of 64 at L = 32, lr 0.01.
-  - Initialization follows Topic 9's lag head: N(0, ½) inputs and N(0, 1/√d) maps.
-  - Learned-absolute adds P ∈ ℝ^{32×16}.
-- **Test lengths:** 32, 64, 128, 256, with 2,000 fresh sequences each. The rescues are evaluated zero-shot at
-  κ = L'/32.
-- **Seeds:** three, on streams default_rng([SEED, k]) with k ≥ 1000, apart from Topics 5–9. SEED is Topic 9's
-  `ak.SEED`.
-- **Finance:**
-  - *Documents.* Held-out documents `fc.generate_corpus(100, 1)`; *spike:* median 198 tokens, 2 companies and 8
-    ORG mentions per document.
+  - E ∈ ℝ^{10×16}, and W_Q, W_K, W_V ∈ ℝ^{16×16}. The readout is W_o ∈ ℝ^{16×8} with a bias. Causal, read at the query.
+  - Initialization follows Topic 9's lag head: N(0, ½) for E (and for the learned table P ∈ ℝ^{32×16}), and
+    N(0, 1/√d) for the maps.
+  - Training: 1,500 Adam steps (Topic 5's constants) on fresh batches of 64 at L = 32, lr 0.01.
+- **Test sets.** 2,000 fresh sequences per length (32, 64, 128, 256), shared by every head. The rescues are evaluated
+  zero-shot at κ = n/32.
+- **Seeds.** Three per configuration, on streams default_rng([SEED, k]) with SEED = Topic 9's 20261023:
+  - k = 1100 + 10·seed + scheme index for synthetic heads;
+  - k = 1200 + … for filing heads;
+  - k = 1300 for the test sets;
+  - k = 1001–1010 for the claims.
+- **Filings.**
+  - *Documents.* Train: `generate_corpus(300, 0)`. Held out: `generate_corpus(100, 1)`, median 198 tokens and at most
+    264, with a median of 8 ORG mentions per document.
   - *Tokens.* Each entity mention collapses to one token. An ORG mention is a cue, labeled by its company's order of
-    first appearance in the document (mod 8). Other tokens carry a hashed symbol (CRC-32 mod 8).
-  - *Training (open point 1).* Training heads for this case on 32-token windows of `generate_corpus(300, 0)` is
-    recommended.
-  - EDGAR excerpts carry no entity spans, so they are excluded and the page says so.
+    first appearance (mod 8; at most 5 companies occur). Other tokens carry their word's CRC-32 mod 8.
+  - *Training queries.* Every (document, t) whose 31-token window ending at t holds an ORG mention.
+  - *Test queries.* Every held-out position with an earlier ORG mention: 19,285 in all, 7,895 (40.9%) of them more than
+    32 tokens back.
+  - *Gap bands* (counts): 1–8 (5,106), 9–16 (2,988), 17–32 (3,296), 33–64 (3,734), 65–128 (3,932), 129+ (229).
+  - The answers' shares by label: 0.766 (first-named), 0.133, 0.077, 0.024.
 
-## 3. Statements and proof sketches
+## 3. Statements and proofs
 
 ### Proposition 1 (a causal layer counts but does not order)
-- **(i)** Suppose all scores are equal (constant keys), x_0 is a BOS token with value v_0 = e, and v_j = 0 for j ≥ 1.
-  Then one causal layer outputs o_t = e/(t + 1), so t = 1/⟨o_t, e⟩ − 1 is recovered exactly.
-- **(ii)** With Topic 9's Prop 3 (ii), one causal layer reads its prefix as a multiset. The multiset's size is the
-  position, but its order is invisible.
+- **(i)** With equal scores, a BOS value e at position 0, and zero values elsewhere, one causal layer outputs
+  o_t = e/(t + 1).
+- **(ii)** One causal layer reads its prefix as a multiset (Topic 9, Prop 3 (ii)). The multiset's size is the position,
+  but its order is invisible.
 
-*Proof sketch.* (i) Uniform weights over t + 1 positions. (ii) The size of a multiset is a function of the multiset. ∎
+*Proof.* (i) The weights are uniform over t + 1 positions. (ii) The size of a multiset is a function of it. ∎
 
 *Reading.*
-- A causal NoPE stack can write absolute position into its residual stream in layer 1 and use it in layer 2 (Haviv
-  et al. 2022; Kazemnejad et al. 2023 give a construction).
-- The tournament's single NoPE head cannot: it reads a bag of cues.
+- A causal NoPE stack can write position in layer 1 and use it in layer 2 (Haviv et al. 2022; Kazemnejad et al. 2023).
+- A single NoPE head on the cue task is a multiset reader. The tokens are exchangeable, so the best multiset reader
+  guesses the most frequent cue symbol, with accuracy E[max_s c_s/Σ_s c_s].
 
 **Asserted:**
-- `test_causal_counter`: (i) exactly, for t ≤ 4,096.
-- `test_nope_reads_a_bag`: the trained NoPE head's accuracy is at most the Bayes accuracy of the best multiset reader
-  (predict the most frequent cue symbol, splitting ties), within Monte Carlo error, at every length.
-  - *Spike* accuracies: NoPE 0.548 / 0.359 / 0.284 / 0.205 at 32 / 64 / 128 / 256.
+- `test_causal_counter`: (i) exactly for t ≤ 4,096, with t recovered as round(1/o_t) − 1.
+- `test_nope_reads_a_bag`: the NoPE heads never beat the best multiset reader, within 4 standard errors.
+
+| n | best multiset reader (20,000 draws) | NoPE heads (3 seeds) |
+|---|---|---|
+| 32 | 0.544666 ± 0.001797 | 0.5380, 0.5410, 0.5455 |
+| 64 | 0.372293 ± 0.000995 | 0.3590, 0.3690, 0.3730 |
+| 128 | 0.286284 ± 0.000528 | 0.2855, 0.2875, 0.2865 |
+| 256 | 0.234103 ± 0.000318 | 0.2375, 0.2315, 0.2435 |
 
 ### Proposition 2 (shift is a rotation; Vaswani et al.'s "linear function", proved)
-- **(i)** p(m + k) = R_ω(k) p(m) for all integers m and k.
-- **(ii)** k ↦ R_ω(k) is a group homomorphism ℤ → SO(d): R_ω(a)R_ω(b) = R_ω(a + b) and R_ω(k)ᵀ = R_ω(−k).
-  - R_ω(k) = exp(kA), with A = ⊕ ω_j J (formalCalculus `linear-systems`, Def 2, Thm 2 (c)–(d), Ex 5).
-- **(iii)** ‖p(m)‖² = d/2. Every position lies on a winding line on the torus T^{d/2}, inside the sphere of radius
-  √(d/2).
-- **(iv)** The code is injective: p(m) = p(n) forces (m − n)ω_0 ∈ 2πℤ with ω_0 = 1, and π is irrational.
+- **(i)** p(m + k) = R_ω(k)p(m).
+- **(ii)** k ↦ R_ω(k) is a homomorphism ℤ → SO(d), with R_ω(k)ᵀ = R_ω(−k) and R_ω(k) = exp(kA) for A = ⊕ω_jJ
+  (formalCalculus `linear-systems` Ex 5).
+- **(iii)** ‖p(m)‖² = d/2.
+- **(iv)** The code is injective, because plane 0 has ω_0 = 1 and π is irrational.
 
-*Proof sketch.* The angle-addition formulas, plane by plane. ∎
+*Proof.* (i) is the angle-addition formulas, plane by plane. (ii) follows from (i) and the block structure.
+(iii) cos² + sin² = 1. (iv) p(m) = p(n) forces m − n ∈ 2πℤ. ∎
 
-*Reading.* Shifting every position by k turns each clock hand by k of its own steps, which is one fixed rotation.
-The model can read "k later" without knowing "where".
-
-**Asserted** (`test_shift_is_rotation`): (i)–(iii) to 10⁻¹² on random m, k at d = 16, 64, 512; and (iv) on
-m, n < 10⁵.
+**Asserted** (`test_shift_is_rotation`):
+- (i) to 10⁻⁹ on random m, k ∈ [−10⁴, 10⁴] at d = 16, 64, 512;
+- (ii), including det = 1 block by block (LAPACK's det on this sparse matrix raises spurious floating-point flags under
+  Accelerate);
+- (iii);
+- (iv) on m < 10⁴.
 
 ### Theorem 1 (the stationary kernel, and the logarithmic ruler)
-- **(i) Stationary and positive definite.**
-  - ⟨p(m), p(n)⟩ = κ_d(n − m), with κ_d(Δ) = Σ_j cos(Δω_j).
-  - The Gram matrix [κ_d(m − n)] is Toeplitz and positive semidefinite, because it is a Gram matrix.
-  - (2/d)κ_d(Δ) = E cos(ΔΩ_d), with Ω_d uniform on the d atoms ±ω_j. This is the characteristic function of Ω_d
-    (formalStatistics `central-limit-theorem`, Def 1).
-  - Herglotz's theorem gives the converse (*cite* Brockwell and Davis): every positive-definite function on ℤ is the
-    characteristic function of a measure on (−π, π]. A stationary position code is a choice of spectral measure; the
-    sinusoids pick d atoms, and random Fourier features (Topic 9's Prop 8) sample them.
-- **(ii) The logarithmic ruler.** As d → ∞ with b fixed, Ω_d converges in distribution to the symmetrized
-  log-uniform law on [1/b, 1], whose density is 1/(2|ω| ln b). Hence for every fixed Δ ≠ 0:
+- **(i)** ⟨p(m), p(n)⟩ = κ_d(n − m), with κ_d(Δ) = Σ_j cos(Δω_j).
+  - Every Gram matrix is Toeplitz and positive semidefinite.
+  - (2/d)κ_d(Δ) = E cos(ΔΩ_d) is the characteristic function of Ω_d, uniform on the d atoms ±ω_j (formalStatistics
+    `central-limit-theorem` Def 1).
+  - By Herglotz's theorem (*cited*: Brockwell and Davis 1991, §4.3), every positive-definite function on ℤ is the
+    characteristic function of a measure on (−π, π]. A stationary code is a choice of spectral measure.
+- **(ii) The logarithmic ruler.** As d → ∞ with b fixed, Ω_d ⇒ ±b^{−U}, with U uniform on [0, 1] (density
+  1/(2|ω| ln b) on 1/b ≤ |ω| ≤ 1). For fixed Δ ≠ 0,
 
-  (2/d)κ_d(Δ) → I_b(Δ) = [Ci(|Δ|) − Ci(|Δ|/b)] / ln b,
+  (2/d)κ_d(Δ) → I_b(Δ) = [Ci(|Δ|) − Ci(|Δ|/b)]/ln b = 1 − (γ + ln|Δ|)/ln b + [Ci(|Δ|) + O(Δ²/b²)]/ln b.
 
-  and I_b(Δ) = 1 − (γ + ln|Δ|)/ln b + [Ci(|Δ|) + O(Δ²/b²)]/ln b, so I_b(Δ) ≈ 1 − (γ + ln|Δ|)/ln b for 1 ≪ |Δ| ≪ b.
-
-*Proof sketch.*
+*Proof.*
 - (i) Angle subtraction, then Σ c_m c_n κ(m − n) = ‖Σ c_m p(m)‖² ≥ 0.
-- (ii) u_j = 2j/d is a left Riemann grid on [0, 1), so Ω_d ⇒ ±b^{−U} with U uniform; cos(Δ·) is bounded and
-  continuous. Substituting ω = b^{−u} gives ∫_{1/b}^{1} cos(Δω)/(ω ln b) dω. Then use Ci's integral form and
-  asymptotics (DLMF 6.2.11, 6.12).
+- (ii) u_j = 2j/d is a left Riemann grid on [0, 1), so the empirical law of u_j converges to uniform, and Ω_d converges
+  in distribution by the continuous mapping u ↦ b^{−u}. Since cos(Δ·) is bounded and continuous, the expectations
+  converge (formalStatistics `central-limit-theorem` Thm 3).
+- Substituting ω = b^{−u}, du = −dω/(ω ln b), gives ∫_{1/b}^1 cos(Δω)/(ω ln b) dω = [Ci(|Δ|) − Ci(|Δ|/b)]/ln b.
+- The expansion uses Ci(x) = γ + ln x − ∫_0^x (1 − cos t)/t dt (DLMF 6.2.11) at x = |Δ|/b, where the integral is
+  O(x²).
 - ∎
 
 *Reading.*
-- Similarity is a ruler that is logarithmic in distance: each doubling of |Δ| costs ln 2/ln b ≈ 0.075 at b = 10⁴.
-- Geometric frequency spacing gives every octave of distance equal resolution.
-- Checked in planning: at d = 8,192, (2/d)κ_d(Δ) = 0.9739 / 0.7713 / 0.6345 / 0.4873 / 0.3347 / 0.1850 at
-  Δ = 1 / 4 / 16 / 64 / 256 / 1,024. The limit gives 0.9740 / 0.7715 / 0.6348 / 0.4873 / 0.3349 / 0.1850.
-- At d = 64 the finite-d deviation reaches 0.019 by Δ = 256. That is the Riemann error, which grows with |Δ|ln b/d.
+- Each doubling of |Δ| costs ln 2/ln b = 0.075257 of similarity.
+- Geometric frequencies give every octave of distance equal resolution.
+
+| Δ | 1 | 4 | 16 | 64 | 256 | 1,024 |
+|---|---|---|---|---|---|---|
+| d = 64 | 0.966151 | 0.747949 | 0.605401 | 0.434565 | 0.353683 | 0.262925 |
+| d = 512 | 0.973055 | 0.768313 | 0.630988 | 0.485390 | 0.313466 | 0.186206 |
+| d = 8,192 | 0.973907 | 0.771306 | 0.634519 | 0.487258 | 0.334749 | 0.185029 |
+| Ci limit | 0.973963 | 0.771508 | 0.634758 | 0.487335 | 0.334864 | 0.185022 |
+| ruler 1 − (γ + ln Δ)/ln b | 0.937330 | 0.786815 | 0.636300 | 0.485785 | 0.335270 | 0.184755 |
 
 **Asserted:**
-- `test_stationary_kernel`: (i) to 10⁻¹², with PSD Gram matrices on random windows.
+- `test_stationary_kernel`: (i) to 10⁻⁹, PSD on random windows, and the characteristic-function identity to 10⁻¹².
 - `test_logarithmic_ruler`:
-  - (ii) at d = 8,192 to 10⁻³ for |Δ| ≤ 1,024;
-  - the gap shrinks monotonically along d = 64, 512, 8,192;
-  - the asymptotic form to 0.01 on 16 ≤ |Δ| ≤ 1,024.
+  - d = 8,192 is within 10⁻³ of the limit for |Δ| ≤ 1,024;
+  - the largest gap over |Δ| ≤ 64 shrinks along d = 64, 512, 8,192;
+  - the ruler is within 0.01 of the limit for 16 ≤ |Δ| ≤ 1,024.
 
 ### Theorem 2 (which score matrices see only offsets)
 Let the ω_j be distinct in (0, π). For M ∈ ℝ^{d×d}, the following are equivalent:
-- **(a)** p(m)ᵀ M p(n) depends only on n − m, for all integers m, n;
+- **(a)** p(m)ᵀMp(n) depends only on n − m, for all m, n ∈ ℤ;
 - **(a′)** the same holds on one window of d + 1 consecutive positions;
 - **(b)** M R_ω(1) = R_ω(1) M;
-- **(c)** M = ⊕_j (a_j I + b_j J), block-diagonal with one rotation-scaling block per plane.
+- **(c)** M = ⊕_j (a_j I + b_j J).
 
-The matrices in (c) form a d-dimensional subspace of ℝ^{d×d}. Its orthogonal projection Π keeps each diagonal block's
-(tr B/2) I + ((B₂₁ − B₁₂)/2) J and zeroes the off-diagonal blocks. On it, the score is the trigonometric polynomial
-Σ_j a_j cos(Δω_j) + b_j sin(Δω_j).
+The matrices in (c) form a d-dimensional subspace. Its Frobenius-orthogonal projection Π keeps each diagonal block's
+(tr B/2)I + ((B₂₁ − B₁₂)/2)J and zeroes the rest. On it the score is Σ_j a_j cos(Δω_j) + b_j sin(Δω_j).
 
-*Proof sketch.*
+*Proof.*
 - (a) ⇔ (b): g(m + 1, n + 1) = g(m, n) for all m, n ⟺ p(m)ᵀ(RᵀMR − M)p(n) = 0 for all m, n ⟺ RᵀMR = M, since the
   p(m) span ℝ^d.
-- (a′): any d consecutive p(m) span ℝ^d. The matrix [e^{imλ}] over the d distinct nodes e^{±iω_j} is Vandermonde.
-- (b) ⇔ (c): R has distinct eigenvalue pairs e^{±iω_j}, so its commutant is block-diagonal, and a real 2 × 2 block
-  commuting with a rotation by an angle other than 0 or π is aI + bJ.
+- (a′) ⇒ (b): any d consecutive p(m) already span ℝ^d, because [e^{imλ}] over the d distinct nodes e^{±iω_j} is
+  Vandermonde.
+- (b) ⇔ (c): R has distinct eigenvalue pairs, so its commutant is block-diagonal, and a real 2 × 2 block commuting with
+  a rotation by an angle in (0, π) is aI + bJ.
 - ∎
 
 *Reading.*
-- **Adding a stationary code to the content does not make attention relative.**
-  - Score: (x_t E + p(t)) M (x_j E + p(j))ᵀ.
-  - Content–position cross terms enter (Ke, He, and Liu 2021), and the position–position term is relative only if M
-    lies in the commutant.
-  - A Gaussian M has relativity defect δ(M) = ‖M − Π(M)‖_F/‖M‖_F with E δ² = 1 − 1/d.
-- **Topic 9's denoiser** learned M = cI, which is the commutant with one plane.
-- **The exactness is fragile in practice.** Over a window short compared with the slow planes' wavelengths, the
-  sinusoid matrix is badly conditioned (*spike:* numerical rank 14 of 16 over 64 positions). The constraint that
-  (a′) puts on the slow planes is weak (§5).
+- **A stationary code added to the content does not make attention relative.**
+  - Score: (x_tE + p(t))M(x_jE + p(j))ᵀ.
+  - Content–position cross terms enter (Ke, He, and Liu 2021), and the position–position term is relative only inside
+    the commutant.
+  - For a Gaussian M, ‖ΠM‖²/‖M‖² ~ Beta(d/2, (d² − d)/2), so E δ² = 1 − 1/d.
+- **The trained sinusoidal heads** have δ(W_Q W_Kᵀ) = 0.970950, 0.955155, 0.973256. A random matrix has
+  √(1 − 1/16) = 0.968246: the training never moved toward relativity.
+- **Exactness is fragile.** The d = 16 sinusoid matrix's condition number over n positions:
 
-**Asserted** (`test_commutant`):
-- (a′) ⇒ (c) by solving the window's linear constraints;
-- (c) ⇒ (a) to 10⁻¹²;
-- E δ² = 1 − 1/d by Monte Carlo;
-- the window's condition number grows as the slow planes' wavelengths outrun it.
+  | n | 16 | 32 | 64 | 256 | 4,096 |
+  |---|---|---|---|---|---|
+  | cond | 1.897·10¹⁹ | 2.242·10¹⁸ | 8.957·10¹⁷ | 1.243·10¹¹ | 17.66 |
 
-`test_sinusoidal_head_defect`:
-- the trained sinusoidal head's δ(M);
-- its cross-term share;
-- whether projecting M onto the commutant, and dropping the cross terms, changes its accuracy past L (reported as it
-  falls).
-
-### Theorem 3 (ALiBi is a product kernel: locality, and its horizon)
-For one causal ALiBi head with slope s > 0, suppose the content scores satisfy |c_tj| = |q_t k_jᵀ/τ| ≤ B.
-- **(i)** The weights are α_tj ∝ exp(c_tj) · e^{−s(t−j)}: Topic 9's Nadaraya–Watson smoother (its Def 1) with a
-  product kernel, content × position.
-  - In bidirectional form e^{−s|t−j|} is the Matérn-½ kernel (formalML `gaussian-processes` Def 3). It is positive
-    definite, and so is the product (that topic's Prop 2).
-- **(ii) Locality at every length.** The mass on offsets ≥ D is at most e^{2B} e^{−sD} / (1 − e^{−s}), for every t.
-- **(iii) The horizon.** α at offset r is at most e^{2B − sr} times α at offset 0. A key farther back than
-  2B/s gets less weight than the query's own position, whatever its content.
-
-*Proof sketch.* The denominator is at least its offset-0 term, e^{−B}. Each numerator term is at most e^{B − sr}.
-Sum the geometric tail. ∎
-
-*Reading.*
-- (ii) and (iii) are one inequality read two ways. ALiBi extrapolates in length *because* it cannot look far.
-- Press, Smith, and Lewis's perplexity results are about local prediction. Chi et al. (2023) trace them to a bounded
-  receptive field (*to verify*).
-- §6 uses (iii) as a forecast: measure B on the trained head, and read off the gap at which retrieval must fail.
+  Its numerical rank over 64 positions is 14 of 16.
 
 **Asserted:**
-- `test_alibi_product_kernel`: (i)–(iii) on random instances.
-- `test_alibi_horizon`: the trained head's B and 2B/s, against its accuracy by gap band on filings.
+- `test_commutant`:
+  - at random well-separated frequencies (d = 8), the null space of (a′)'s window constraints has dimension exactly d,
+    and all of it lies in the commutant;
+  - (c) ⇒ (a) to 10⁻¹⁰;
+  - E δ² = 1 − 1/d by 4,000 draws, within 4 standard errors;
+  - the condition numbers fall monotonically, by more than 10³.
+- `test_sinusoidal_head_defect`: every trained head has δ > 0.8.
+
+### Theorem 3 (ALiBi is a product kernel: locality, and its horizon)
+For one causal ALiBi head with slope s, let the content scores c_tj = q_t k_jᵀ/τ lie in an interval of width W.
+- **(i)** α_tj ∝ e^{c_tj} · e^{−s(t−j)}: Topic 9's Nadaraya–Watson smoother (its Def 1) with a content × time product
+  kernel.
+  - In bidirectional form e^{−s|t−j|} is the Matérn-½ kernel (formalML `gaussian-processes` Def 3). It is positive
+    definite, and so is the product (that topic's Prop 2).
+- **(ii) Locality at every length.** The weight on offsets ≥ D is at most e^{W}e^{−sD}/(1 − e^{−s}).
+- **(iii) The horizon.** α at offset r is at most e^{W − sr} times α at offset 0. Past r = W/s a key weighs less than the
+  query's own position, whatever its content.
+
+*Proof.* α_r/α_0 = e^{c_r − c_0 − sr} ≤ e^{W − sr}, which is (iii). Summing over r ≥ D, and using α_0 ≤ 1, gives
+(ii). ∎
+
+*Reading.*
+- (ii) and (iii) are one inequality read two ways: ALiBi extrapolates in length because it cannot look far. Chi et al.
+  (2023) trace ALiBi's extrapolation to a bounded receptive field.
+- (ii) is vacuous inside the horizon. With W = 20 and s = ½: 2.54 at D = 40, 1.15·10⁻⁴ at 60, 5.24·10⁻⁹ at 80.
+- (iii) bounds a weight, not an answer. Whether a cue past the horizon can still be read depends on what the nearer
+  tokens' values carry, and §6 measures it.
+
+**Asserted** (`test_alibi_product_kernel`), on 30 random instances up to length 8,192:
+- (i) to 10⁻¹²;
+- (ii) at D = 1, 4, 16, 64;
+- (iii);
+- PSD of the Matérn-½ Gram matrix and of its Schur product with a content Gram matrix.
 
 ### Proposition 3 (RoPE is relative by construction, and isometric)
-- **(i)** ⟨R_θ(m)q, R_θ(n)k⟩ = q R_θ(n − m) kᵀ (rows).
-- **(ii)** ‖R_θ(m)q‖ = ‖q‖. In Topic 9's Prop 1 factorization, the design weights e^{‖k‖²/2τ} carry no position:
-  RoPE moves only angles. This is the vMF reading of Topic 9's Prop 1 (iii).
-- **(iii)** For fixed q and k, the offset score s(Δ) = q R_θ(Δ) kᵀ = Σ_j ρ_j cos(Δθ_j + φ_j) is a trigonometric
-  polynomial. Here ρ_j = ‖q_j‖‖k_j‖ (plane norms), and φ_j is the angle between the two plane components.
+- **(i)** ⟨R_θ(m)q, R_θ(n)k⟩ = ⟨q, R_θ(n − m)k⟩.
+- **(ii)** ‖R_θ(m)q‖ = ‖q‖. In Topic 9's Prop 1 factorization, the design weights e^{‖k‖²/2τ} carry no position: RoPE
+  moves only angles.
+- **(iii)** For fixed q and k, s(Δ) = Σ_j ρ_j cos(Δθ_j + φ_j), with ρ_j = ‖q_j‖‖k_j‖ and φ_j = ∠k_j − ∠q_j.
 
-*Proof sketch.* Prop 2 (ii), then u(α)ᵀ R(φ) u(β) in polar form. ∎
+*Proof.* Prop 2 (ii). In polar form, u(α)ᵀR(φ)u(β) = cos(β + φ − α). ∎
 
-**Asserted** (`test_rope_relative_isometric`): (i)–(iii) to 10⁻¹² on random instances. Also, `ak.attention` on
-rotated Q and K agrees with the explicit R(n − m) form.
+**Asserted** (`test_rope_relative_isometric`):
+- (i)–(iii) to 10⁻⁹ on random instances;
+- Topic 9's `attention()` on rotated Q and K equals the explicit R(n − m) form to 10⁻¹².
 
 ### Theorem 4 (RoPE is the general linear relative encoding)
-Let L_m ∈ ℝ^{d×d}, for m ∈ ℤ, with L_0 = I. The following are equivalent:
-- **(a)** ⟨L_m q, L_n k⟩ depends only on (q, k, n − m), for all q, k, m, n;
-- **(b)** L_m = U^m for some orthogonal U;
-- **(c)** L_m = Q (⊕_i R(mθ_i) ⊕ I_p ⊕ (−1)^m I_r) Qᵀ, for some orthogonal Q, angles θ_i ∈ (0, π), and p, r ≥ 0.
+Let L_m ∈ ℝ^{d×d} (m ∈ ℤ) with L_0 = I. The following are equivalent:
+- **(a)** ⟨L_m q, L_n k⟩ depends only on (q, k, n − m);
+- **(b)** L_m = U^m for an orthogonal U;
+- **(c)** L_m = Q(⊕_i R(mθ_i) ⊕ I_p ⊕ (−1)^m I_r)Qᵀ, with θ_i ∈ (0, π).
 
-So, up to an orthogonal change of basis (which W_Q and W_K absorb), the linear relative encodings are RoPE:
-- with free frequencies;
-- plus unrotated planes, which is partial rotary;
-- plus Nyquist planes at θ = π.
+W_Q and W_K absorb Q. So, up to the learned projections, the linear relative encodings are RoPE with free frequencies,
+plus unrotated planes (partial rotary) and Nyquist planes.
 
-*Proof sketch.*
+*Proof.*
 - (a) ⇒ (b): (a) says L_mᵀL_n = G(n − m).
-  - m = n gives L_mᵀL_m = G(0) = I, so each L_m is orthogonal.
+  - m = n gives L_mᵀL_m = I.
   - G(k) = L_0ᵀL_k = L_k.
   - L_mᵀL_{m+k} = L_k gives L_{m+k} = L_m L_k, so L_m = L_1^m.
-- (b) ⇒ (c): the real normal form of an orthogonal matrix (*cite* Horn and Johnson 2013, §2.5).
+- (b) ⇒ (c): the real normal form of an orthogonal matrix (*cited*: Horn and Johnson 2013, §2.5).
 - (c) ⇒ (a): Prop 3 (i).
 - ∎
 
-*Reading.*
-- RoPE fixes U's spectrum to Def 2's geometric frequencies.
-- The theorem says no linear multiplicative scheme can do something RoPE cannot, apart from choosing the
-  frequencies.
-- Su et al. derive the two-dimensional case under smoothness assumptions. (b) needs none.
+*Reading.* RoPE fixes U's spectrum to Def 2's frequencies. Su et al. derive the 2-D case under smoothness assumptions,
+and (b) needs none.
 
-**Asserted** (`test_general_relative_encoding`):
-- (b) ⇒ (a) for random orthogonal U;
-- the real Schur form (scipy) reconstructs U in shape (c);
-- a non-orthogonal family (L_m = A^m with A not orthogonal) violates (a).
+**Asserted** (`test_general_relative_encoding`), at d = 7, 8, 9, for a random orthogonal U and for one with explicit
+±1 axes:
+- (a) via L_mᵀL_n = L_{m+1}ᵀL_{n+1};
+- scipy's real Schur form reconstructs U^m for m = −3, …, 5 to 10⁻⁸, with angles in (0, π) and 2·#angles + p + r = d;
+- a symmetric non-orthogonal A violates (a).
 
 ### Proposition 4 (what "long-term decay" means)
-- **(i) Su et al.'s envelope.** In complex form, with h_j = q_j k̄_j and S_j = Σ_{l<j} e^{iΔθ_l}:
-  |Σ_j h_j e^{iΔθ_j}| ≤ (max_j |h_{j+1} − h_j|) Σ_{j=1}^{d/2} |S_j|, with h_{d/2} = 0.
-  - Proved in full by summation by parts.
-  - The envelope (2/d)Σ|S_j| is observed to fall with Δ on average, and not monotonically. That part is a
-    measurement, not a theorem.
-- **(ii) Matched pairs.** If q = k and the plane energies have E‖q_j‖² = σ² for each j, then
-  E[q R_θ(Δ) qᵀ] = σ² κ_d(Δ). This is Thm 1's ruler, and it decays logarithmically.
-- **(iii) Unrelated pairs.** If q and k are independent with mean zero, then E[q R_θ(Δ) kᵀ] = 0 for every Δ, and the
-  variance does not depend on Δ.
+- **(i)** With h_j = q_j k̄_j and S_j = Σ_{l<j} e^{iΔθ_l}: |Σ_j h_j e^{iΔθ_j}| ≤ (max_j |h_{j+1} − h_j|) Σ_j |S_j|, with
+  h_{d/2} = 0 (Su et al.).
+- **(ii)** If q = k with E‖q_j‖² = σ² for each plane, then E⟨q, R(Δ)q⟩ = σ²κ_d(Δ). This is Thm 1's ruler.
+- **(iii)** If q and k are independent and k is isotropic in each plane, then the law of ⟨q, R(Δ)k⟩ does not depend on
+  Δ. For the Gaussian case: mean 0, variance dσ⁴/4.
 
-*Proof sketch.* (i) Abel summation. (ii) u R(φ) uᵀ = ‖u‖² cos φ. (iii) Linearity and rotation invariance of the
-second moment. ∎
+*Proof.* (i) Summation by parts: Σ_j h_j(S_{j+1} − S_j) = −Σ_j S_{j+1}(h_{j+1} − h_j). (ii) uᵀR(φ)u = ‖u‖² cos φ.
+(iii) R(Δ)k has k's law. ∎
 
 *Reading.*
-- "Long-term decay" is a property of an envelope and of matched query–key pairs.
-- A trained head decays only if it learns to: the RoPE head's s(Δ) falls over [0, 32) because the cue task rewards
-  recency, and it rebounds past 32 (§5).
+- The envelope (2/d)Σ|S_j| at d = 128 falls on average. Its octave means, for octaves [2^k, 2^{k+1}) with k = 0…11:
+  31.538, 27.277, 20.995, 17.695, 14.367, 12.020, 10.020, 8.268, 6.973, 5.960, 5.298, 4.880.
+- It is not monotone within octaves. That part is a measurement, not a theorem.
+- "Decay" is a property of an envelope and of matched pairs. A trained head decays only where it learned to (§5).
 
 **Asserted** (`test_long_term_decay`):
-- (i) on random instances;
-- the envelope's octave means decrease;
-- (ii) and (iii) by Monte Carlo within 4 standard errors.
+- (i) on 200 random instances;
+- the octave means fall;
+- (ii) and (iii) by 200,000 draws at Δ = 0, 1, 7, 50, 400, within 4 standard errors, with the variance within 2%.
 
-### The tournament (§5) and Theorem 5 (wavelength census and rescalings)
-*Spike* table, from seed 1 (seeds 2 and 3 agree in pattern):
+### The tournament (§5)
+**Accuracy:** mean over 3 seeds, with the range.
 
 | scheme | 32 | 64 | 128 | 256 |
 |---|---|---|---|---|
-| NoPE | 0.548 | 0.359 | 0.284 | 0.205 |
-| sinusoidal-absolute | 0.998 | 0.193 | 0.152 | 0.150 |
-| learned-absolute | 0.988 | n/a | n/a | n/a |
-| RoPE | 1.000 | 0.915 | 0.785 | 0.412 |
-| RoPE + PI | — | 1.000 | 0.991 | 0.952 |
-| RoPE + NTK | — | 0.957 | 0.952 | 0.965 |
-| ALiBi | 0.997 | 0.977 | 0.977 | 0.969 |
+| NoPE | 0.541500 (0.538–0.546) | 0.367000 (0.359–0.373) | 0.286500 (0.286–0.288) | 0.237500 (0.232–0.244) |
+| sinusoidal-absolute | 0.995833 (0.994–0.997) | 0.200667 (0.160–0.225) | 0.133667 (0.125–0.146) | 0.142500 (0.126–0.171) |
+| learned-absolute | 0.988500 (0.985–0.993) | n/a | n/a | n/a |
+| RoPE | 0.999833 (1.000–1.000) | 0.947167 (0.917–0.965) | 0.872167 (0.797–0.915) | 0.465667 (0.310–0.677) |
+| ALiBi | 0.998667 (0.998–0.999) | 0.979000 (0.975–0.986) | 0.978000 (0.971–0.984) | 0.977833 (0.971–0.985) |
+| RoPE + PI | — | 0.998000 | 0.979833 | 0.917000 |
+| RoPE + NTK | — | 0.969500 | 0.966000 | 0.977000 |
+| RoPE + YaRN | — | 0.998167 | 0.978667 | 0.914000 |
 
-The RoPE head's cue score s(Δ) (Prop 3 (iii), symbol-averaged):
-- At Δ = 1, 5, 10, 20, 31: 94.3, 83.0, 59.6, 27.7, 3.8.
-- Then it rises again: 15.1 at 40, 23.7 at 63, −21.8 at 80, 51.4 at 200.
-- Its maximum on [32, 256) is 91.9 at Δ = 182.
+**The RoPE head's cue score** s(r) = ⟨q, R(−r)k_cue⟩/τ (symbol-averaged), by seed:
 
-**Theorem 5.**
-- **(i) Census.** Over training offsets 0, …, L − 1, plane j turns through a whole circle iff (L − 1)θ_j ≥ 2π.
-  Approximately, that is λ_j = 2π/θ_j ≤ L.
-  - The number of complete planes is n_c(L) = #{j : b^{2j/d} ≤ (L − 1)/2π}.
-  - The other planes see only the arc [0, (L − 1)θ_j]. At larger offsets they produce angles never seen in training.
-  - At d = 16, L = 32 only 2 of 8 planes complete a turn (λ = 6.3, 19.9; then 62.8, 198.7, …).
-- **(ii) PI** maps test offsets [0, κL − 1] into [0, L), so every angle lies inside the trained arc. Adjacent tokens
-  then differ by θ_j/κ, a κ-fold loss of resolution in every plane.
-- **(iii) NTK-aware.** θ′_j = θ_j κ^{−2j/(d−2)}: plane 0 is unchanged, and the slowest plane gets exactly PI's 1/κ,
-  with the planes in between geometric. Checked: the ratios are 1 and 1/κ.
-- **(iv) Interpolation versus extrapolation** (after Chen et al. 2023). For s(Δ) = Re Σ_j h_j e^{iΔθ_j}, linear
-  interpolation between grid points Δ₁ < Δ₂ errs by at most ((Δ − Δ₁)(Δ₂ − Δ)/2) Σ_j |h_j| θ_j².
-  - So the sharp constant is Σ_j θ_j² = (1 − b^{−2})/(1 − b^{−4/d}) (for planes j < d/2).
-  - Outside the trained range no such bound exists: |s| can reach Σ_j |h_j|.
-  - **To verify:** Chen et al.'s stated constant. If it is d/(4 ln b), that is the large-d approximation of ours, and it
-    undercounts by 2.56× at d = 16 and by 1.04× at d = 512 (checked numerically in planning). If so, it goes in the
-    rigorFlag.
+| seed | s(1) | s(16) | trough | rebound peak | plane amplitudes ρ_j/τ, j = 0…7 |
+|---|---|---|---|---|---|
+| 0 | 114.100 | 53.528 | r = 34 (5.909) | r = 181 (84.137) | 0.23, 2.57, 24.97, 59.09, 30.09, 4.86, 9.32, 6.60 |
+| 1 | 136.705 | 73.192 | r = 32 (31.697) | r = 181 (131.166) | 0.13, 3.74, 26.17, 65.15, 15.49, 10.58, 26.56, 8.51 |
+| 2 | 122.109 | 64.276 | r = 32 (24.593) | r = 182 (123.120) | 0.25, 3.83, 28.38, 45.08, 5.74, 13.53, 29.31, 10.44 |
 
-*Proof sketch.* (i) An arc is complete iff its length reaches 2π. (ii) Arithmetic. (iii) Substitute the new base.
-(iv) The interpolation remainder f(Δ) − ℓ(Δ) = f″(ξ)(Δ − Δ₁)(Δ − Δ₂)/2, with |f″| ≤ Σ|h_j|θ_j². ∎
+*Reading.* Training pins s on [0, 32) only. The head carries its recency in planes 2 (λ = 62.8) and 3 (λ = 198.7),
+whose half-turns span the window. Past it, plane 2 turns back first: the trough at λ₂/2 is the window's edge. The two
+planes nearly realign near 3λ₂ ≈ 188 and λ₃, where a far cue outscores any true cue 16 or more back.
 
 **Asserted:**
-- `test_wavelength_census`: (i)–(iii).
-- `test_interpolation_bound`: (iv) on random instances, with the bound's tightness reported.
+- `test_gradients`: every scheme, and YaRN's logit scale, against central differences (Topic 5's
+  `param_grad(central_diff_grad, …)`), ≤ 10⁻⁷.
 - `test_tournament`:
-  - every scheme except NoPE is ≥ 0.95 at 32;
-  - sinusoidal-absolute is < 0.3 at 64 and beyond;
-  - ALiBi is ≥ 0.95 through 256;
-  - RoPE falls monotonically and is < 0.6 at 256;
-  - each rescue lifts RoPE at 256.
-  - Bounds are set from the three seeds' minimum and maximum, as reported.
-- `test_rope_rebound`: the learned s(Δ) has a maximum on [L, 256) above its value at the median training gap. The
-  offset where s first rises again lies in a plane-wavelength band that (i) predicts.
-- `test_gradients`: every scheme's hand-written gradient against central differences, ≤ 10⁻⁷.
+  - every scheme except NoPE is ≥ 0.95 at 32, and NoPE is < 0.7;
+  - learned-absolute is n/a past 32;
+  - sinusoidal-absolute is < 0.35 past 32;
+  - ALiBi is ≥ 0.9 at every length;
+  - RoPE falls strictly with length in every seed;
+  - every rescue lifts each seed's RoPE head at 256 by more than 0.2.
+- `test_rope_rebound`: the trough, the monotone fall, plane 3's amplitude, a peak in [170, 200], and peak > s(16), in
+  every seed.
+
+### Theorem 5 (wavelength census and rescalings)
+- **(i) Census.** Plane j turns a whole circle over training offsets 0, …, L − 1 iff (L − 1)θ_j ≥ 2π.
+  - At d = 16, L = 32 the wavelengths are 6.3, 19.9, 62.8, 198.7, 628.3, 1,986.9, 6,283.2, 19,869.2.
+  - Two planes complete a turn. The rest see angles past L that training never produced.
+- **(ii) PI** maps test offsets [0, κL − 1] into [0, L − 1/κ], within one position of the trained range, at a κ-fold
+  loss of resolution in every plane.
+  - The loss is visible on filings: RoPE + PI reads 0.995 on gaps ≤ 8, where RoPE reads 1.000.
+- **(iii) NTK-aware.** θ′_j = θ_j κ^{−2j/(d−2)}: plane 0 is unchanged, and the slowest plane gets exactly 1/κ.
+  - At κ = 4 the per-plane ratios are 1, 0.820, 0.673, 0.552, 0.453, 0.371, 0.305, 0.250.
+  - YaRN's ratios at κ = 4 are 0.349, 0.265, then 0.25 for every other plane, with logit scale 1.296.
+- **(iv) Interpolation versus extrapolation.**
+  - Linear interpolation of a(Δ) = Re Σ_j h_j e^{iΔθ_j} between Δ₁ < Δ₂ errs by at most
+    ½(Δ − Δ₁)(Δ₂ − Δ)Σ_j |h_j|θ_j², with Σ_j θ_j² = (1 − b^{−2})/(1 − b^{−4/d}).
+  - Past the trained range no such bound holds, and |a| can reach Σ|h_j|.
+  - **Chen et al.'s Theorem 2.1 states the constant d/(4 ln b).** Their eq. (14) derives it from c^x ≤ 1 + x ln c for
+    x < 0, the reverse of convexity. Their constant undercounts Σθ_j² by 2.558× at d = 16, 1.315× at 64, 1.151× at
+    128, and 1.036× at 512.
+  - The stated bound fails for h_j = 1 on [0, 1] at ½:
+
+    | d | error | stated bound | sharp bound |
+    |---|---|---|---|
+    | 16 | 0.121137 | 0.054287 | 0.138889 |
+    | 64 | 0.259756 | 0.217147 | 0.285611 |
+    | 128 | 0.459282 | 0.434294 | 0.499789 |
+    | 512 | 1.667841 | 1.737178 (holds) | 1.800427 |
+
+  - Their qualitative conclusion, that interpolation is far better controlled than extrapolation, survives with the
+    corrected constant.
+
+*Proof.* (i) An arc is complete iff its length reaches 2π. (ii) (κL − 1)/κ = L − 1/κ. (iii) Substitute the new base.
+(iv) The interpolation remainder is a(Δ) − ℓ(Δ) = a″(ξ)(Δ − Δ₁)(Δ − Δ₂)/2, with |a″| ≤ Σ|h_j|θ_j². ∎
+
+**Asserted:**
+- `test_wavelength_census`: (i)–(iii), and YaRN's ramp endpoints.
+- `test_interpolation_bound`:
+  - (iv) on 600 random instances at d = 16 and 128;
+  - the closed form for Σθ_j²;
+  - the 2.558× and 1.036× ratios;
+  - the counterexample at d = 16, 64, 128.
 
 ## 4. The finance case study (§6): which company was named last?
 - **Setting.**
-  - An MD&A names a parent and its subsidiaries, and then refers back to "the company".
-  - The question, asked at every position of a held-out document: which company was named most recently?
-  - Answering it is the cue task on real document geometry, where mentions are bursty and the gaps are long. *Spike:*
-    3,123 of the queries in 40 held-out documents have their answer more than 32 tokens back.
-- ***Spike*** (seed 1, heads trained on the synthetic cue task; open point 1 would retrain on filing windows):
+  - A filing names a parent and its subsidiaries, then refers back to "the company".
+  - At every held-out position with an earlier ORG mention we ask which company was named most recently.
+  - The heads are retrained on 32-token windows of the training filings, so at test time the only shift is length.
+- **Results:** accuracy, mean of 3 seeds (`filing_benchmark`).
 
-  | scheme | all queries | gap > 32 |
-  |---|---|---|
-  | NoPE | 0.744 | 0.721 |
-  | sinusoidal-absolute | 0.667 | 0.579 |
-  | RoPE | 0.790 | 0.619 |
-  | RoPE + PI | 0.984 | — |
-  | RoPE + NTK | 0.831 | — |
-  | ALiBi | 0.615 | **0.085** |
+  | reader | all (19,285) | past 32 (7,895) | 1–8 | 9–16 | 17–32 | 33–64 | 65–128 | 129+ |
+  |---|---|---|---|---|---|---|---|---|
+  | NoPE | 0.612963 | 0.528436 | 0.693 | 0.677 | 0.633 | 0.533 | 0.512 | 0.738 |
+  | sinusoidal | 0.761818 | 0.711590 | 0.800 | 0.795 | 0.793 | 0.733 | 0.693 | 0.668 |
+  | RoPE | 0.878040 | 0.720583 | 1.000 | 1.000 | 0.956 | 0.771 | 0.680 | 0.591 |
+  | ALiBi | 0.828087 | 0.580072 | 1.000 | 1.000 | 1.000 | 0.656 | 0.513 | 0.504 |
+  | RoPE + PI | 0.990787 | 0.985645 | 0.995 | 0.994 | 0.994 | 0.990 | 0.982 | 0.980 |
+  | RoPE + NTK | 0.913128 | 0.788389 | 1.000 | 1.000 | 0.999 | 0.752 | 0.830 | 0.661 |
+  | RoPE + YaRN | 0.990303 | 0.984843 | 0.994 | 0.993 | 0.994 | 0.991 | 0.979 | 0.980 |
 
-  - Seeds 2 and 3 give ALiBi 0.093 and 0.301 for gap > 32, and RoPE + PI 0.984 and 0.974.
-- **Lesson.** The scheme that won the length tournament loses the filing.
-  - Thm 3 (iii) forecasts the gap at which ALiBi must fail.
-  - NoPE does well here only because a document names about two companies: the bag of cues usually has a majority.
-- **Data rules.** The data is the synthetic corpus only: no transcripts, no LM dictionary. EDGAR is excluded (no
-  entity spans), and the page says so.
+- **Thm 3 (iii) as a forecast** (`alibi_forecast`): every ALiBi head, from either training source, read on the held-out
+  filings.
 
-## 5. `rigorFlag` (draft points)
-1. **Long-term decay** (Prop 4) is a property of an envelope and of matched pairs. RoPE does not make unrelated keys
+  | trained on | seed | W | horizon W/s | inside H/2 | beyond H |
+  |---|---|---|---|---|---|
+  | filings | 0 | 25.553 | 51.1 | 1.000 (n = 10,204) | 0.723 (n = 5,502) |
+  | filings | 1 | 26.479 | 53.0 | 1.000 (n = 10,391) | 0.487 (n = 5,395) |
+  | filings | 2 | 27.898 | 55.8 | 1.000 (n = 10,572) | 0.319 (n = 5,076) |
+  | synthetic | 0 | 19.349 | 38.7 | 1.000 (n = 8,929) | 0.112 (n = 7,048) |
+  | synthetic | 1 | 17.875 | 35.8 | 1.000 (n = 8,388) | 0.087 (n = 7,459) |
+  | synthetic | 2 | 18.523 | 37.0 | 1.000 (n = 8,666) | 0.108 (n = 7,182) |
+
+- **Lessons.**
+  - The tournament's winner loses 42% of the filing's far queries, and its own theorem says where.
+  - Inside half its horizon every ALiBi head is perfect.
+  - Past the horizon, how much survives depends on how quiet the nearer tokens' values are. Filing-trained heads, which
+    saw long cue-free spans, keep more than the synthetic-trained ones.
+  - Interpolating RoPE's positions (PI, YaRN) reads the whole filing at ≥ 0.98 in every band.
+  - NoPE's 0.613 is mostly the base rate: one seed always names the first company (0.766 of answers are that company).
+- **The lab's filing** is held-out document 92 (209 tokens), chosen by `lab_filing()`. It is the filing of at most 220
+  tokens with the most queries that the seed-0 ALiBi head misses and RoPE + PI answers.
+- **Data rules.** The data is the synthetic corpus only: no transcripts, no LM dictionary. EDGAR is excluded because its
+  excerpts carry no entity spans, and the page says so.
+
+## 5. `rigorFlag`
+1. **Long-term decay** is a property of an envelope and of matched pairs (Prop 4). RoPE does not make unrelated keys
    fade.
-2. **The commutant theorem** (Thm 2) is exact, but its window version is badly conditioned when the window is shorter
-   than the slow planes' wavelengths.
-3. **Cited, not proved:**
-   - Herglotz's theorem (the converse in Thm 1 (i));
-   - the real normal form of orthogonal matrices (Thm 4);
-   - Ci's asymptotics (DLMF).
-4. **NTK-aware scaling and YaRN are empirical heuristics.**
-   - YaRN's (0.1 ln κ + 1) temperature is a fit.
-   - We evaluate every rescue zero-shot. Published results fine-tune after rescaling.
-5. **The tournament is toy-scale:** one head, d = 16, 8 symbols, three seeds. It demonstrates mechanisms and
-   measures nothing about language models at scale.
-6. **The finance case** uses synthetic documents with hashed distractor symbols. The labels are first-appearance
-   order mod 8.
+2. **The commutant theorem** (Thm 2) is exact, but over a window shorter than the slow planes' wavelengths its
+   constraint is nearly void (condition numbers 10¹⁷–10¹⁹).
+3. **Cited, not proved:** Herglotz's theorem (Thm 1 (i)'s converse), the real normal form of orthogonal matrices
+   (Thm 4), and Ci's expansion (DLMF).
+4. **NTK-aware scaling and YaRN are heuristics.**
+   - YaRN's (0.1 ln κ + 1)² logit scale is a fit.
+   - Every rescue here is zero-shot, while published results fine-tune after rescaling.
+   - Which rescue wins depends on the task: NTK on the synthetic stream, PI on filings.
+5. **The tournament is toy-scale:** one head, d = 16, 8 symbols, three seeds. It demonstrates mechanisms, and says
+   nothing quantitative about language models at scale.
+6. **The finance case uses synthetic filings** with hashed distractor symbols and first-appearance labels. EDGAR is
+   excluded.
 7. **Folklore corrected:**
-   - Sinusoidal encodings do not by themselves extrapolate (§5), and the PE columns are not orthogonal: Thm 1 (i) puts
-     the Gram matrix at κ_d(m − n), not δ_mn.
-   - This contradicts formalCalculus `fourier-series` §12. It is logged for the launch reciprocal PR, and the sibling
-     is not touched here.
-8. **Chen et al.'s interpolation constant** is a large-d approximation, if it is d/(4 ln b) (to verify; Thm 5 (iv)).
+   - Sinusoidal encodings do not by themselves extrapolate (0.996 at 32, 0.201 at 64).
+   - Their columns are not orthogonal: the Gram matrix is κ_d(m − n), not δ_mn.
+   - This contradicts formalCalculus `fourier-series` §12, whose Thm 1 covers integer harmonics over a full period. It
+     is logged for the launch reciprocal PR, and the sibling is not touched here.
+8. **Chen et al.'s Theorem 2.1 is false as stated for d ≤ 128** (§3, Thm 5 (iv)). The corrected constant restores it,
+   and their conclusion stands.
+9. **Thm 3 (iii) bounds a weight, not an answer.** Past the horizon the filing-trained heads keep 0.32–0.72, because a
+   small weight can still carry the answer when the nearer values are quiet.
 
 ## 6. Viz design intent — `PositionalEncodingLab` (one component, two figures)
 
 **Data.**
-- All data comes from `viz_payload()`, mirrored in `src/components/viz/data/positional-encoding-lab.json`.
-- `test_viz_payload` caps the file at 60 kB, and `test_viz_mirror_matches_payload` pins it.
-- Displayed numbers are rounded in the payload: 3 decimals for accuracies and kernel values. Derived numbers are
-  rounded from exact values.
+- All data comes from `viz_payload()` (17,250 bytes).
+- Phase B writes `src/components/viz/data/positional-encoding-lab.json` as
+  `json.dumps(viz_payload(), separators=(',', ':'))`, and adds `test_viz_mirror_matches_payload`.
+- Every displayed number is rounded in the payload: 3 decimals for kernels and accuracies, 2 for offset scores, 1 for
+  wavelengths and the horizon.
 - Marginalia tokens only. Wrapper: `<div data-lab="positional">`.
 
 **Figure A, "Clocks and kernels."**
-- *Clocks:* d/2 dials, one per plane, each a hand at angle mω_j.
-  - Controls: m and n sliders; base (10², 10⁴, 10⁶); d (16 / 64).
-  - The difference hand R_ω(n − m) is overlaid.
-  - Readouts: ⟨p(m), p(n)⟩ and κ_d(n − m).
-  - *Lesson:* shifting both positions turns every hand together, and the inner product does not move.
-- *Kernel:* (2/d)κ_d(Δ) on a log-Δ axis, with the Ci limit and the ruler 1 − (γ + ln Δ)/ln b overlaid.
-  - Toggle: d = 16 / 64 / 512.
-  - A small Toeplitz heatmap of the Gram matrix sits beside it.
-- *Rotation:* one RoPE plane, with q and k as arrows rotated by mθ and nθ.
-  - Controls: m and n sliders, and a "lock the offset" toggle that slides m and n together.
-  - Readouts: the RoPE score (constant under the lock), and the additive score under the trained sinusoidal head's M
-    (it drifts under the lock: the relativity defect).
+- *Clocks:* one dial per plane (d = 16 or 64), each with a hand at angle mω_j.
+  - Controls: m and n sliders (0–63), and the base (10², 10⁴, 10⁶).
+  - The readout (2/d)κ_d(n − m) comes from `clocks.kernel["<base>-<d>"]`, indexed by |n − m|.
+  - *Lesson:* sliding m and n together turns every hand by the same angle, and the readout does not move.
+- *Ruler:* (2/d)κ_d(Δ) for d = 16, 64, 512 on a log-Δ axis (40 grid points from 1 to 4,096), with the Ci limit and
+  the ruler overlaid (`ruler`).
+- *Relativity:* for a fixed offset Δ ∈ {1, 4, 16}, the trained sinusoidal head's position–position score
+  p(m)ᵀMp(m + Δ)/τ as m slides (`relativity.lock[Δ].additive`), against the commutant's constant (`.projected`).
+  - δ = 0.971 is shown.
+  - *Lesson:* the learned score drifts with absolute position, while a relative score could not.
 
 **Figure B, "Past the training window."**
-- *Tournament:* accuracy against test length (32 → 256, log₂ axis), one line per scheme plus the three rescues.
-  - Learned-absolute ends at 32 with a marker.
-  - Clicking a scheme shows its learned offset score s(Δ) over [0, 256), with [0, 32) shaded as "seen in training".
-    The RoPE rebound is visible.
-- *Census:* one bar per plane, showing λ_j against an L slider.
-  - Bars are shaded complete or partial.
-  - Toggle: none / PI / NTK / YaRN, showing each plane's frequency scale factor.
-- *Filings:* a held-out document as a token strip.
-  - ORG mentions are chips colored by company.
-  - Clicking a position shows each scheme's answer and the true one.
-  - Each scheme's accuracy is shown by gap band, with ALiBi's 2B/s horizon marked.
+- *Tournament:* accuracy against length (log₂ axis), one line per scheme plus the three rescues (`tournament.accuracy`,
+  `.rescues`).
+  - Learned-absolute ends at 32.
+  - Clicking a scheme shows its seed-0 offset score over 0–255 (`tournament.offset_score`), with [0, 32) shaded and
+    RoPE's rebound visible.
+- *Census:* one bar per plane for λ_j, against the training length, shaded complete or partial (`census`).
+  - Toggle: none / PI / NTK / YaRN at κ = 2, 4, 8, showing each plane's scale factor (`census.scales`).
+- *Filing:* held-out document 92 as a token strip, with ORG mentions as chips colored by company label.
+  - Clicking a position shows the truth and each reader's answer (`filing.answers`: NoPE, sinusoidal, RoPE, ALiBi,
+    RoPE + PI; seed 0, filing-trained).
+  - Each reader's accuracy is shown by gap band (`filing.band_accuracy`, seed means), with ALiBi's mean horizon (53.3)
+    marked.
 
 *Lessons:*
 - the encoding is a prior over offsets;
 - RoPE's prior is a trigonometric polynomial that misbehaves where training never looked;
 - ALiBi's prior cannot look far;
-- PI keeps the angles in range.
+- interpolation keeps the angles in range.
 
-**Mobile.** Rows wrap, dials reflow into a grid, inputs get `minWidth: 0`, and the token strip wraps.
+**Mobile.** Dials reflow into a grid, rows wrap, inputs get `minWidth: 0`, and the token strip wraps.
 `scrollWidth === 375` in every view, toggle, and selection.
 
-## 7. Function signatures (`positional_encodings_geometry.py`)
+## 7. The module, as built (`positional_encodings_geometry.py`)
+- **Imports Topic 9 as a module object** (`import attention_as_kernel_smoothing as ak`). Topic 9's `_run_harness`
+  collects `test_*` globals, so this keeps them out of this harness.
+- **Reuses:**
+  - `ak.attention` (Prop 1, Prop 3), `ak._softmax`, `ak._r`, `ak.SEED`;
+  - Topic 5 via `ak.nlm`: `log_softmax`, `param_grad`, `central_diff_grad`, `ADAM_*`;
+  - `ak.fc.generate_corpus`.
+- **Sections:**
+  - §2 clocks: `frequencies`, `sinusoidal`, `rotation`, `rotate`, `kernel`, `kernel_limit`, `log_ruler`,
+    `commutant_projection`, `relativity_defect`, `window_conditions`, `window_condition`.
+  - §3: `alibi_slopes`, `alibi_bias`, `t5_bucket`, `alibi_tail_bound`, `alibi_horizon`.
+  - §4: `offset_score`, `trig_form`, `orthogonal_family`, `real_normal_form`, `normal_form_power`, `abel_envelope`.
+  - §5 maps: `wavelength_census`, `pi_scale`, `ntk_frequencies`, `yarn_frequencies`, `interpolation_bound`,
+    `chen_constant`, `chen_stated_bound`.
+  - The cue task and head:
+    - task and baselines: `cue_data`, `bag_bayes_accuracy`, `causal_counter`;
+    - the head: `init_head`, `_head_forward`, `head_loss_grad`, `rescue_kwargs`, `head_accuracy`;
+    - training and the tournament: `HeadConfig`, `train_head` (lru_cache, ≈ 1 s each), `cue_test_set`, `tournament`;
+    - reading a trained head: `content_scores`, `content_width`, `cue_query_key`, `learned_offset_score`.
+  - Filings: `org_tokens`, `Filing`, `filings`, `filing_windows`, `filing_logprobs` (one pass per document; RoPE's
+    per-row rescaling through the polar form), `read_filing`, `filing_benchmark`, `alibi_forecast`.
+  - Payload: `lab_filing`, `viz_payload`, `summary`, and 20 tests.
+- **Timing:** 27 trainings (15 synthetic, 12 filing) ≈ 27 s, and the full harness ≈ 33 s.
 
-Bodies are written after Jonathan's reaction.
-- **Topic 9** is imported as a module object (`import attention_as_kernel_smoothing as ak`), never `from … import`,
-  because its `_run_harness` collects `test_*` globals.
-- **Reused:**
-  - `ak.attention`, `ak._softmax`, `ak._r`, `ak._sig`, `ak.SEED`;
-  - Topic 5 via `ak.nlm`: `complex_step_grad`, `central_diff_grad`, `log_softmax`, `ADAM_*`;
-  - `ak.fc` (`generate_corpus`).
-- **Run line:** `uv run --with numpy==2.5.4 --with scipy==1.18.1 python
-  notebooks/positional-encodings-geometry/positional_encodings_geometry.py`.
-
-```python
-BASE = 10_000.0
-D_TOUR, L_TRAIN, N_SYMBOLS, CUE_RATE = 16, 32, 8, 0.1
-TEST_LENGTHS = (32, 64, 128, 256)
-SCHEMES = ("nope", "sinusoidal", "learned", "rope", "alibi")
-RESCUES = ("pi", "ntk", "yarn")
-ALIBI_SLOPE = 0.5                     # ALiBi's first slope at H = 8
-TOUR_SEEDS = (0, 1, 2)                # streams default_rng([ak.SEED, 1000 + 10*seed + k])
-
-# §1 order, and how a mask leaks it
-def causal_counter(t_max: int) -> np.ndarray                                   # Prop 1 (i): o_t = e/(t+1), via ak.attention
-def bag_bayes_accuracy(n: int, rate: float, trials: int, rng) -> float         # the best multiset reader (Prop 1 (ii))
-
-# §2 position as a set of clocks
-def frequencies(d: int, base: float = BASE) -> np.ndarray                      # ω_j = b^{−2j/d}
-def sinusoidal(positions, freqs) -> np.ndarray                                 # Def 2, (cos, sin) per plane
-def rotation(k: float, freqs) -> np.ndarray                                    # R_ω(k), d × d
-def rotate(X, positions, freqs) -> np.ndarray                                  # rows of X turned by R_ω(position); RoPE's kernel
-def kernel(delta, freqs) -> np.ndarray                                         # κ_d(Δ)
-def kernel_limit(delta, base: float = BASE) -> np.ndarray                      # Thm 1 (ii), scipy.special.sici
-def log_ruler(delta, base: float = BASE) -> np.ndarray                         # 1 − (γ + ln|Δ|)/ln b
-def commutant_projection(M) -> np.ndarray                                      # Π(M), Thm 2 (c)
-def relativity_defect(M) -> float                                              # ‖M − Π(M)‖_F / ‖M‖_F
-def window_condition(n: int, freqs) -> float                                   # the caveat to Thm 2 (a′)
-
-# §3 relative biases
-def alibi_slopes(H: int) -> np.ndarray                                         # 2^{−8h/H}
-def alibi_bias(n: int, slope: float) -> np.ndarray                             # −s(t − j) on j ≤ t
-def t5_bucket(offset: int, num_buckets: int = 32, max_distance: int = 128) -> int  # Def 3, illustration
-def alibi_tail_bound(B: float, s: float, D: int) -> float                      # Thm 3 (ii)
-def alibi_horizon(B: float, s: float) -> float                                 # Thm 3 (iii): 2B/s
-
-# §4 rotations
-def offset_score(q, k, deltas, freqs) -> np.ndarray                            # Prop 3 (iii)
-def orthogonal_family(U, ms) -> np.ndarray                                     # Thm 4 (b)
-def real_normal_form(U) -> tuple[np.ndarray, np.ndarray, int, int]             # Thm 4 (c): Q, angles, p, r (scipy.linalg.schur)
-def abel_envelope(h, delta, freqs) -> dict[str, float]                         # Prop 4 (i): |sum|, bound, (2/d)Σ|S_j|
-
-# §5 past the training window
-def wavelength_census(L: int, d: int, base: float = BASE) -> dict              # Thm 5 (i)
-def pi_positions(n: int, L: int = L_TRAIN) -> np.ndarray                       # Def 5 / Thm 5 (ii)
-def ntk_frequencies(d: int, kappa: float, base: float = BASE) -> np.ndarray    # Thm 5 (iii)
-def yarn_frequencies(d: int, kappa: float, L: int = L_TRAIN, alpha=1.0, beta=32.0, base=BASE) -> tuple[np.ndarray, float]
-def interpolation_bound(h, freqs, d1: float, d2: float, delta: float) -> float # Thm 5 (iv)
-
-@dataclass(frozen=True)
-class HeadConfig:                     # one trained head
-    scheme: str; seed: int; source: str = "synthetic"   # or "filings" (open point 1)
-    n: int = L_TRAIN; rate: float = CUE_RATE; steps: int = 1500; batch: int = 64; lr: float = 0.01
-
-def cue_data(rng, batch: int, n: int, rate: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]  # (X, y, gap)
-def init_head(rng, scheme: str, n: int) -> dict
-def head_loss_grad(P, X, y, scheme, *, positions=None, freqs=None, slope=ALIBI_SLOPE, temp=1.0)
-    -> tuple[float, dict]                                                      # hand-written, checked by test_gradients
-def head_accuracy(P, X, y, scheme, *, rescue: str | None = None) -> float
-def train_head(cfg: HeadConfig) -> "TrainedHead"                               # lru_cache; ≈ 1 s
-def tournament() -> dict                                                       # accuracies [scheme][length][seed] + rescues
-def learned_offset_score(P, deltas) -> np.ndarray                              # the cue key's s(Δ), symbol-averaged
-def content_bound(P) -> float                                                  # B for Thm 3 over the finite token types
-
-# §6 finance
-def org_tokens(doc) -> list[tuple[str, int | None]]                            # mentions collapsed; ORG cues labelled
-def filing_queries(docs) -> list                                               # every position with an earlier ORG mention
-def filing_accuracy(P, scheme, docs, rescue=None) -> dict                      # overall and by gap band (vectorized per doc)
-def finance_summary() -> dict
-
-# payload, summary, harness
-def viz_payload() -> dict             # lru_cache
-def summary() -> dict
-```
-
-**Timing budget:** under 60 s for the harness.
-- The tournament is 15 trainings (≈ 15 s), plus 5 more for filing windows if open point 1 is accepted.
-- Filing evaluation is vectorized per document (the prototype's per-position loop took ≈ 2 s per scheme).
-- Time one training before fixing the step count.
-
-## 8. Notebook cell map (`01_positional_encodings_geometry.ipynb`, ≈ 29 cells)
+## 8. Notebook cell map (`01_positional_encodings_geometry.ipynb`, 30 cells)
 
 | cells | content |
 |---|---|
-| 0–1 | title, imports (`pe`, `ak`), the overview table |
-| 2–3 | §1: Prop 1's counter; the NoPE head against the bag reader |
-| 4–5 | §2: Def 2; Prop 2 asserted; the clocks (matplotlib-free, numbers only) |
+| 0–1 | title; imports, the tournament table |
+| 2–3 | §1: Prop 1; the NoPE heads against the best multiset reader |
+| 4–5 | §2: Defs 1–2, Prop 2 |
 | 6–7 | Thm 1: the kernel, its Ci limit, the ruler table |
-| 8–9 | Thm 2: the commutant, a random M's defect, the trained sinusoidal head's defect |
-| 10–11 | §3: Def 3, T5 buckets, Thm 3 (i)–(iii) |
-| 12–16 | §4: Def 4, Prop 3, Thm 4 (Schur form), Prop 4 (envelope, matched/unrelated pairs) |
-| 17–20 | §5: training the five heads; the tournament table; the learned s(Δ) and the rebound |
-| 21–23 | Def 5, Thm 5: census, PI, NTK, YaRN, the interpolation bound; the rescues' table |
-| 24–26 | §6: the filings, the gap bands, Thm 3 (iii)'s forecast against the measured collapse |
-| 27–28 | the lab payload; `summary()` |
+| 8–9 | Thm 2: the commutant, the trained heads' defects, the condition numbers |
+| 10–11 | §3: Def 3, T5's buckets, Thm 3 |
+| 12–13 | §4: Def 4, Prop 3 |
+| 14–15 | Thm 4: a random orthogonal 7 × 7 in normal form |
+| 16–17 | Prop 4: the envelope's octave means |
+| 18–19 | §5: the tournament per seed |
+| 20–21 | the RoPE heads' cue scores, troughs, and rebounds |
+| 22–23 | Def 5, Thm 5: the census, Chen et al.'s counterexample, the rescues |
+| 24–26 | §6: the filings by gap band; Thm 3 (iii)'s forecast |
+| 27–28 | the lab payload |
+| 29 | `assert pe._run_harness() == 0` |
 
-**Commands:**
+**Commands** (both exit 0):
 ```bash
 uv run --with numpy==2.5.4 --with scipy==1.18.1 python notebooks/positional-encodings-geometry/positional_encodings_geometry.py
 uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel jupyter execute notebooks/positional-encodings-geometry/01_positional_encodings_geometry.ipynb
 ```
 
-## 9. Cross-site candidates (all `status: "published"` on GitHub `main`, checked 2026-10-24; re-verify at the B3 gate)
+## 9. Cross-site links (all `status: "published"` on GitHub `main`, checked 2026-10-24; re-verify at the B3 gate)
 
 | field | slug | bridge |
 |---|---|---|
 | `formalcalculusPrereqs` | `fourier-series` | Thm 1 (orthogonality of the trigonometric system), cited as the contrast: PE frequencies are not harmonics, and the Gram matrix is κ(m − n); Remark 7 (complex exponential form) for Def 4 |
 | `formalcalculusPrereqs` | `linear-algebra` | Ex 9 (the standard matrix of a rotation) and Thm 3 (products compose), for Prop 2 |
 | `formalcalculusPrereqs` | `linear-systems` | Def 2, Thm 2 (c)–(d), Ex 5: R_ω(k) = exp(kA) with A block-skew |
-| `formalmlPrereqs` | `gaussian-processes` | Def 2 (PD kernel), Def 3 (Matérn, ν = ½ is ALiBi's kernel), Prop 2 (products of kernels) |
-| `formalstatisticsPrereqs` | `central-limit-theorem` | Def 1 (characteristic function), Thm 3 (Lévy's continuity): Thm 1 is a CF and its limit |
-| `formalcalculusConnections` | `eigenvalues-eigenvectors` | Ex 3 and Remark 2: complex eigenvalues act as a rotation-scaling on a real plane, the blocks of Thms 2 and 4 |
+| `formalmlPrereqs` | `gaussian-processes` | Def 2 (PD kernel), Def 3 (Matérn; ν = ½ is ALiBi's kernel), Prop 2 (products of kernels) |
+| `formalstatisticsPrereqs` | `central-limit-theorem` | Def 1 (characteristic function), Thm 3 (Lévy's continuity): Thm 1 is a characteristic function and its limit |
+| `formalcalculusConnections` | `eigenvalues-eigenvectors` | Ex 3 and Remark 2: complex eigenvalues act as rotation-scaling on a real plane, the blocks of Thms 2 and 4 |
 | `formalmlConnections` | `kernel-regression` | Thm 3 (i): ALiBi is Nadaraya–Watson with a product kernel in content and time |
-| `formalmlConnections` | `expander-graphs` | Prop 2 (spectrum of abelian Cayley graphs): on cyclic positions a stationary Gram matrix is circulant and the DFT diagonalizes it |
-| `formalragConnections` | `retrieval-vs-long-context` | Prop 3 there (a buried passage is a soft erasure) beside Thm 3 (iii) here: a recency kernel is one mechanism for burial; we do not model the U-curve |
+| `formalmlConnections` | `expander-graphs` | Prop 2 there (spectrum of abelian Cayley graphs): on cyclic positions a stationary Gram matrix is circulant, diagonalized by the DFT |
+| `formalragConnections` | `retrieval-vs-long-context` | Prop 3 there (a buried passage is a soft erasure) beside Thm 3 (iii) here: a recency kernel with a horizon is one mechanism for burial; we do not model the U-curve |
 | `formalragConnections` | `optimized-product-quantization` | Thm 1 there (a shared rotation preserves inner products); RoPE's different rotations leave exactly R(n − m) |
 
 **Not cited:**
-- `hilbert-spaces`, `approximation-theory`, `graph-laplacians`, `spectral-theorem` (optional, weak);
+- `hilbert-spaces`, `approximation-theory`, `graph-laplacians`, `spectral-theorem` (weak);
 - `smooth-manifolds` (prose only);
 - formalStatistics `hidden-markov-models` (draft).
 
-## 10. References (Chicago 17th; every URL and title verified in Phase A)
+## 10. References (Chicago 17th; titles verified against arXiv `citation_title`, ACL Anthology, JMLR, and Crossref on 2026-10-24)
 
 1. Vaswani et al., "Attention Is All You Need," NeurIPS 30 (2017). arXiv:1706.03762 — Def 2, Prop 2.
-2. Shaw, Uszkoreit, and Vaswani, "Self-Attention with Relative Position Representations," NAACL-HLT 2018. ACL Anthology
-   N18-2074 — Def 3.
-3. Raffel et al., "Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer," *JMLR* 21
-   (2020) — Def 3 (T5 buckets).
-4. Dai et al., "Transformer-XL: Attentive Language Models beyond a Fixed-Length Context," ACL 2019. P19-1285 —
-   relative scores (pointer).
+2. Shaw, Uszkoreit, and Vaswani, "Self-Attention with Relative Position Representations," NAACL-HLT 2018.
+   https://aclanthology.org/N18-2074/ — Def 3.
+3. Raffel et al., "Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer," *JMLR* 21 (2020).
+   https://jmlr.org/papers/v21/20-074.html — Def 3.
+4. Dai, Yang, Yang, Carbonell, Le, and Salakhutdinov, "Transformer-XL: Attentive Language Models beyond a Fixed-Length
+   Context," ACL 2019. https://aclanthology.org/P19-1285/ — relative scores (pointer).
 5. Ke, He, and Liu, "Rethinking Positional Encoding in Language Pre-training," ICLR 2021. arXiv:2006.15595 — Thm 2's
    cross terms.
 6. Su, Ahmed, Lu, Pan, Bo, and Liu, "RoFormer: Enhanced Transformer with Rotary Position Embedding,"
-   *Neurocomputing* 568 (2024). arXiv:2104.09864 — Def 4, Prop 4 (i).
-7. Press, Smith, and Lewis, "Train Short, Test Long: Attention with Linear Biases Enables Input Length
-   Extrapolation," ICLR 2022. arXiv:2108.12409 — Def 3, Thm 3.
+   *Neurocomputing* 568 (2024). https://doi.org/10.1016/j.neucom.2023.127063 — Def 4, Prop 4 (i).
+7. Press, Smith, and Lewis, "Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation,"
+   ICLR 2022. arXiv:2108.12409 — Def 3, Thm 3.
 8. Chi, Fan, Rudnicky, and Ramadge, "Dissecting Transformer Length Extrapolation via the Lens of Receptive Field
-   Analysis," ACL 2023 — Thm 3's reading (to verify).
-9. Haviv, Ram, Press, Izsak, and Levy, "Transformer Language Models without Positional Encodings Still Learn
-   Positional Information," Findings of EMNLP 2022 — Prop 1.
-10. Kazemnejad, Padhi, Natesan Ramamurthy, Das, and Reddy, "The Impact of Positional Encoding on Length
-    Generalization in Transformers," NeurIPS 36 (2023). arXiv:2305.19466 — Prop 1.
+   Analysis," ACL 2023. https://aclanthology.org/2023.acl-long.756/ — Thm 3's reading.
+9. Haviv, Ram, Press, Izsak, and Levy, "Transformer Language Models without Positional Encodings Still Learn Positional
+   Information," Findings of EMNLP 2022. https://aclanthology.org/2022.findings-emnlp.99/ — Prop 1.
+10. Kazemnejad, Padhi, Natesan Ramamurthy, Das, and Reddy, "The Impact of Positional Encoding on Length Generalization in
+    Transformers," NeurIPS 36 (2023). arXiv:2305.19466 — Prop 1.
 11. Chen, Wong, Chen, and Tian, "Extending Context Window of Large Language Models via Positional Interpolation,"
-    2023. arXiv:2306.15595 — Def 5, Thm 5 (iv).
-12. bloc97, "NTK-Aware Scaled RoPE …," Reddit r/LocalLLaMA (2023) — Def 5 (blog).
+    2023. arXiv:2306.15595 — Def 5, Thm 5 (iv) and its correction.
+12. bloc97, "NTK-Aware Scaled RoPE Allows LLaMA Models to Have Extended (8k+) Context Size without Any Fine-Tuning and
+    Minimal Perplexity Degradation," Reddit r/LocalLLaMA (2023).
+    https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/ — Def 5
+    (blog). The URL is as cited in Peng et al.'s bibliography, because Reddit blocks direct fetches.
 13. Peng, Quesnelle, Fan, and Shippole, "YaRN: Efficient Context Window Extension of Large Language Models,"
-    ICLR 2024. arXiv:2309.00071 — Def 5.
-14. Brockwell and Davis, *Time Series: Theory and Methods*, 2nd ed. (Springer, 1991) — Herglotz's theorem (§4.3),
-    Thm 1 (i).
-15. Horn and Johnson, *Matrix Analysis*, 2nd ed. (Cambridge, 2013) — the real normal form, Thm 4.
-16. Olver et al., *NIST Digital Library of Mathematical Functions*, §6 (sine and cosine integrals) — Thm 1 (ii)
+    ICLR 2024. arXiv:2309.00071 — Def 5. (Re-check the venue at the B3 gate; OpenReview blocked the fetch.)
+14. Brockwell and Davis, *Time Series: Theory and Methods*, 2nd ed. (Springer, 1991). https://doi.org/10.1007/978-1-4419-0320-4
+    — Herglotz's theorem (§4.3), Thm 1 (i).
+15. Horn and Johnson, *Matrix Analysis*, 2nd ed. (Cambridge University Press, 2013; Crossref dates the online edition
+    2012). https://doi.org/10.1017/CBO9781139020411 — the real normal form (§2.5), Thm 4.
+16. Olver et al., *NIST Digital Library of Mathematical Functions*, §6. https://dlmf.nist.gov/6 — Thm 1 (ii)
     (documentation).
 17. Rahimi and Recht, "Random Features for Large-Scale Kernel Machines," NeurIPS 20 (2007) — Thm 1 (i)'s spectral
-    reading (via Topic 9).
+    reading, via Topic 9.
 
-## 11. Open points for Jonathan's reaction
+## 11. Phase B notes
+- **Numbering in page order:**
+  P1, D1, D2, P2, T1, T2, D3, T3, D4, P3, T4, P4, D5, T5.
+  - Proofs go in separate `<TheoremBlock type="proof">` blocks.
+  - `TheoremBlock` titles carry no citations; attribute in the prose.
+- **Precision.**
+  - Page accuracies are quoted to 3 decimals from the 6-decimal values above, never from `summary()`'s print.
+  - Ranges are quoted to 3 decimals.
+- **The Chen correction** is stated plainly and once (§5, with a RigorFlag item), with the counterexample's d = 128 row.
+  It is not editorialized.
+- **MDX:** `\lt`/`\gt` in math; one `$…$` per number in long inline lists.
+- **Lab data:** regenerate the JSON from `viz_payload()`, never hand-edit it, then add `test_viz_mirror_matches_payload`.
+- **Graph:** flip the node to `published`, and remove its title from `curriculum.ts`'s `planned`.
 
-1. **Finance training source.** Retrain each scheme on 32-token windows of the training filings (cue = ORG mention)
-   and test on whole held-out filings. That is "trained short, read long" with no change of distribution besides
-   length. The alternative reuses the synthetic-trained heads, as the *spike* did, which mixes a shift in cue
-   statistics into the length effect. Recommendation: retrain (≈ 5 s more).
-2. **ALiBi's reversal as the case study's punchline**, with Thm 3 (iii) as a forecast checked against the gap bands.
-   If the retrained filing heads do not reproduce it, the page reports what happens instead.
-3. **Seeds.** Three seeds. The page quotes the mean and the min–max, and the lab shows seed 0's learned curves with
-   the seed-mean accuracies. Recommendation as stated.
-4. **YaRN evaluated zero-shot** as a third rescue. It costs nothing to evaluate, and it is labeled a heuristic.
-   Recommendation: include.
-5. **Difficulty** stays `intermediate`, as for #9. Thm 4 cites the orthogonal normal form instead of proving it. The
-   alternative is `advanced`.
-6. **The `fourier-series` folklore** goes into rigorFlag item 7 and the launch reciprocal PR's notes, phrased as a
-   correction of a general claim, not of the sibling.
+## 12. Phase B record
+*(to be filled at the B3 gate)*
