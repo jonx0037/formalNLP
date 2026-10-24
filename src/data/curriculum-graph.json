@@ -39,7 +39,7 @@
     {
       "id": "word2vec-implicit-factorization",
       "label": "word2vec as Implicit Matrix Factorization",
-      "status": "planned",
+      "status": "published",
       "domain": "representations"
     },
     {

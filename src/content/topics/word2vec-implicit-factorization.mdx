@@ -1,0 +1,576 @@
+---
+title: "word2vec as Implicit Matrix Factorization"
+subtitle: "Skip-gram's three objectives share one optimum up to offsets, shifted PMI; negative sampling fits it by a count-weighted logistic PCA; and since the loss sees only the product of word and context vectors, the optimizer's balance, not the objective, decides which similarities we get"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "distributional-semantics-ppmi-svd"
+  - "neural-language-models"
+tags:
+  - "word2vec"
+  - "skip-gram"
+  - "negative-sampling"
+  - "noise-contrastive-estimation"
+  - "pointwise-mutual-information"
+  - "matrix-factorization"
+  - "logistic-pca"
+  - "implicit-bias"
+domain: "representations"
+financeCaseStudy: true
+rigorFlag: "The theorem that skip-gram with negative sampling factorizes PMI_α − log k is exact only for an unconstrained score matrix and only on observed pairs: unobserved pairs (98.8% of cells at the eight-word window) have no optimum, and at word2vec's rank the objective is a count-weighted logistic PCA, not a factorization of shifted PMI, so rare pairs are fitted loosely (correlation 0.64 for pairs seen once against 0.98 for pairs seen 100 or more times). The trained models are finite-step minibatch SGD with sampled negatives, not converged (the loss stays 0.176 per pair above its floor) and not gradient flow: the quantity Theorem 3 conserves grows over a thousandfold, so the balanced, p = ½ reading of Corollary 2 and the w + c identity hold only approximately (the gauge's singular values lie in [0.79, 1.20]), and with α = 0.75 the target is not symmetric, so the w + c identity is checked on small instances only. Minibatch summation departs from word2vec's sequential updates, and the dynamic window and subsampling are omitted. The corpus is synthetic with planted sectors (the distributional-semantics topic's caveats carry over), the comparison with the SVD is at one training budget (40 and 20 epochs) on a four-configuration grid, and the polarity probe uses a 35-word hand-written stand-in lexicon."
+videoId: null
+notebookPath: "notebooks/word2vec-implicit-factorization/01_word2vec_implicit_factorization.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/word2vec-implicit-factorization.mdx"
+datePublished: 2026-10-23
+estimatedReadTime: 40
+abstract: "Word2vec learns word vectors by stochastic gradient descent on a classification loss and never forms a matrix, yet it fits one. We prove that skip-gram's three training objectives, the full softmax, noise-contrastive estimation, and negative sampling, all have optima equal to pointwise mutual information up to row and column offsets, and that negative sampling's is exactly PMI minus log k on observed pairs, with no optimum at all on unobserved ones. At word2vec's rank the objective is exactly a weighted logistic PCA whose local weight on a pair is at most the smaller of its count and its expected negative count, so frequent pairs are fitted closely and rare ones loosely, unlike a truncated SVD of shifted PMI, which weights every entry alike. The loss sees only the product of word and context vectors, so it fixes word similarity only up to an invertible change of basis: on the finance corpus, five factorizations of one trained product, all with the same loss, score from 0.74 to 0.90 at grouping nouns by sector. Gradient flow conserves the difference of the two Gram matrices, which pins balanced factors to the square-root weighting and makes word plus context vectors the positive part of a symmetric product. Word2vec's minibatch SGD keeps that balance only approximately, and on the same matrix it groups the planted sectors less well than the SVD, because the sector evidence lives in rare pairs. Finance words show what no factorization of window counts can add: antonyms stay nearest neighbors, and no polarity direction beats chance."
+connections: []
+references:
+  - type: "paper"
+    title: "Efficient Estimation of Word Representations in Vector Space"
+    authors: "Tomas Mikolov, Kai Chen, Greg Corrado, and Jeffrey Dean"
+    year: 2013
+    url: "https://arxiv.org/abs/1301.3781"
+    note: "arXiv:1301.3781. Skip-gram, Definition 1"
+  - type: "paper"
+    title: "Distributed Representations of Words and Phrases and Their Compositionality"
+    authors: "Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg Corrado, and Jeffrey Dean"
+    year: 2013
+    url: "https://arxiv.org/abs/1310.4546"
+    note: "NeurIPS 2013. Negative sampling and its unigram-to-the-0.75 noise, Definition 2"
+  - type: "paper"
+    title: "Noise-Contrastive Estimation: A New Estimation Principle for Unnormalized Statistical Models"
+    authors: "Michael Gutmann and Aapo Hyvärinen"
+    year: 2010
+    url: "https://proceedings.mlr.press/v9/gutmann10a.html"
+    note: "Proceedings of AISTATS 2010, PMLR 9: 297–304. Noise-contrastive estimation, Definition 3"
+  - type: "paper"
+    title: "Noise-Contrastive Estimation of Unnormalized Statistical Models, with Applications to Natural Image Statistics"
+    authors: "Michael U. Gutmann and Aapo Hyvärinen"
+    year: 2012
+    url: "https://www.jmlr.org/papers/v13/gutmann12a.html"
+    note: "Journal of Machine Learning Research 13: 307–61. Noise-contrastive estimation, Definition 3"
+  - type: "paper"
+    title: "A Fast and Simple Algorithm for Training Neural Probabilistic Language Models"
+    authors: "Andriy Mnih and Yee Whye Teh"
+    year: 2012
+    url: "https://arxiv.org/abs/1206.6426"
+    note: "Proceedings of ICML 2012. NCE for language models and self-normalization, Proposition 2"
+  - type: "paper"
+    title: "Learning Word Embeddings Efficiently with Noise-Contrastive Estimation"
+    authors: "Andriy Mnih and Koray Kavukcuoglu"
+    year: 2013
+    url: "https://papers.nips.cc/paper_files/paper/2013/hash/db2b4182156b2f1f817860ac9f409ad7-Abstract.html"
+    note: "NeurIPS 2013. NCE-trained word embeddings, Proposition 2"
+  - type: "paper"
+    title: "word2vec Explained: Deriving Mikolov et al.'s Negative-Sampling Word-Embedding Method"
+    authors: "Yoav Goldberg and Omer Levy"
+    year: 2014
+    url: "https://arxiv.org/abs/1402.3722"
+    note: "arXiv:1402.3722. The negative-sampling objective, Definition 2"
+  - type: "paper"
+    title: "Neural Word Embedding as Implicit Matrix Factorization"
+    authors: "Omer Levy and Yoav Goldberg"
+    year: 2014
+    url: "https://proceedings.neurips.cc/paper_files/paper/2014/hash/b78666971ceae55a8e87efb7cbfd9ad4-Abstract.html"
+    note: "NeurIPS 2014. Theorem 1"
+  - type: "paper"
+    title: "Notes on Noise Contrastive Estimation and Negative Sampling"
+    authors: "Chris Dyer"
+    year: 2014
+    url: "https://arxiv.org/abs/1410.8251"
+    note: "arXiv:1410.8251. Negative sampling as NCE without its correction, Proposition 2"
+  - type: "paper"
+    title: "Improving Distributional Similarity with Lessons Learned from Word Embeddings"
+    authors: "Omer Levy, Yoav Goldberg, and Ido Dagan"
+    year: 2015
+    url: "https://doi.org/10.1162/tacl_a_00134"
+    note: "Transactions of the ACL 3: 211–25. Adding context vectors, the eigenvalue weight, and word2vec's sampling as count reweighting"
+  - type: "paper"
+    title: "A Generalization of Principal Components Analysis to the Exponential Family"
+    authors: "Michael Collins, Sanjoy Dasgupta, and Robert E. Schapire"
+    year: 2001
+    url: "https://papers.nips.cc/paper_files/paper/2001/hash/f410588e48dc83f2822a880a68f78923-Abstract.html"
+    note: "NeurIPS 2001. Exponential-family PCA, Theorem 2"
+  - type: "paper"
+    title: "word2vec Skip-Gram with Negative Sampling Is a Weighted Logistic PCA"
+    authors: "Andrew J. Landgraf and Jeremy Bellay"
+    year: 2017
+    url: "https://arxiv.org/abs/1705.09755"
+    note: "arXiv:1705.09755. Theorem 2"
+  - type: "paper"
+    title: "Algorithmic Regularization in Learning Deep Homogeneous Models: Layers Are Automatically Balanced"
+    authors: "Simon S. Du, Wei Hu, and Jason D. Lee"
+    year: 2018
+    url: "https://arxiv.org/abs/1806.00900"
+    note: "NeurIPS 2018. The conserved imbalance, Theorem 3"
+  - type: "paper"
+    title: "On the Optimization of Deep Networks: Implicit Acceleration by Overparameterization"
+    authors: "Sanjeev Arora, Nadav Cohen, and Elad Hazan"
+    year: 2018
+    url: "https://arxiv.org/abs/1802.06509"
+    note: "Proceedings of ICML 2018. Balancedness under gradient flow, Theorem 3"
+  - type: "paper"
+    title: "The Approximation of One Matrix by Another of Lower Rank"
+    authors: "Carl Eckart and Gale Young"
+    year: 1936
+    url: "https://doi.org/10.1007/BF02288367"
+    note: "Psychometrika 1 (3): 211–18. The SVD side of Corollary 1"
+  - type: "paper"
+    title: "DeepWalk: Online Learning of Social Representations"
+    authors: "Bryan Perozzi, Rami Al-Rfou, and Steven Skiena"
+    year: 2014
+    url: "https://doi.org/10.1145/2623330.2623732"
+    note: "Proceedings of KDD 2014, 701–10. Skip-gram on random walks"
+  - type: "paper"
+    title: "GloVe: Global Vectors for Word Representation"
+    authors: "Jeffrey Pennington, Richard Socher, and Christopher D. Manning"
+    year: 2014
+    url: "https://aclanthology.org/D14-1162/"
+    note: "Proceedings of EMNLP 2014, 1532–43. A weighted least-squares fit to log counts, the next topic"
+  - type: "paper"
+    title: "Enriching Word Vectors with Subword Information"
+    authors: "Piotr Bojanowski, Edouard Grave, Armand Joulin, and Tomas Mikolov"
+    year: 2017
+    url: "https://doi.org/10.1162/tacl_a_00051"
+    note: "Transactions of the ACL 5: 135–46. fastText, skip-gram over character n-grams"
+  - type: "paper"
+    title: "Thumbs Up or Thumbs Down? Semantic Orientation Applied to Unsupervised Classification of Reviews"
+    authors: "Peter D. Turney"
+    year: 2002
+    url: "https://aclanthology.org/P02-1053/"
+    note: "Proceedings of ACL 2002, 417–24. Semantic orientation, the finance case study's baseline"
+formalmlPrereqs:
+  - topic: "density-ratio-estimation"
+    site: "formalml"
+    relationship: "Negative sampling is a classifier between observed pairs and noise pairs, so its optimal logit is the log density ratio plus the log prior odds of that page's classification identity, here PMI minus log k."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "The cross-entropy decomposition turns the negative-sampling loss into a count-weighted sum of Bernoulli KL divergences, which is what skip-gram minimizes at low rank."
+  - topic: "information-geometry"
+    site: "formalml"
+    relationship: "Each cell's KL term is a Bregman divergence of the Bernoulli log-partition, so skip-gram with negative sampling is an exponential-family (logistic) PCA in natural parameters."
+  - topic: "svd"
+    site: "formalml"
+    relationship: "Truncated SVD of shifted PPMI is the uniform-weight, Eckart–Young counterpart that the page compares with skip-gram's count-weighted factorization of the same matrix."
+formalmlConnections:
+  - topic: "gradient-descent"
+    site: "formalml"
+    relationship: "Word2vec is stochastic gradient descent on a factorized loss; the page shows that its gradient flow conserves the difference of the word and context Gram matrices, which fixes the factorization."
+  - topic: "representation-learning"
+    site: "formalml"
+    relationship: "Word2vec's embeddings are an early learned representation; the page shows that its objective fixes only the product of word and context vectors, so similarity depends on the optimizer."
+  - topic: "random-walks"
+    site: "formalml"
+    relationship: "DeepWalk applies skip-gram to random-walk co-occurrences, so the implicit-factorization result proved here is the one behind its matrix-factorization reading."
+formalragConnections:
+  - topic: "infonce-contrastive-objective"
+    site: "formalrag"
+    relationship: "InfoNCE is the softmax counterpart of negative sampling: its optimal critic is PMI up to a per-query constant, while skip-gram's binary loss pins the logit to PMI minus log k."
+  - topic: "negative-sampling-hard-negatives"
+    site: "formalrag"
+    relationship: "Both pages draw negatives from a noise distribution; there the question is which negatives to mine for retrieval, here what the unigram-to-the-0.75 noise makes the optimum factorize."
+  - topic: "dense-retrieval-dual-encoders"
+    site: "formalrag"
+    relationship: "A dual encoder's score is an inner product of two embeddings, the same factorized form as word and context vectors, with the same rank ceiling and the same gauge freedom."
+formalstatisticsPrereqs:
+  - topic: "generalized-linear-models"
+    site: "formalstatistics"
+    relationship: "Each cell of the negative-sampling objective is a logistic regression likelihood with a canonical link, strictly concave in the score, which is why its optimum is unique."
+formalcalculusPrereqs:
+  - topic: "first-order-odes"
+    site: "formalcalculus"
+    relationship: "Gradient descent is the Euler discretization of gradient flow, the ODE along which the page proves that the word and context Gram matrices' difference is conserved."
+  - topic: "hessian"
+    site: "formalcalculus"
+    relationship: "The second derivative of the cell loss at its optimum is the local weight that skip-gram puts on each word–context pair, which makes it a weighted least squares near the optimum."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import SGNSLab from '../../components/viz/SGNSLab.tsx';
+
+## Overview & Motivation
+
+Train word2vec on the finance corpus with an eight-word window, five negative samples, and $25$ dimensions. Then take every pair of words that occurs together in the training text and compare the dot product of the first word's vector with the second word's context vector against the shifted pointwise mutual information of the [distributional-semantics topic](/topics/distributional-semantics-ppmi-svd). For the $816$ pairs seen at least $100$ times, the two agree with correlation $0.985$. For the $98{,}926$ pairs seen once, the correlation is $0.641$. Word2vec never forms a co-occurrence matrix, yet it fits one, and how closely depends on how often the pair was seen.
+
+Now take that trained model and change the basis of its vectors: replace the word vectors $W$ by $WA$ and the context vectors $C$ by $CA^{-\top}$ for an invertible matrix $A$. Every word–context dot product, and therefore the training loss, is unchanged. The word–word similarities are not. Over five such factorizations of the one trained product, the score for grouping nouns by their planted sector ranges from $0.737$ to $0.901$, and the nearest neighbors of *strong* change. The objective does not decide which words are similar.
+
+This topic proves both halves of that picture.
+
+1. **The objective chooses the matrix.** Skip-gram's three training objectives, a full softmax, noise-contrastive estimation, and negative sampling, all have optima equal to pointwise mutual information (PMI) up to row and column offsets. Negative sampling's is exactly $\operatorname{PMI}_\alpha - \log k$ on observed pairs, and unobserved pairs have no optimum (Levy and Goldberg 2014).
+2. **At low rank, negative sampling is a weighted logistic PCA.** The loss is exactly a count-weighted sum of Bernoulli KL divergences, so frequent pairs are fitted closely and rare ones loosely. A truncated SVD of shifted PMI weights every entry alike.
+3. **The optimizer chooses the factorization.** The loss sees only the product $WC^\top$, so it fixes word similarity only up to a change of basis. Gradient flow conserves $W^\top W - C^\top C$, and balanced factors are the square-root weighting of the distributional-semantics topic, with word plus context vectors equal to the positive part of a symmetric product.
+
+Then we test what the factorization buys on the planted-sector benchmark, and the finance case study asks whether it finds a polarity direction that the window counts do not carry.
+
+---
+
+## Three objectives, one matrix
+
+Fix a window context, the two-word window L2 or the eight-word window L8, and write $\#(w, c)$ for the distributional-semantics topic's pair counts (its Definition 1), $\#(w) = \sum_c \#(w, c)$, and $N = \sum_{w, c} \#(w, c)$. With L8 there are $N = 576{,}098$ pair occurrences over $143{,}345$ observed cells, $1.22\%$ of the $3{,}425^2$ possible pairs; with L2, $215{,}948$ over $53{,}293$, $0.45\%$. The smoothed context distribution is $P_\alpha(c) = \#(c)^\alpha / \sum_{c'} \#(c')^\alpha$, with the context counts taken as column sums.
+
+A word gets a vector $\mathbf{w}_w \in \mathbb{R}^d$ and, separately, every word gets a context vector $\mathbf{c}_c \in \mathbb{R}^d$. They are the rows of two matrices $W, C \in \mathbb{R}^{V \times d}$; in this topic $C$ always means the context matrix. The **score** of a pair is $x_{wc} = \langle \mathbf{w}_w, \mathbf{c}_c \rangle$, so the matrix of all scores is $X = W C^\top$, a matrix of rank at most $d$. Each objective below asks this matrix to predict the counts.
+
+<TheoremBlock type="definition" number={1} title="Skip-gram with a full softmax">
+
+The **skip-gram** model predicts each context from its word by a softmax over all contexts (Mikolov et al. 2013a), and is trained by minimizing
+
+$$
+L_{\text{soft}}(X) = -\sum_{w, c} \#(w, c) \log \frac{e^{x_{wc}}}{\sum_{c'} e^{x_{wc'}}} .
+$$
+
+</TheoremBlock>
+
+The softmax needs a sum over the whole vocabulary for every training pair. Negative sampling replaces it with a few binary decisions.
+
+<TheoremBlock type="definition" number={2} title="Skip-gram with negative sampling">
+
+Let $\sigma(x) = 1/(1 + e^{-x})$ and $k \ge 1$. Each observed pair $(w, c)$ is a positive example, and for each one we draw $k$ **negative** contexts $c_1, \dots, c_k$ independently from the noise distribution $P_n = P_\alpha$. The sampled loss of the pair is $-\log \sigma(x_{wc}) - \sum_{i \le k} \log \sigma(-x_{wc_i})$. Its expectation, summed over all $N$ pairs, is the **negative-sampling objective**
+
+$$
+L_{\text{NS}}(X) = -\sum_{w, c} \Bigl[ a_{wc} \log \sigma(x_{wc}) + b_{wc} \log \sigma(-x_{wc}) \Bigr], \qquad a_{wc} = \#(w, c), \quad b_{wc} = k\, \#(w)\, P_\alpha(c).
+$$
+
+</TheoremBlock>
+
+Here $b_{wc}$ is the expected number of times the pair $(w, c)$ is drawn as a negative (Mikolov et al. 2013b; Goldberg and Levy 2014). Word2vec's exponent is $\alpha = 0.75$, the same smoothing the distributional-semantics topic studied in its Proposition 4.
+
+<TheoremBlock type="definition" number={3} title="Noise-contrastive estimation">
+
+**Noise-contrastive estimation** (NCE) treats $x_{wc}$ as an unnormalized $\log P(c \mid w)$ and trains a classifier to tell data pairs from noise pairs, with logit $s_{wc} = x_{wc} - \log\bigl(k P_n(c)\bigr)$ (Gutmann and Hyvärinen 2010, 2012; Mnih and Teh 2012). Its objective $L_{\text{NCE}}$ is $L_{\text{NS}}$ with $x_{wc}$ replaced by $s_{wc}$.
+
+</TheoremBlock>
+
+The difference between the two binary objectives is a single subtracted term. To see what it changes, we find each objective's optimum when the scores are unconstrained, one free number per cell. The softmax comes first.
+
+<TheoremBlock type="proposition" number={1} title="The softmax optimum">
+
+For a word with $\#(w) \gt 0$, the row's loss $-\sum_c \#(w, c) \log \operatorname{softmax}(x_{w \cdot})_c$ attains its infimum exactly when $\#(w, c) \gt 0$ for every context $c$. Its minimizers are then
+
+$$
+x_{wc} = \log P(c \mid w) + \kappa_w = \operatorname{PMI}(w, c) + \log P(c) + \kappa_w
+$$
+
+for an arbitrary constant $\kappa_w$. If some $\#(w, c) = 0$, the infimum is approached as $x_{wc} \to -\infty$ and never attained.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+With $P(c \mid w) = \#(w, c)/\#(w)$, the row's loss is $\#(w)$ times the cross-entropy of $P(\cdot \mid w)$ relative to $p = \operatorname{softmax}(x_{w\cdot})$. That is at least $\#(w)$ times the entropy of $P(\cdot \mid w)$, with equality exactly when $p = P(\cdot \mid w)$ (Gibbs' inequality; formalML, [KL Divergence](https://www.formalml.com/topics/kl-divergence), Propositions 1–2). The softmax takes every value in the open simplex and is unchanged by adding a constant to $x_{w\cdot}$, so the infimum is attained exactly when $P(\cdot \mid w)$ has no zeros, at the stated $x$. If $P(c \mid w) = 0$, no softmax reaches it, and the loss decreases toward its infimum as $x_{wc} \to -\infty$.
+
+</TheoremBlock>
+
+An unseen context has no best score, only better and better ones. This is the [neural-language-models topic](/topics/neural-language-models)'s Corollary 1, that a never-seen target has no maximum-likelihood fit, applied one context at a time. Negative sampling inherits the same phenomenon in a sharper form.
+
+<TheoremBlock type="theorem" number={1} title="The negative-sampling optimum">
+
+For $a, b \gt 0$, the function $\varphi(x) = a \log \sigma(x) + b \log \sigma(-x)$ is strictly concave on $\mathbb{R}$, with unique maximizer $x^\star = \log(a/b)$. For $a = 0 \lt b$, $\varphi$ increases strictly toward $0$ as $x \to -\infty$ and has no maximizer. Hence, for unconstrained scores, $L_{\text{NS}}$ separates into one such function per cell, it has a minimizer exactly when every pair is observed, and on observed pairs the minimizer is
+
+$$
+x^\star_{wc} = \log \frac{\#(w, c)}{k\, \#(w)\, P_\alpha(c)} = \operatorname{PMI}_\alpha(w, c) - \log k .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Since $\tfrac{d}{dx} \log \sigma(x) = \sigma(-x)$, we get $\varphi'(x) = a \sigma(-x) - b \sigma(x)$ and $\varphi''(x) = -(a + b)\, \sigma(x) \sigma(-x) \lt 0$. The equation $\varphi'(x) = 0$ says $\sigma(-x)/\sigma(x) = e^{-x} = b/a$, so $x^\star = \log(a/b)$. For $a = 0$, $\varphi'(x) = -b \sigma(x) \lt 0$ everywhere, and $\varphi(x) \to 0$ as $x \to -\infty$. Finally, with $P(w, c) = \#(w, c)/N$ and $P(w) = \#(w)/N$, $\log\bigl(a/b\bigr) = \log \frac{P(w, c)}{P(w) P_\alpha(c)} - \log k$, which is the distributional-semantics topic's Definition 2.
+
+</TheoremBlock>
+
+This is Levy and Goldberg's (2014) theorem, and its matrix is the one the distributional-semantics topic named and did not prove anything about: the **unclipped** shifted PMI. The theorem has a reading in terms of classifiers. $\sigma(x^\star) = a/(a + b)$ is the probability that a pair with these counts came from the data rather than from the noise, when the prior odds of data to noise are $1/k$. So the optimal score is the log density ratio of data pairs to noise pairs plus the log prior odds, the identity of formalML's [Density Ratio Estimation](https://www.formalml.com/topics/density-ratio-estimation) (its Theorem 4). That page states the identity for the Bayes classifier; Theorem 1 is the proof that the logistic loss reaches it, cell by cell. Each cell is a logistic regression with a canonical link (formalStatistics, [Generalized Linear Models](https://www.formalstatistics.com/topics/generalized-linear-models), Theorem 1), which is why the optimum is unique.
+
+<TheoremBlock type="proposition" number={2} title="NCE and negative sampling fit one matrix up to offsets">
+
+Under Theorem 1's hypotheses, NCE's optimum is $x^\star_{\text{NCE}} = \log P(c \mid w)$, with no free row constant, and
+
+$$
+x^\star_{\text{NCE}}(w, c) - x^\star_{\text{NS}}(w, c) = \log\bigl(k P_n(c)\bigr),
+$$
+
+an offset that depends on the context alone. Every optimum is $\operatorname{PMI}$ (with $\alpha = 1$) plus a matrix constant along rows plus a matrix constant along columns:
+
+| objective | row offset | column offset |
+|---|---|---|
+| full softmax | $\kappa_w$ (any) | $\log P(c)$ |
+| noise-contrastive estimation | $0$ | $\log P(c)$ |
+| negative sampling | $0$ | $\log P(c) - \log P_\alpha(c) - \log k$ |
+
+So every optimum has rank at most $\operatorname{rank}(\operatorname{PMI}) + 2$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Theorem 1 applied to the logit $s$ gives $s^\star = \log(a/b)$, so $x^\star_{\text{NCE}} = \log(a/b) + \log\bigl(k P_n(c)\bigr) = \log\bigl(\#(w, c)/\#(w)\bigr) = \log P(c \mid w)$. Subtracting $x^\star_{\text{NS}} = \log(a/b)$ gives the offset. The table follows from $\log P(c \mid w) = \operatorname{PMI}(w, c) + \log P(c)$ and $\operatorname{PMI}_\alpha = \operatorname{PMI} + \log P(c) - \log P_\alpha(c)$, and a row-constant or column-constant matrix has rank one.
+
+</TheoremBlock>
+
+Negative sampling is NCE with the noise correction $\log(k P_n(c))$ dropped (Dyer 2014). The two do not estimate the same thing: NCE recovers the conditional distribution $P(c \mid w)$ itself (Mnih and Kavukcuoglu 2013), and negative sampling recovers an association score. But they differ by a context offset, and a model with a bias term per context could absorb it. This is the neural-language-models topic's Theorem 6 in another guise: a log-bilinear model with biases has a score matrix of rank at most $d + 2$, and all three objectives ask for PMI in that form, which is the third part of the distributional-semantics topic's Theorem 3.
+
+The binary objective also differs from the softmax contrastive loss that formalRAG studies. There, the optimal critic of InfoNCE is PMI only up to a constant per query (formalRAG, [InfoNCE and the Contrastive Objective](https://www.formalrag.com/topics/infonce-contrastive-objective), Theorem 1). Negative sampling's logit is pinned: its constant is $-\log k$, and nothing else.
+
+---
+
+## What negative sampling minimizes at low rank
+
+Theorem 1 describes a model with one free number per cell. Word2vec has $2Vd$ numbers for $V^2$ cells, with $d = 25$ against $V = 3{,}425$, and $98.8\%$ of the cells at the eight-word window have no optimum at all. So what does it fit?
+
+<TheoremBlock type="theorem" number={2} title="Negative sampling is a weighted logistic PCA">
+
+Let $y_{wc} = a_{wc}/(a_{wc} + b_{wc})$, and let $H(y) = -y \log y - (1 - y) \log(1 - y)$ be the Bernoulli entropy. For every score matrix $X$,
+
+$$
+L_{\text{NS}}(X) - \sum_{w, c} (a_{wc} + b_{wc})\, H(y_{wc}) = \sum_{w, c} (a_{wc} + b_{wc})\, \operatorname{KL}\bigl(\operatorname{Bern}(y_{wc}) \,\Vert\, \operatorname{Bern}(\sigma(x_{wc}))\bigr).
+$$
+
+So $\inf L_{\text{NS}} = \sum (a + b) H(y)$, and fitting a rank-$d$ matrix $X = WC^\top$ is a weighted KL projection of the target $x^\star = \log(a/b)$ onto the rank-$d$ matrices. On an observed cell, each term is $(a + b)$ times the Bregman divergence of the softplus $A(x) = \log(1 + e^x)$,
+
+$$
+D_A(x, x^\star) = A(x) - A(x^\star) - \sigma(x^\star)(x - x^\star),
+$$
+
+and the cell's loss has curvature $(a + b)\, \sigma(x^\star) \sigma(-x^\star) = ab/(a + b)$ at its optimum.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Factor $a + b$ out of one cell: $-a \log \sigma(x) - b \log \sigma(-x) = (a + b)\bigl[-y \log \sigma(x) - (1 - y) \log\bigl(1 - \sigma(x)\bigr)\bigr]$, a Bernoulli cross-entropy, which equals $H(y) + \operatorname{KL}\bigl(\operatorname{Bern}(y) \Vert \operatorname{Bern}(\sigma(x))\bigr)$ (formalML, [KL Divergence](https://www.formalml.com/topics/kl-divergence), Proposition 1). The Bernoulli family in its natural parameter $x$ has log-partition $A$ and mean $A' = \sigma$, and for an exponential family the KL divergence between members is the Bregman divergence of the log-partition (formalML, [Information Geometry](https://www.formalml.com/topics/information-geometry), Definition 8 and Theorem 5), with $\sigma(x^\star) = y$. The curvature is $(a + b) A''(x^\star) = (a + b)\sigma(x^\star)\sigma(-x^\star)$, and $\sigma(x^\star) = a/(a + b)$.
+
+</TheoremBlock>
+
+An exponential-family PCA (Collins, Dasgupta, and Schapire 2001) is a low-rank fit of natural parameters under the family's own divergence. With the Bernoulli family it is logistic PCA, and Landgraf and Bellay (2017) observed that negative sampling is exactly this, with a weight $a + b$ on every cell. The weights are what separate it from the distributional-semantics topic's SVD.
+
+<TheoremBlock type="corollary" number={1} title="Against the truncated SVD">
+
+A truncated SVD of $\operatorname{SPPMI}_k$ minimizes $\sum_{w, c} \bigl(\max(x^\star_{wc}, 0) - x_{wc}\bigr)^2$ over rank-$d$ matrices, with equal weight on every cell (Eckart and Young 1936; formalML, [Singular Value Decomposition](https://www.formalml.com/topics/svd), Theorem 2). Negative sampling minimizes $\sum (a + b)\, D_A(x, x^\star)$, and it differs in three ways.
+
+1. **It weights by counts.** Near the optimum, $(a + b) D_A(x, x^\star) = \tfrac12 \tfrac{ab}{a + b} (x - x^\star)^2 + O\bigl((x - x^\star)^3\bigr)$, a least-squares fit with weight $\tfrac{ab}{a + b}$, and $\tfrac12 \min(a, b) \le \tfrac{ab}{a + b} \le \min(a, b)$.
+2. **It pushes unobserved cells down instead of clipping them.** An unobserved cell has $y = 0$ and pays $b \log(1 + e^{x})$, which keeps decreasing as $x \to -\infty$.
+3. **It keeps negative targets.** An observed pair with $x^\star \lt 0$ is fitted at $x^\star$, not at $0$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Part 1 is the second-order Taylor expansion of the cell's loss at its optimum (formalCalculus, [The Hessian](https://www.formalcalculus.com/topics/hessian), Theorem 3), with Theorem 2's curvature; the bounds follow from $ab/(a + b) = \min(a, b) \cdot \max(a, b)/(a + b)$ and $\max(a, b) \le a + b \le 2 \max(a, b)$. Parts 2 and 3 are Definition 2 with $a = 0$, and Theorem 1.
+
+</TheoremBlock>
+
+So a pair seen once can count for no more than once, however large its PMI, while the SVD weighs its clipped PMI like any other entry. The corpus shows the prediction directly. Train the model described in the overview (L8, $k = 5$, $\alpha = 0.75$, $d = 25$, $40$ epochs) and compare $x_{wc} = \langle \mathbf{w}_w, \mathbf{c}_c \rangle$ with $x^\star_{wc} = \operatorname{PMI}_{0.75}(w, c) - \log 5$ on every observed pair, grouped by count.
+
+| times the pair was seen | pairs | correlation of $x$ with $x^\star$ | mean $\lvert x - x^\star \rvert$ |
+|---|---|---|---|
+| once | $98{,}926$ | $0.641$ | $1.297$ |
+| $2$ to $4$ | $27{,}994$ | $0.818$ | $0.537$ |
+| $5$ to $19$ | $12{,}200$ | $0.940$ | $0.291$ |
+| $20$ to $99$ | $3{,}409$ | $0.979$ | $0.198$ |
+| $100$ or more | $816$ | $0.985$ | $0.139$ |
+
+The correlation rises and the error falls with every band. Most observed pairs, $69\%$, are seen once, so most of the matrix is fitted loosely. The unobserved cells, which have no target, are pushed far down: their mean score is $-5.16$, against $-0.63$ for observed pairs, and $97.9\%$ of them score below the median observed pair. Training has not finished: the loss is $1.6514$ per pair against Theorem 2's floor of $1.4752$, and the gradient is not zero.
+
+Where does $-5.16$ come from? The product's top singular vectors have one sign on every word and the opposite sign on every context, so the leading term $\sigma_1 u_1 v_1^\top$ is negative in every entry. It carries $87.4\%$ of $\lVert WC^\top \rVert_F^2$, its leading singular value is $6.3$ times the next, and its mean entry is $-5.15$, the level of the unobserved cells. Word2vec has no bias terms, but Proposition 2 says its optimum wants offsets, and Theorem 1 says the $98.8\%$ of cells that were never observed want $-\infty$. The model spends one of its $25$ dimensions on a constant pushing everything down.
+
+---
+
+## The algorithm
+
+So far the objective has been the expectation of what word2vec computes. Here is what it computes.
+
+<TheoremBlock type="definition" number={4} title="Word2vec's stochastic gradient descent">
+
+Each **epoch** visits the $N$ observed pairs in a fresh random order, in minibatches of $512$. Each pair draws $k = 5$ negatives from $P_\alpha$, and the parameters take one gradient step on the minibatch's summed sampled loss. The step size decays linearly from $\eta_0 = 0.05$ to $10^{-4}\eta_0$ over training. Initialization follows the word2vec C code: the entries of $W$ are uniform on $[-\tfrac{1}{2d}, \tfrac{1}{2d}]$, and $C = 0$.
+
+</TheoremBlock>
+
+The sampled loss is an unbiased estimate of $L_{\text{NS}}$, by linearity of expectation over the negatives, so its gradient is an unbiased estimate of the objective's gradient. Two departures from the C code are worth stating. The code updates after every pair, from several threads without locks, while we sum the gradients of a minibatch; and we train for $40$ epochs (the comparison grid below, $20$), many more than the C code's default of five, because our corpus is small.
+
+<TheoremBlock type="remark">
+
+The shipped word2vec also samples each window's width uniformly from $1$ to $L$ and discards frequent words at random before forming windows. Both change the counts $\#(w, c)$, the first by weighting a pair at distance $\delta$ by $(L - \delta + 1)/L$, and leave the form of the objective alone. Levy, Goldberg, and Dagan (2015) showed that both transfer to count-based methods. We train on the distributional-semantics topic's unweighted counts so that Theorem 1's target is exactly that topic's matrix.
+
+</TheoremBlock>
+
+---
+
+## Gauge and balance
+
+Every objective above is a function of the product $X = W C^\top$. That leaves something undetermined.
+
+<TheoremBlock type="proposition" number={3} title="Every factorization of one product">
+
+If $W' C'^\top = W C^\top$ and all four matrices have full column rank $d$, then $W' = WA$ and $C' = C A^{-\top}$ for a unique invertible $A$. Consequently every objective of Definitions 1–3 determines the matrix of word–word dot products only up to $W M W^\top$ with $M = A A^\top$ an arbitrary positive definite matrix, and word–word dot products are preserved exactly when $A$ is orthogonal.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The columns of $W'$ and of $W$ both span the column space of the product, so $W' = WA$ for some $A$, invertible because both have rank $d$. Then $W A C'^\top = W C^\top$, and multiplying by a left inverse of $W$ gives $A C'^\top = C^\top$, so $C' = C A^{-\top}$. Finally, $W M W^\top = W W^\top$ with $W$ of full column rank forces $M = I$.
+
+</TheoremBlock>
+
+The same freedom appears in every model whose score is an inner product of two learned embeddings, including the dual encoders of retrieval (formalRAG, [Dense Retrieval and Dual Encoders](https://www.formalrag.com/topics/dense-retrieval-dual-encoders), Theorem 2, for the rank ceiling such scores share). For word vectors it matters, because word similarity is a cosine between rows of $W$, which no part of the loss sees. The trained model shows how much it matters. Take its product, with singular value decomposition $U \Sigma V^\top$, and refactor it four ways: the distributional-semantics topic's eigenvalue weights $W = U\Sigma^p$, $C = V \Sigma^{1 - p}$ for $p = 0, \tfrac12, 1$, and a random $A$ with condition number $100$. All five have the same product to ten digits, and so the same loss.
+
+| factorization of the one product | test AUC | test nearest neighbor | nearest neighbors of *strong* |
+|---|---|---|---|
+| as trained | $0.886$ | $0.852$ | *weak*, *unfavorable*, *solid*, *soft*, *healthy* |
+| $p = 0$ | $0.849$ | $0.878$ | *unfavorable*, *weak*, *soft*, *resilient*, *disappointing* |
+| $p = \tfrac12$ | $\mathbf{0.901}$ | $0.852$ | *weak*, *unfavorable*, *solid*, *resilient*, *soft* |
+| $p = 1$ | $0.890$ | $0.843$ | *weak*, *unfavorable*, *solid*, *healthy*, *efficient* |
+| random $A$, condition number $100$ | $0.737$ | $0.670$ | *adverse*, *healthy*, *unfavorable*, *solid*, *confident* |
+
+The scores are those of the planted-sector benchmark of the next section. So which factorization does training produce? The answer comes from the optimizer, and it is cleanest for gradient flow, the limit of gradient descent with infinitesimal steps (formalCalculus, [First-Order ODEs](https://www.formalcalculus.com/topics/first-order-odes)), where a conservation law found for deep linear networks applies verbatim (Du, Hu, and Lee 2018; Arora, Cohen, and Hazan 2018).
+
+<TheoremBlock type="theorem" number={3} title="Gradient flow conserves the imbalance">
+
+Let $L(W, C) = f(W C^\top)$ for a differentiable $f$, and write $G = \nabla f(X)$. Along the gradient flow $\dot W = -G C$, $\dot C = -G^\top W$, the $d \times d$ matrix
+
+$$
+D = W^\top W - C^\top C
+$$
+
+is constant. A gradient step of size $\eta$, with $\nabla_W = \hat G C$ and $\nabla_C = \hat G^\top W$ for any matrix $\hat G$, including a minibatch's sampled gradient, changes it by exactly
+
+$$
+D_{t+1} - D_t = \eta^2 \bigl( \nabla_W^\top \nabla_W - \nabla_C^\top \nabla_C \bigr).
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\tfrac{d}{dt} W^\top W = \dot W^\top W + W^\top \dot W = -C^\top G^\top W - W^\top G C$, and $\tfrac{d}{dt} C^\top C = -W^\top G C - C^\top G^\top W$, the same matrix. For the step, expand $(W - \eta \nabla_W)^\top (W - \eta \nabla_W) - (C - \eta \nabla_C)^\top(C - \eta \nabla_C)$: the first-order terms are $-\eta(C^\top \hat G^\top W + W^\top \hat G C)$ from both products and cancel, and the second-order terms are as stated.
+
+</TheoremBlock>
+
+If training starts balanced, with $W^\top W = C^\top C$, gradient flow keeps it balanced. Balance determines the factorization up to a rotation.
+
+<TheoremBlock type="lemma" number={1} title="Balanced factorizations">
+
+Let $X = U \Sigma V^\top$ have rank $d$ and distinct singular values, and let $W C^\top = X$ with $W^\top W = C^\top C$. Then $W = U \Sigma^{1/2} R$ and $C = V \Sigma^{1/2} R$ for an orthogonal matrix $R$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $B = W^\top W = C^\top C$, which is positive definite since $W$ has rank $d$. Then $X X^\top = W C^\top C W^\top = W B W^\top$. Write the thin SVD $W = P S Q^\top$; then $B = Q S^2 Q^\top$ and $W B W^\top = P S^4 P^\top$, which must equal $X X^\top = U \Sigma^2 U^\top$. Both are eigendecompositions of one matrix with distinct eigenvalues, so $S = \Sigma^{1/2}$ and $P = U E$ for a diagonal sign matrix $E$, and $W = U \Sigma^{1/2} R_W$ with $R_W = E Q^\top$ orthogonal. The same argument with $X^\top X = C B C^\top$ gives $C = V \Sigma^{1/2} R_C$. Then $X = U \Sigma^{1/2} R_W R_C^\top \Sigma^{1/2} V^\top = U \Sigma V^\top$ forces $\Sigma^{1/2} R_W R_C^\top \Sigma^{1/2} = \Sigma$, so $R_W R_C^\top = I$.
+
+</TheoremBlock>
+
+<TheoremBlock type="corollary" number={2} title="Balanced word vectors are the square-root weighting">
+
+For balanced factors of $X$:
+
+1. $W W^\top = U \Sigma U^\top$, the distributional-semantics topic's Definition 3 with $p = \tfrac12$, applied to the matrix negative sampling fitted. Cosines between word vectors are those of $U \Sigma^{1/2}$.
+2. If $X = Q \Lambda Q^\top$ is symmetric, then $\tfrac14 (W + C)(W + C)^\top = [X]_+$, the positive part of $X$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Part 1: by Lemma 1, $W W^\top = U \Sigma^{1/2} R R^\top \Sigma^{1/2} U^\top$. Part 2: for symmetric $X$ the singular vectors can be taken as $u_i = q_i$ and $v_i = \operatorname{sign}(\lambda_i)\, q_i$, so $W + C = (U + V)\Sigma^{1/2} R = 2\, Q [\Lambda]_+^{1/2} R$, as in the distributional-semantics topic's Corollary 1, and $R$ cancels in $(W + C)(W + C)^\top$.
+
+</TheoremBlock>
+
+This is the precise sense of that topic's promise. Adding context vectors to word vectors, the heuristic of Levy, Goldberg, and Dagan (2015), is the projection onto the positive eigenspace, exactly for balanced factors of a symmetric product, and only up to a rotation that no cosine can see. We check the whole chain on a small symmetric instance. Gradient descent at full rank, started balanced, fits the optimum to $2 \cdot 10^{-14}$, and $\tfrac14 (W + C)(W + C)^\top$ misses $[X^\star]_+$ by at most $0.0042$ with step $0.02$ and $0.0024$ with step $0.01$: the error shrinks with the step, as Theorem 3 predicts.
+
+The corpus is less tidy, and the page should say how. Word2vec's initialization is nearly balanced: $\lVert D_0 \rVert$ is $1.3 \times 10^{-4}$ of the final $\lVert W^\top W \rVert$. But minibatch SGD with word2vec's step sizes is not gradient flow. Theorem 3's second-order terms add up: $D$ grows $1{,}819$-fold in the first epoch, keeps growing, and ends at $0.80$ of $\lVert W^\top W \rVert$. What cosines depend on, though, is the basis change $A$ in $W = U \Sigma^{1/2} A$, which is orthogonal exactly for balanced factors. Its singular values lie in $[0.801, 1.206]$ after the first epoch and in $[0.788, 1.204]$ after the last, nearly orthogonal throughout, with the deviation concentrated in the offset direction found above. The trained vectors score $0.886$ against $0.901$ for the exactly balanced $U \Sigma^{1/2}$. The balanced reading holds, approximately. With $\alpha = 0.75$ the target is not symmetric, so the corpus can check part 1 of Corollary 2 but not part 2.
+
+---
+
+## Recovering the planted sectors
+
+The distributional-semantics topic built a benchmark with a known answer: $227$ nouns that the corpus generator drew from exactly one of six sector vocabularies, split into $112$ **dev** nouns for choosing settings and $115$ **test** nouns for scoring (its Definition 4). The **pair AUC** is the probability that a same-sector pair of nouns has a higher cosine than a cross-sector pair, and the **nearest-neighbor accuracy** is the share of nouns whose nearest other noun shares their sector; chance for the latter is $0.269$. That topic's best setting was a truncated SVD of $\operatorname{SPPMI}_5$ at the eight-word window with $d = 25$, which is the matrix negative sampling with $k = 5$ and $\alpha = 0.75$ fits. So the first comparison holds the matrix and the rank fixed and changes only the method.
+
+| the same matrix, $d = 25$ | dev AUC | dev nearest neighbor | **test AUC** | **test nearest neighbor** |
+|---|---|---|---|---|
+| negative sampling, $40$ epochs | $0.870$ | $0.866$ | $\mathbf{0.886}$ | $0.852$ |
+| truncated SVD, $p = 0$ (that topic's selection) | $0.951$ | $0.946$ | $\mathbf{0.973}$ | $0.965$ |
+| truncated SVD, $p = \tfrac12$ | $0.944$ | $0.929$ | $0.966$ | $0.965$ |
+
+On the test nouns, negative sampling trails the SVD by $0.087$ in AUC, with a jackknife standard error of $0.017$, and by $0.113$ in nearest-neighbor accuracy, with a paired standard error of $0.034$. Averaging word and context vectors changes nothing here ($0.886$ either way). The $396$ rarer sector nouns, seen two to four times and never used for any choice, give the same verdict: AUC $0.652$ for negative sampling against $0.728$ for the SVD, and nearest-neighbor accuracy $0.593$ against $0.657$.
+
+Corollary 1 predicts the direction. On the benchmark nouns' rows, pairs seen at most four times are $92.3\%$ of the observed pairs, and they carry $98.7\%$ of $\operatorname{SPPMI}_5$'s squared mass, which the SVD fits with equal weight. They carry only $54.8\%$ of negative sampling's weight $ab/(a + b)$. A noun's sector shows mostly in rare pairs with other sector words, and negative sampling, by design, trusts rare pairs less. Training longer helps: the same model after $20$ epochs scores $0.859$.
+
+A small grid gives negative sampling its own choice of window and dimension, selected on dev nouns by the same rule as before, with $20$ epochs each.
+
+| window, dimension | dev AUC | dev nearest neighbor | test AUC | test nearest neighbor |
+|---|---|---|---|---|
+| L2, $d = 25$ | $0.720$ | $0.634$ | $0.709$ | $0.591$ |
+| L2, $d = 100$ | $0.697$ | $0.643$ | $0.723$ | $0.652$ |
+| **L8, $d = 25$** (selected) | $\mathbf{0.863}$ | $0.848$ | $0.859$ | $0.765$ |
+| L8, $d = 100$ | $0.830$ | $0.920$ | $0.833$ | $0.887$ |
+
+The wider window wins, as it did for counts, because sector is a property of whole documents. The selected model beats the distributional-semantics topic's best sparse matrix ($0.813$) in AUC and trails its SVD by $0.114$ (standard error $0.021$). On this corpus, at this budget, the count-based method with a truncated SVD is the better reader of planted sectors.
+
+---
+
+## One cell, and the factorization training picks
+
+The laboratory makes both halves of the topic concrete. Panel A shows one cell of the objective: pick one of *revenue*'s contexts, from a pair seen once to a pair seen $129$ times, and the curve is that cell's loss. Its minimum sits at $\operatorname{PMI}_\alpha - \log k$ and moves by $\log 3$ when you change $k$ from $5$ to $15$; its width is set by the weight $ab/(a + b)$; and the dot marks what the trained model actually learned. The pair seen once, *revenue* with *plantline*, has weight $0.34$ and is fitted badly (learned $-0.91$, target $0.66$); *revenue* with *fiscal*, seen $53$ times, is fitted almost exactly. The context *outlook*, never seen with *revenue*, has no minimum at all. Panel B follows training: drag the epoch slider and watch frequent pairs reach the diagonal first while rare pairs stay scattered and unobserved cells sink. Its second view shows the five factorizations of one product, with their scores and the neighbors of *strong* and *loans*.
+
+<SGNSLab client:visible />
+
+---
+
+## Finance case study: polarity isn't a direction
+
+<FinanceCaseStudy title="Finance case study: polarity isn't a direction">
+
+The distributional-semantics topic found two things about the corpus's polarity words, the $18$ positive and $17$ negative words of a hand-written stand-in lexicon (never the Loughran–McDonald dictionary itself). Antonyms keep the same company in a window, because the generator's templates put both polarities in the same slots. And Turney's (2002) semantic orientation finds no polarity evidence within four positions, backwards evidence within eight, and the right answer only from whole documents ($0.829$). Negative sampling factorizes the same window counts. Does the factorization find anything more?
+
+**Antonyms are still neighbors.** With the two-word window, the seven nearest neighbors of *strong* among the trained word vectors are *disappointing* ($0.974$), *improved*, *stronger*, *weak* ($0.956$), *robust*, *unfavorable*, and *favorable*. With the eight-word window, *weak* comes first ($0.960$).
+
+**No polarity direction beats chance.** If polarity were a direction in the embedding, the difference between the mean positive and the mean negative word vector would point along it. We hold out each lexicon word in turn, compute that difference on unit-length vectors of the other $34$, and ask on which side of the midpoint between the two means the held-out word falls. The probe is unaffected by any offset shared by all words, such as the direction found in the low-rank section. On random vectors with a planted polarity offset it scores at least $0.95$, and on pure noise it averages within $0.06$ of one half.
+
+| window | negative sampling, $W$ | negative sampling, $(W + C)/2$ | that topic's SVD | sparse PPMI | that topic's semantic orientation |
+|---|---|---|---|---|---|
+| L2 | $0.571$ | $0.600$ | $0.543$ | $0.629$ | $0.500$ |
+| L8 | $0.571$ | $0.600$ | $0.514$ | $0.629$ | $0.343$ |
+
+Chance is $0.5$ with a standard error of $0.085$ for $35$ words. The best probe is $1.52$ standard errors above chance, and none reaches two. A factorization reorganizes the evidence in its counts; it cannot add evidence the counts do not contain, and in this corpus polarity shows only at the level of a document, which no window model sees. For finance text that is the practical lesson of the last two topics together: a type-level embedding trained on windows knows that *strong* and *weak* are used alike, and nothing about which is good news. The lexicon-sentiment topic takes up polarity with a dictionary, and the contextual-embedding topic gives each occurrence its own vector.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **GloVe.** GloVe fits $\log \#(w, c)$ by weighted least squares with explicit biases and a weight that grows with the count, the same structure as Corollary 1's local fit with a different weight. The next topic compares the two and takes up the linear structure behind word analogies, which is a statement about word–word geometry and so, by Proposition 3, about the gauge.
+- **Contextual embeddings.** One vector per word type cannot tell *strong* from *weak* by their windows. Contextual embeddings give each token its own vector, trained by a masked-language-model objective that is again a softmax over the vocabulary.
+- **Knowledge-graph embeddings.** TransE and its successors train with negative sampling over corrupted triples, and Theorem 1's per-cell analysis applies to their scores as well.
+- **Contrastive retrieval.** formalRAG's [hard-negative mining](https://www.formalrag.com/topics/negative-sampling-hard-negatives) asks which negatives to draw for a dual encoder; here the noise distribution decides what the optimum factorizes.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Theorem 1 is exact only at full rank and only on observed pairs.** Unobserved pairs, $98.8\%$ of cells at the eight-word window, have no optimum, and at word2vec's rank the objective is a count-weighted logistic PCA (Theorem 2), not a factorization of shifted PMI. Rare pairs are fitted loosely.
+2. **The trained models are not converged.** Their loss stays $0.176$ per pair above Theorem 2's floor.
+3. **Minibatch SGD is not gradient flow.** The quantity Theorem 3 conserves grows over a thousandfold during training, so the balanced, square-root reading of Corollary 2 holds only approximately: the basis change's singular values lie in $[0.79, 1.20]$.
+4. **The corpus target is not symmetric.** With $\alpha = 0.75$, Corollary 2's statement about word plus context vectors is checked on small instances only.
+5. **We departed from the shipped algorithm.** Gradients are summed over minibatches instead of applied pair by pair, and the dynamic window and subsampling are omitted.
+6. **The ground truth is planted**, as in the distributional-semantics topic, and its caveats carry over: the benchmark is $227$ nouns, $115$ of them for testing.
+7. **The comparison is at one budget.** Negative sampling trains for $40$ epochs in the controlled comparison and $20$ in a four-setting grid; longer training narrows the gap with the SVD, by how much at convergence we did not measure.
+8. **The polarity probe uses a stand-in lexicon** of $35$ hand-written words, not the Loughran–McDonald dictionary.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `word2vec_implicit_factorization.py`, which owns every number on this page. It imports the distributional-semantics topic's module for the co-occurrence counts, the PMI matrices, the SVD baselines, the benchmark, and the semantic-orientation scores, and the neural-language-models topic's module for its log-softmax and gradient checkers. Running it as a script trains five negative-sampling models in NumPy and executes a harness of $14$ assertion-based tests in under a minute on a laptop CPU. The tests cover:
+
+- Proposition 1, Theorem 1, and Proposition 2 against unconstrained L-BFGS (`scipy.optimize`) on random instances, and Theorem 1 exactly on every observed pair of the corpus; the hand-written gradients against complex-step and central differences; the unbiasedness of the sampled loss.
+- Theorem 2 on random instances, against `scipy.stats.entropy`, with its curvature and weight bounds; the fit by count band and the offset direction on the corpus.
+- Proposition 3 on random instances and on the trained model; Theorem 3's step identity on real minibatches and its drift as the step shrinks; Lemma 1 and Corollary 2 on random instances and end to end from a balanced start; the near-balance of the trained model.
+- The controlled comparison, the grid and its selection, the weight mechanism, and the finance case study.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
