@@ -27,15 +27,18 @@ Scaffolded from formalRAG: Astro 6 + MDX, React 19 + D3.js, Tailwind 4, KaTeX (`
 
 ```bash
 pnpm dev                  # Dev server at localhost:4321
-pnpm test                 # tsx --test tests/*.test.ts — domains, curriculum DAG, branding,
-                          #   WCAG contrast, robots/noindex, cross-site parsing
+pnpm test                 # tsx --test tests/*.test.ts — domains, curriculum DAG, branding, WCAG
+                          #   contrast, robots/noindex, cross-site parsing, publish invariants
 pnpm build                # Production build + Pagefind (8 GB heap baked in; minify off on Vercel)
+pnpm preview              # Serves dist/ for DOM checks (preview_start "formalnlp-preview"); rebuild
+                          #   after every edit; the port moves if another session holds 4329
 pnpm exec astro sync      # Validate schema + ALL frontmatter fast
 pnpm validate             # validateConnections.ts — roadmap nodes without MDX are NOTICES
-pnpm audit:cross-site     # Five-site reciprocity validator (siblings adjacent or FORMAL_*_PATH)
-# Python pillar (per-topic, no shared venv):
-uv run --with numpy --with scipy python notebooks/<slug>/<slug_underscored>.py
-uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute notebooks/<slug>/01_<slug_underscored>.ipynb
+pnpm audit:cross-site     # Five-site reciprocity validator (siblings adjacent or FORMAL_*_PATH);
+                          #   totals span all sites — read formalNLP's row in the report's Summary
+# Python pillar (per-topic, no shared venv; keep the pins — fc.CORPUS_FINGERPRINT assumes this numpy):
+uv run --with numpy==2.5.4 --with scipy==1.18.1 python notebooks/<slug>/<slug_underscored>.py
+uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel jupyter execute notebooks/<slug>/01_<slug_underscored>.ipynb
 ```
 
 ## Single sources of truth
@@ -44,6 +47,9 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
   schema, `curriculum.ts`, the graph color scale, and the tests all import it.
 - `src/data/curriculum-graph.json` — all 29 nodes (planned → published) and the 42-edge
   prerequisite DAG. `src/data/curriculum.ts` mirrors the still-planned titles per track.
+- A topic touches: `src/content/topics/<slug>.mdx`, `src/components/viz/<Name>Lab.tsx` and its
+  `data/<name>-lab.json`, `notebooks/<slug>/` (`.py` + `.ipynb`), `docs/plans/formalnlp-<slug>-brief.md`,
+  the node's `status` in `curriculum-graph.json`, and its title in `curriculum.ts`'s `planned`.
 - `src/lib/siteConfig.ts` — `PRELAUNCH` (the launch switch) and `SITE_URL`.
 - `scripts/lib/crossSite.mjs` — the five sites, their paths/env vars, and cross-site field parsing.
 - `src/styles/global.css` — Marginalia tokens (light fixed by the design; dark checked for WCAG AA
@@ -65,7 +71,9 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
   `notebooks/finance-corpus/finance_corpus.py`.
 - `fc.generate_corpus(100, 1)` is a *fresh* generator run (Pitman–Yor restaurants restart from the
   same seed nouns), not a continuation; for "the same text continued", rebuild with `fc._CorpusGen`
-  (see `continuation_run` in `notebooks/n-gram-models-smoothing/`).
+  (see `continuation_run` in `notebooks/n-gram-models-smoothing/`). For a scale run, generate the
+  longest continuation once and take prefixes; `ds.cooccurrence_of` counts new text on Topic 6's
+  vocabulary (new types drop out, and windows close over them).
 - Lab data is `src/components/viz/data/<lab>.json` = `json.dumps(viz_payload(), separators=(',', ':'))`,
   pinned by the `.py`'s `test_viz_mirror_matches_payload` — regenerate it, never hand-edit.
 - `rigorFlag` is load-bearing. Honesty is the differentiator.
@@ -77,11 +85,14 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
 - **Verify with DOM checks, not screenshots.** Viz uses `client:visible`: `scrollIntoView` and wait
   ~1–1.5 s before interacting. A hidden browser pane never hydrates any island (server-rendered
   readouts still look right) — show the preview pane first; `/paths`' graph is also
-  `hidden md:block`, so use desktop width. Scope DOM assertions to
+  `hidden md:block`, so use desktop width. Hydrated ⟺ the `astro-island` has lost its `ssr`
+  attribute (`[data-lab]` is in the server-rendered HTML too). Scope DOM assertions to
   the lab container (pages carry other SVGs). React-controlled range sliders ignore synthesized
   `input` events — drive them with a real key press after `focus()`.
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
-  stored `0.9005` renders `0.900` while the page says `0.901`.
+  stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
+  two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
+  the payload.
 - Quote page numbers from the harness at ≥ 6 decimals, never from `summary()`'s 4-decimal print
   (0.9405 → 0.940, 0.7285 → 0.728).
 - Mobile: assert `scrollWidth === 375` in *every* lab view/toggle. A `nowrap` readout inside a grid
@@ -90,8 +101,13 @@ uv run --with numpy --with scipy --with jupyter --with ipykernel jupyter execute
 - NumPy SGD: scatter-add minibatch gradients as `csc_matrix((ones, idx, arange(n+1)), shape=(V, n)) @ g`,
   >10× faster than `np.add.at`. Draw an epoch's random numbers in one call (same stream, same results).
   Time one epoch before fixing a grid.
-- Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s; never call Topic 5's trained models
-  (~50 s). Import its pure helpers (`complex_step_grad`, `log_softmax`) only.
+- Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
+  `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
+  helpers (`complex_step_grad`, `log_softmax`) only.
+- Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
+  cache keys and train twice.
+- Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
+  excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
   breaks cell 1's import. Check titles: arXiv `curl -sL arxiv.org/abs/<id> | grep citation_title`,
   DOIs `api.crossref.org/works/<doi>`, sibling theorem numbers by grepping `<TheoremBlock … number=`.
