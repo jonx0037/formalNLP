@@ -440,19 +440,30 @@ GAP_BANDS = ((1, 8), (9, 16), (17, 32), (33, 64), (65, 128), (129, 10**9))
 FILING_SCHEMES = ("nope", "sinusoidal", "rope", "alibi")
 
 
+def _segments(doc) -> list[tuple[str, object]]:
+    """The document as tokens: each entity mention whole (its surface text and the entity), every other word lowercased
+    (with None)."""
+    out, i = [], 0
+    for e in sorted(doc.entities, key=lambda e: e.start):
+        out += [(w, None) for w in re.findall(r"[a-z]+", doc.text[i:e.start].lower())]
+        out.append((doc.text[e.start:e.end], e))
+        i = e.end
+    return out + [(w, None) for w in re.findall(r"[a-z]+", doc.text[i:].lower())]
+
+
 def org_tokens(doc) -> list[tuple[str, int | None]]:
     """Each entity mention collapses to one token; an ORG mention is a cue, labeled by its company's order of first
     appearance in the document (mod 8); every other token is (word, None)."""
-    toks, i, ids = [], 0, {}
-    for e in sorted(doc.entities, key=lambda e: e.start):
-        toks += [(w, None) for w in re.findall(r"[a-z]+", doc.text[i:e.start].lower())]
-        if e.type == "ORG":
+    toks, ids = [], {}
+    for surface, e in _segments(doc):
+        if e is None:
+            toks.append((surface, None))
+        elif e.type == "ORG":
             ids.setdefault(e.kb_id, len(ids))
             toks.append(("<org>", ids[e.kb_id] % N_SYMBOLS))
         else:
             toks.append((f"<{e.type.lower()}>", None))
-        i = e.end
-    return toks + [(w, None) for w in re.findall(r"[a-z]+", doc.text[i:].lower())]
+    return toks
 
 
 @dataclass(frozen=True)
@@ -478,10 +489,14 @@ def _filing(doc) -> Filing:
 
 
 @lru_cache(maxsize=None)
-def filings(split: str) -> tuple[Filing, ...]:
+def documents(split: str) -> tuple:
     """train: generate_corpus(300, 0) (Topic 9's training split); held: generate_corpus(100, 1)."""
-    docs = fc.generate_corpus(300, 0) if split == "train" else fc.generate_corpus(100, 1)
-    return tuple(_filing(d) for d in docs)
+    return tuple(fc.generate_corpus(300, 0) if split == "train" else fc.generate_corpus(100, 1))
+
+
+@lru_cache(maxsize=None)
+def filings(split: str) -> tuple[Filing, ...]:
+    return tuple(_filing(d) for d in documents(split))
 
 
 @lru_cache(maxsize=1)
@@ -798,7 +813,7 @@ def viz_payload() -> dict:
                        "offset_score": curves},
         "census": {"L": L_TRAIN, "wavelengths": _r(census["wavelengths"], 1),
                    "complete": [bool(c) for c in census["complete"]], "scales": scales},
-        "filing": {"index": lab_filing(), "tokens": [w for w, _ in f.tokens], "labels": [-1 if lab is None else lab for _, lab in f.tokens],
+        "filing": {"index": lab_filing(), "tokens": [w for w, _ in _segments(documents("held")[lab_filing()])], "labels": [-1 if lab is None else lab for _, lab in f.tokens],
                    "truth": [int(v) for v in f.label], "answers": answers,
                    "bands": [list(b) if b[1] < 10**9 else [b[0], None] for b in GAP_BANDS],
                    "band_accuracy": {k: [_mean_r([row["bands"][i] for row in rows]) for i in range(len(GAP_BANDS))]
@@ -912,6 +927,8 @@ def test_logarithmic_ruler():
     assert gaps[0] > gaps[1] > gaps[2], gaps
     big = grid[grid >= 16]
     assert np.max(np.abs(kernel_limit(big) - log_ruler(big))) < 0.01
+    every = np.arange(1, 5000)  # the explicit error bound of Thm 1 (ii)
+    assert np.all(np.abs(kernel_limit(every) - log_ruler(every)) <= (2 / every + every**2 / (4 * BASE**2)) / math.log(BASE))
     assert np.allclose(kernel_limit(-big), kernel_limit(big))
 
 
@@ -1180,7 +1197,20 @@ def test_viz_payload():
     assert all(len(v) == D_TOUR // 2 for sc in p["census"]["scales"].values() for v in sc.values())
     n = len(p["filing"]["tokens"])
     assert all(len(v) == n for v in p["filing"]["answers"].values()) and len(p["filing"]["truth"]) == n
+    assert len(p["filing"]["labels"]) == n == len(filings("held")[lab_filing()].label)
+    truth, ans = np.array(p["filing"]["truth"]), {k: np.array(v) for k, v in p["filing"]["answers"].items()}
+    assert np.all(truth >= 0) and np.all(ans["rope+pi"] == truth)  # §6: RoPE + PI answers every position of the lab's filing
+    assert all((ans[k] != truth).sum() > 100 for k in ("nope", "sinusoidal", "rope", "alibi"))
     assert len(json.dumps(p, separators=(",", ":"))) < 60_000
+
+
+VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / "data" / "positional-encoding-lab.json"
+
+
+def test_viz_mirror_matches_payload():
+    """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
+    Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
+    assert json.loads(VIZ_JSON.read_text()) == json.loads(json.dumps(viz_payload())), VIZ_JSON
 
 
 def _run_harness() -> int:

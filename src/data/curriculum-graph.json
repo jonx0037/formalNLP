@@ -63,7 +63,7 @@
     {
       "id": "positional-encodings-geometry",
       "label": "Positional Encodings: Sinusoids, Rotations, and RoPE",
-      "status": "planned",
+      "status": "published",
       "domain": "attention-transformers"
     },
     {

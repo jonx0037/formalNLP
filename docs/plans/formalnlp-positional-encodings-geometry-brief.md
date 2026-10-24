@@ -648,7 +648,7 @@ planes nearly realign near 3λ₂ ≈ 188 and λ₃, where a far cue outscores a
     - reading a trained head: `content_scores`, `content_width`, `cue_query_key`, `learned_offset_score`.
   - Filings: `org_tokens`, `Filing`, `filings`, `filing_windows`, `filing_logprobs` (one pass per document; RoPE's
     per-row rescaling through the polar form), `read_filing`, `filing_benchmark`, `alibi_forecast`.
-  - Payload: `lab_filing`, `viz_payload`, `summary`, and 20 tests.
+  - Payload: `lab_filing`, `viz_payload`, `summary`, and 21 tests (Phase B added `test_viz_mirror_matches_payload`).
 - **Timing:** 27 trainings (15 synthetic, 12 filing) ≈ 27 s, and the full harness ≈ 33 s.
 
 ## 8. Notebook cell map (`01_positional_encodings_geometry.ipynb`, 30 cells)
@@ -749,5 +749,57 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - **Lab data:** regenerate the JSON from `viz_payload()`, never hand-edit it, then add `test_viz_mirror_matches_payload`.
 - **Graph:** flip the node to `published`, and remove its title from `curriculum.ts`'s `planned`.
 
-## 12. Phase B record
-*(to be filled at the B3 gate)*
+## 12. Phase B record (2026-10-24)
+
+**Changes in Phase B.**
+- **Harness: 21/21** (≈ 33 s, with warnings as errors). Phase B added four checks:
+  - `test_viz_mirror_matches_payload`, the 21st test;
+  - the lab filing's claim in `test_viz_payload`: RoPE + PI answers all 209 positions of held-out filing 92, and
+    NoPE, the sinusoidal reader, RoPE, and ALiBi each miss more than 100;
+  - Thm 1 (ii)'s explicit error bound (2/|Δ| + Δ²/4b²)/ln b, for every 1 ≤ Δ < 5,000;
+  - `_segments` and `documents`, so the payload's filing tokens carry their surface text. Every number is unchanged.
+- The notebook re-executes with exit 0.
+- **Notation on the page.**
+  - Thm 2's J-coefficients are c_j, because b is the base.
+  - Thm 4's axis counts are p and p′, because s is ALiBi's slope.
+  - Thm 1 (ii) proves its expansion with an explicit bound (|Ci(x)| ≤ 2/x by parts, and DLMF 6.2.11 for the series),
+    not by citing asymptotics.
+- **Lab.**
+  - The "rises again" readout appears only when a scheme's curve rebounds past the window's edge: RoPE, and the
+    sinusoidal code at the end of a 256-token sequence.
+  - The filing view opens on the page's example: the first "the company" in filing 92 that every reader except
+    RoPE + PI resolves wrongly. That is t = 109, 46 back.
+- **YaRN's venue** is confirmed in the ICLR 2024 proceedings; the reference links the proceedings page.
+- **ALiBi's ICLR 2022 venue** could not be fetched (the index does not list 2022 papers). The reference links arXiv.
+
+**Gates.**
+- `pnpm test`: 39/39.
+- `pnpm exec astro sync`: clean.
+- `pnpm validate`: all references valid, with 19 roadmap notices.
+- `pnpm audit:cross-site`: formalNLP has 10 topics and 91 outgoing edges, with 0 deferred and 0 slug drift. The 91
+  missing reciprocals are the expected pre-launch state, and the outputs are gitignored.
+- `pnpm build`: 14 pages.
+
+**DOM checks** (`pnpm preview`, foreground pane, built `dist/`):
+- **Static content:**
+  - zero `.katex-error` spans and 646 `.katex` spans;
+  - D1–D5, P1–P4, and T1–T5, with 10 proofs, in page order;
+  - the island hydrated (`ssr` attribute gone);
+  - `/topics/` and `/paths/` list the topic.
+- **Real key presses on the m slider** (desktop width):
+  - unlocked, m goes 3 → 6 and the readout shows κ̄(4) = 0.695, matching Python's 0.69496;
+  - with the offset locked, m 6 → 11 carries n 10 → 15, and the readout stays at 0.695.
+- **Readouts against the payload:**
+  - Figure B's RoPE readouts: 1.000, 0.947, 0.872, 0.466; s(1) = 114.10, s(31) = 7.70, and the peak 84.14 at
+    r = 181;
+  - the census: 2 of 8 complete, and NTK at κ = 4 gives 1.000 … 0.250;
+  - the filing: 209 tokens, with 108 of them underlined for ALiBi;
+  - the default query: truth D · Fenwick Logistics at 46 back, and NoPE, sinusoidal, RoPE, ALiBi A ✗ with
+    RoPE + PI D ✓, as the page states.
+- **Mobile preset:**
+  - one inline KaTeX span listing NTK's eight factors widened the layout viewport to 395, so it was split into one
+    `$…$` per number;
+  - afterwards innerWidth = scrollWidth = 375 in all 37 lab states: every view, pill, and toggle, and four token
+    selections.
+- **Errors:** no console errors from the page (one 404 came from a debug `fetch` in the check script itself), and no
+  server errors.
