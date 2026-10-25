@@ -55,7 +55,6 @@ export const tracks = [
     description:
       'Turning a distribution into text: decoding as search, temperature and truncation sampling, and whether a language model knows what it does not know.',
     planned: [
-      'Decoding as Search: Greedy and Beam Search',
       'Sampling: Temperature, Top-k, and Nucleus',
       'Calibration of Language Models',
     ],

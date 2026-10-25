@@ -81,7 +81,7 @@
     {
       "id": "beam-search-decoding",
       "label": "Decoding as Search: Greedy and Beam Search",
-      "status": "planned",
+      "status": "published",
       "domain": "decoding-generation"
     },
     {

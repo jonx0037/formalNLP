@@ -873,11 +873,11 @@ def _example(lm, p, toks) -> str:
 
 
 def loop_examples(n: int = 4) -> list[dict]:
-    """Greedy cycles on the trigram for the lab's strip: the first n looping prompts with distinct cycles."""
-    lm, out, seen = trigram(), [], set()
+    """Greedy cycles on the trigram for the lab's strip: the first n prompts (sorted) whose greedy run cycles, with the
+    words before the cycle and the cycle itself. Every cycle on these prompts is the same one."""
+    lm, out = trigram(), []
     for p, o in zip(prompts(), trigram_orbits()):
-        if o.period and o.tokens[o.preperiod:] not in seen:
-            seen.add(o.tokens[o.preperiod:])
+        if o.period:
             out.append({"prompt": " ".join(p), "pre": lm.words(o.tokens[: o.preperiod]),
                         "cycle": lm.words(o.tokens[o.preperiod:]), "period": o.period})
         if len(out) == n:
@@ -885,15 +885,24 @@ def loop_examples(n: int = 4) -> list[dict]:
     return out
 
 
-def examples(name: str, n: int = 6) -> list[dict]:
-    """The first n prompts' greedy, beam(16), normalized beam(16), and exact outputs (the lab's table)."""
+@lru_cache(maxsize=1)
+def example_prompts(n: int = 6) -> tuple[int, ...]:
+    """The lab's table: the first n prompts (sorted) on which the trigram's greedy, beam(16), and normalized beam(16)
+    outputs are not all the exact mode, so each row shows at least one decoder departing from the mode."""
+    modes, runs = exact_modes("trigram"), [beam_runs("trigram", a)[k] for a, k in ((0.0, 1), (0.0, 16), (1.0, 16))]
+    picks = [i for i in range(len(prompts())) if any(r[i].tokens != modes[i].tokens for r in runs)]
+    return tuple(picks[:n])
+
+
+def examples(name: str) -> list[dict]:
+    """example_prompts()'s greedy, beam(16), normalized beam(16) (α = 1), and exact outputs on one engine."""
     lm, modes = engine(name), exact_modes(name)
     g, b, bn = beam_runs(name, 0.0)[1], beam_runs(name, 0.0)[16], beam_runs(name, 1.0)[16]
     out = []
-    for i, p in enumerate(prompts()[:n]):
-        row = {"prompt": " ".join(p), "mode": _example(lm, p, modes[i].tokens)}
+    for i in example_prompts():
+        row = {"prompt": " ".join(prompts()[i]), "mode": _example(lm, prompts()[i], modes[i].tokens)}
         for key, r in (("greedy", g[i]), ("beam", b[i]), ("norm", bn[i])):
-            row[key] = None if r.tokens is None else _example(lm, p, r.tokens)
+            row[key] = None if r.tokens is None else _example(lm, prompts()[i], r.tokens)
         out.append(row)
     return out
 
@@ -1131,7 +1140,8 @@ def test_viz_payload():
     p = viz_payload()
     assert p["tree"]["mode"] == "was flat </s>" and [b["certified"] for b in p["tree"]["beams"]] == [False, True, True]
     assert len(p["trigram"]["0"]["search_error"]) == len(KS) and p["trigram"]["1"]["search_error"] == [None] * len(KS)
-    assert p["loops"]["examples"] and p["n_prompts"] == len(prompts())
+    assert len(p["loops"]["examples"]) == 4 and {tuple(e["cycle"]) for e in p["loops"]["examples"]} == {("and",)}
+    assert p["n_prompts"] == len(prompts()) and len(p["examples"]["trigram"]) == 6
 
 
 def test_viz_mirror_matches_payload():
