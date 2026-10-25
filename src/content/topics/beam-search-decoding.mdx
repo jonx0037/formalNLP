@@ -1,0 +1,443 @@
+---
+title: "Decoding as Search: Greedy and Beam Search"
+subtitle: "The most probable string is a shortest path: uniform-cost search finds it, greedy and beam search prune the search with no guarantee, one pruned score certifies success, and the string they converge to is shorter and blander than the text the model learned from"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "neural-language-models"
+tags:
+  - "decoding"
+  - "beam-search"
+  - "greedy-decoding"
+  - "dijkstra"
+  - "search-error"
+  - "length-bias"
+  - "length-normalization"
+  - "uniform-information-density"
+  - "non-termination"
+domain: "decoding-generation"
+financeCaseStudy: true
+rigorFlag: "Theorems 1–5 and Propositions 1–5 are proved on this page. Three results are cited instead: the undecidability and NP-completeness of exact decoding for recurrent networks (Chen and colleagues 2018), the regularizer under which beam search with k > 1 is exact (Meister, Cotterell, and Vieira 2020), and the recurrent construction behind Welleck and colleagues' non-termination theorem; Proposition 4 and Proposition 5 prove only their simplest cases. The corpus measurements come from two small models, a Kneser–Ney trigram over 3,427 words and a two-block decoder of width 32 over 509 words, on 188 openings of synthetic MD&A sentences. How much search error a beam of a given width makes depends on the model, the prompts, and the length cap (40 tokens for the trigram and the decoder's 32 positions), so the rates do not transfer to large models. Both engines are decoded under a per-step renormalization that never emits the unknown-word token, which is a different model from the one trained. Model error is measured only by length and by per-word predictability against held-out text, not by human judgment or BLEU. Under length normalization we have no exact optimum on the corpus, only the certificate's count of the prompts on which beam search provably found it."
+videoId: null
+notebookPath: "notebooks/beam-search-decoding/01_beam_search_decoding.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/beam-search-decoding.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 40
+abstract: "A language model gives every string a probability, and decoding picks one. The usual target is the mode, the single most probable string. Write each next-token probability as an edge of cost −log p in the tree of prefixes, and the mode becomes a shortest path. Uniform-cost search finds it exactly, with a work bound set by the mode's probability and the expected length. A Markov model's prefixes merge on their states, so Dijkstra's algorithm decodes it in polynomial time, while for recurrent networks the problem is undecidable in general. Greedy decoding and beam search are the same search with most of the frontier discarded. Neither carries any approximation guarantee, and a wider beam can return a worse string. One more number, the best score the beam ever pruned, certifies when beam search did find the mode. The mode itself is biased toward stopping. Once the end mark is the likeliest next token no continuation can win, length normalization breaks the monotonicity that exact search relies on, and without a length cap it can have no optimum at all. Greedy decoding on a finite-state model is eventually periodic, and a model that always ends with positive probability can still make beam search run forever. On a trigram and a small transformer trained on the shared filings, wider beams cut search error to zero while the strings shrink to a mode a third the length of the text. Normalization lengthens them by drawing them onto one 8-K template sentence."
+connections: []
+references:
+  - type: "paper"
+    title: "A Note on Two Problems in Connexion with Graphs"
+    authors: "E. W. Dijkstra"
+    year: 1959
+    url: "https://doi.org/10.1007/BF01386390"
+    note: "Numerische Mathematik 1: 269–71. The shortest-path algorithm behind Theorem 1 and its corollary"
+  - type: "paper"
+    title: "A Formal Basis for the Heuristic Determination of Minimum Cost Paths"
+    authors: "Peter E. Hart, Nils J. Nilsson, and Bertram Raphael"
+    year: 1968
+    url: "https://doi.org/10.1109/TSSC.1968.300136"
+    note: "IEEE Transactions on Systems Science and Cybernetics 4 (2): 100–107. A* and admissible heuristics; uniform-cost search is A* with the zero heuristic"
+  - type: "paper"
+    title: "Error Bounds for Convolutional Codes and an Asymptotically Optimum Decoding Algorithm"
+    authors: "Andrew J. Viterbi"
+    year: 1967
+    url: "https://doi.org/10.1109/TIT.1967.1054010"
+    note: "IEEE Transactions on Information Theory 13 (2): 260–69. The length-layered dynamic program of the corollary to Theorem 1"
+  - type: "paper"
+    title: "A Characterization of the Minimum Cycle Mean in a Digraph"
+    authors: "Richard M. Karp"
+    year: 1978
+    url: "https://doi.org/10.1016/0012-365X(78)90011-0"
+    note: "Discrete Mathematics 23 (3): 309–11. The cheapest cycle per edge, the limit that a normalized objective approaches in Proposition 3"
+  - type: "book"
+    title: "The HARPY Speech Recognition System"
+    authors: "Bruce T. Lowerre"
+    year: 1976
+    url: "https://csd.cs.cmu.edu/academics/doctoral/degrees-conferred/bruce-lowerre"
+    note: "PhD diss., Carnegie-Mellon University; the CMU degree record titles it “HARPY Speech Understanding System.” The origin of beam search"
+  - type: "paper"
+    title: "Six Challenges for Neural Machine Translation"
+    authors: "Philipp Koehn and Rebecca Knowles"
+    year: 2017
+    url: "https://doi.org/10.18653/v1/W17-3204"
+    note: "Proceedings of the First Workshop on Neural Machine Translation, 28–39. Quality falls beyond a moderate beam width, chiefly through shorter outputs"
+  - type: "paper"
+    title: "On NMT Search Errors and Model Errors: Cat Got Your Tongue?"
+    authors: "Felix Stahlberg and Bill Byrne"
+    year: 2019
+    url: "https://doi.org/10.18653/v1/D19-1331"
+    note: "EMNLP-IJCNLP 2019, 3356–62. Exact search for a Transformer: the empty translation is the mode for 51.8% of sentences"
+  - type: "paper"
+    title: "Is MAP Decoding All You Need? The Inadequacy of the Mode in Neural Machine Translation"
+    authors: "Bryan Eikema and Wilker Aziz"
+    year: 2020
+    url: "https://doi.org/10.18653/v1/2020.coling-main.398"
+    note: "COLING 2020, 4506–20. The mode as a poor summary of a spread-out distribution, and minimum Bayes risk decoding instead"
+  - type: "paper"
+    title: "Empirical Analysis of Beam Search Performance Degradation in Neural Sequence Models"
+    authors: "Eldan Cohen and J. Christopher Beck"
+    year: 2019
+    url: "https://proceedings.mlr.press/v97/cohen19a.html"
+    note: "ICML 2019, PMLR 97: 1290–99. Wide beams degrade through early discrepancies: one unlikely token followed by a highly probable path"
+  - type: "paper"
+    title: "Google's Neural Machine Translation System: Bridging the Gap between Human and Machine Translation"
+    authors: "Yonghui Wu, Mike Schuster, Zhifeng Chen, Quoc V. Le, Mohammad Norouzi, Wolfgang Macherey, Maxim Krikun, et al."
+    year: 2016
+    url: "https://arxiv.org/abs/1609.08144"
+    note: "The length penalty lp(Y) = ((5 + |Y|)/6)^α of Eq. 14, used in §4 and §7"
+  - type: "paper"
+    title: "Correcting Length Bias in Neural Machine Translation"
+    authors: "Kenton Murray and David Chiang"
+    year: 2018
+    url: "https://doi.org/10.18653/v1/W18-6322"
+    note: "Proceedings of the Third Conference on Machine Translation, 212–23. Length bias as a consequence of locally normalized models, and a per-word reward"
+  - type: "paper"
+    title: "When to Finish? Optimal Beam Search for Neural Text Generation (modulo beam size)"
+    authors: "Liang Huang, Kai Zhao, and Mingbo Ma"
+    year: 2017
+    url: "https://doi.org/10.18653/v1/D17-1227"
+    note: "EMNLP 2017, 2134–39. The stopping rule and its optimality modulo beam size (their Theorem 1), beside Theorem 3"
+  - type: "paper"
+    title: "If Beam Search Is the Answer, What Was the Question?"
+    authors: "Clara Meister, Ryan Cotterell, and Tim Vieira"
+    year: 2020
+    url: "https://doi.org/10.18653/v1/2020.emnlp-main.170"
+    note: "EMNLP 2020, 2173–85. Beam search as the exact solution of a regularized objective (their Theorems 3.1–3.2, Eq. 11), and uniform information density"
+  - type: "paper"
+    title: "Recurrent Neural Networks as Weighted Language Recognizers"
+    authors: "Yining Chen, Sorcha Gilroy, Andreas Maletti, Jonathan May, and Kevin Knight"
+    year: 2018
+    url: "https://doi.org/10.18653/v1/N18-1205"
+    note: "NAACL 2018, 2261–71. The best string of an RNN is undecidable (Theorem 8), decidable but unboundedly long for consistent RNNs (Theorems 9–10), and NP-complete at polynomial length (Theorem 11)"
+  - type: "paper"
+    title: "Consistency of a Recurrent Language Model With Respect to Incomplete Decoding"
+    authors: "Sean Welleck, Ilia Kulikov, Jaedeok Kim, Richard Yuanzhe Pang, and Kyunghyun Cho"
+    year: 2020
+    url: "https://doi.org/10.18653/v1/2020.emnlp-main.448"
+    note: "EMNLP 2020, 5553–68. Incomplete decoding (Definition 2.9), its inconsistency (Theorem 3.4), and self-terminating models (Theorems 4.2–4.3, Appendix C)"
+  - type: "paper"
+    title: "The Curious Case of Neural Text Degeneration"
+    authors: "Ari Holtzman, Jan Buys, Li Du, Maxwell Forbes, and Yejin Choi"
+    year: 2020
+    url: "https://openreview.net/forum?id=rygGQyrFvH"
+    note: "ICLR 2020. Repetition under maximization-based decoding, and the case for sampling taken up by the next topic"
+formalmlPrereqs:
+  - topic: "shannon-entropy"
+    site: "formalml"
+    relationship: "Every edge weight on this page is a surprisal, −log p, its Definition 1's information content; the greedy regularizer and uniform information density are statements about how surprisal is spread along a string."
+formalmlConnections:
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "Decoding the mode is mode-seeking taken to its limit, the behavior that topic's section on forward and reverse KL contrasts with mode-covering fits."
+  - topic: "sequential-monte-carlo"
+    site: "formalml"
+    relationship: "Beam search is a deterministic cousin of particle resampling: it keeps the k heaviest partial strings where a particle filter resamples by weight (its resampling schemes of §4), and it collapses onto a few lineages the same way."
+formalcalculusPrereqs:
+  - topic: "sequences-limits"
+    site: "formalcalculus"
+    relationship: "Prefix log-probabilities form a monotone non-increasing sequence, which is all that Theorems 1 and 3 use, and Proposition 3's normalized scores form a monotone bounded sequence whose limit is never attained (its Theorem 1)."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import BeamSearchLab from '../../components/viz/BeamSearchLab.tsx';
+
+## Overview & Motivation
+
+Ask a language model to continue "revenue". In our small example its first word is "rose" with probability $0.45$, "was" with $0.35$, or "fell" with $0.20$. Greedy decoding takes "rose", then the likeliest word after it, "sharply", and stops: the string has probability $0.0864$. But "was" is followed by "flat" four times in five, and "revenue was flat" ends the sentence with probability $0.238$, almost three times as likely. Greedy decoding never looked. A beam of width two keeps both "rose" and "was", finds "was flat", and can prove that nothing it dropped could have done better.
+
+That example has the whole topic in it. A model gives every string a probability, and the most probable string, the **mode**, is what most decoders aim for. Finding it is a search problem, and we develop it in order:
+
+1. **The mode is a shortest path.** With edge costs $-\log p$, uniform-cost search finds it exactly, and a Markov model's prefixes merge so that Dijkstra's algorithm finds it in polynomial time.
+2. **Greedy and beam search are pruned versions of that search.** Neither has an approximation guarantee, and a wider beam can do worse.
+3. **One extra number certifies success.** If the best string beats every candidate the beam pruned, it is the mode.
+4. **The mode is biased toward stopping.** Normalizing by length fights the bias, but it breaks exact search, and without a length cap it can have no optimum.
+5. **Greedy decoding can loop forever,** even on a model that ends every string with probability one.
+
+Then we measure **search error**, missing the mode, against **model error**, the mode being a poor answer, on two models trained on the shared filings. Wider beams remove the first and expose the second.
+
+---
+
+## Decoding as a shortest path
+
+We write $\mathrm{eos}$ for the end mark, the token `</s>` that closes every sentence.
+
+<TheoremBlock type="definition" number={1} title="The decoding problem">
+
+A language model over a vocabulary $V$ assigns a prompt $x$ and a string $y = (y_1, \dots, y_n)$ with $y_n = \mathrm{eos}$ the probability
+
+$$
+p(y \mid x) \;=\; \prod_{t=1}^{n} p(y_t \mid x, y_{\lt t}).
+$$
+
+The **mode** is $y^\star = \arg\max_y p(y \mid x)$. The model is **consistent** if these probabilities sum to $1$ over all finite strings.
+
+</TheoremBlock>
+
+A consistent model has a mode: only finitely many strings can have probability above any $\varepsilon \gt 0$, so the supremum is a maximum. The [neural-language-models topic](/topics/neural-language-models) proves that a softmax recurrent model with bounded state is consistent (its Theorem 4). Picture the strings as the leaves of a tree. The root is the prompt, each node is a prefix $h$, and each edge adds one token.
+
+<TheoremBlock type="proposition" number={1} title="The mode is a shortest path">
+
+Give the edge from $h$ to $hw$ the weight $c(h, w) = -\log p(w \mid x, h) \ge 0$. Then $-\log p(y \mid x)$ is the total weight of the path from the root to $y$, and the mode is the cheapest path from the root to an $\mathrm{eos}$ leaf.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Take $-\log$ of the product in Definition 1. Each factor is at most $1$, so each weight is non-negative.
+
+</TheoremBlock>
+
+The weights are surprisals, formalML's [information content](https://www.formalml.com/topics/shannon-entropy) (its Definition 1). Because they are non-negative, the cost of a prefix, $c(h) = -\log \pi(h)$ with $\pi(h)$ the probability that the string begins with $h$, can only grow as the prefix grows. That monotonicity is what every exact method on this page uses.
+
+<TheoremBlock type="theorem" number={1} title="Uniform-cost search is exact">
+
+Uniform-cost search keeps a frontier of prefixes, starting with the root, and repeatedly removes the cheapest one. If it ends in $\mathrm{eos}$ the search returns it; otherwise its children join the frontier. For a consistent model the string returned is a mode. If moreover $\mathbb{E}|Y| \lt \infty$, where $|Y|$ counts the words before $\mathrm{eos}$, the search removes at most $(2 + \mathbb{E}|Y|)/p(y^\star)$ prefixes.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Every finished string not yet removed has a prefix on the frontier: the root is a prefix of every string, and when $h$ is removed its children take its place for every string through $h$. Suppose the first finished string removed is $h^\star$, at cost $c$. Every frontier prefix then costs at least $c$, and every finished string $y$ not yet removed has a frontier prefix of cost at most $c(y)$, so $c(y) \ge c$ and $h^\star$ is a mode.
+
+For the work, children cost at least their parent, so prefixes leave the frontier in non-decreasing order of cost, and every prefix removed has $\pi(h) \ge p(y^\star)$. The prefixes of length $t$ have total probability $\Pr(|Y| \ge t)$, so at most $\Pr(|Y| \ge t)/p(y^\star)$ of them are that probable. Summing over $t \ge 0$ gives $(1 + \mathbb{E}|Y|)/p(y^\star)$ open prefixes, since $\sum_{t \ge 0} \Pr(|Y| \ge t) = 1 + \mathbb{E}|Y|$, and at most $1/p(y^\star)$ finished strings have probability $p(y^\star)$ or more.
+
+</TheoremBlock>
+
+This is Dijkstra's algorithm (1959) on the tree, or A* with the zero heuristic (Hart, Nilsson, and Raphael 1968). Our implementation adds children lazily: removing a node pushes only its best child and its next sibling, so the frontier stays small over a vocabulary of $3{,}427$ words. The argument survives because a sibling not yet pushed is never cheaper than the one standing in for it. The harness checks the search against brute-force enumeration on $200$ random trees, and the work bound on each.
+
+<TheoremBlock type="corollary" number={1} title="Markov models recombine">
+
+In an order-$n$ Markov model, $p(\cdot \mid x, h)$ depends only on the state $\sigma(h)$, the last $n - 1$ tokens. If $\sigma(h) = \sigma(h')$ and $c(h) \le c(h')$, then $h'$ can be discarded, and uniform-cost search becomes Dijkstra's algorithm on a graph of at most $(|V| + 1)^{n - 1}$ states. Exact decoding is polynomial in the size of that graph.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Every completion $z$ has $c(hz) - c(h'z) = c(h) - c(h') \le 0$, because the two prefixes assign $z$ the same conditional probabilities. So any string through $h'$ is matched or beaten by the same string through $h$, and the search may expand each state once.
+
+</TheoremBlock>
+
+The length-layered form of the same dynamic program is Viterbi's algorithm (1967). For the trigram models of the [n-gram topic](/topics/n-gram-models-smoothing) the state is the last two words. On our $188$ prompts, which are introduced below, Dijkstra reaches the exact mode after a median of $8$ removals and at most $114$, and a search without recombination returns the same string every time.
+
+For a neural network nothing recombines: two prefixes never have the same future. Chen and colleagues (2018) show how hard the problem then is. For a single-layer ReLU recurrent network with rational weights, deciding whether some string has probability above a threshold is undecidable (their Theorem 8). For a consistent network it is decidable, but the best string can be longer than any computable function of the network's size (their Theorems 9–10). Restricted to strings of polynomial length it is NP-complete (their Theorem 11).
+
+---
+
+## Greedy and beam search: pruned uniform-cost search
+
+Uniform-cost search is exact but its frontier can grow without bound. The decoders used in practice keep a frontier of fixed size.
+
+<TheoremBlock type="definition" number={2} title="Beam search">
+
+**Beam search** with width $k$ forms, at each step, every child of every open prefix and keeps the $k$ most probable. Kept children that end in $\mathrm{eos}$ move to a finished set; the rest stay open. The search stops once the best finished string is at least as probable as the best open prefix, which no extension can beat. **Greedy decoding** is beam search with $k = 1$.
+
+</TheoremBlock>
+
+The beam idea goes back to Lowerre's speech recognizer (1976). Pruning trades the guarantee of Theorem 1 for a fixed budget, and the trade has no floor.
+
+<TheoremBlock type="theorem" number={2} title="No approximation guarantee">
+
+(a) For every $\varepsilon \gt 0$ there is a model on which greedy decoding returns a string less than $\varepsilon$ times as probable as the mode. (b) For every $k$ there is a model on which beam search with width $k$ misses the mode and width $k + 1$ finds it. (c) Beam search with width $k + 1$ can return a strictly less probable string than width $k$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The first token is $a$ with probability $0.6$ or $b$ with $0.4$. After $a$ come $m$ equally likely words, each followed by $\mathrm{eos}$; after $b$ comes $\mathrm{eos}$. Greedy decoding takes $a$ and returns probability $0.6/m$, while $b\,\mathrm{eos}$ has $0.4$. The ratio $1.5/m$ is below $\varepsilon$ once $m \gt 1.5/\varepsilon$.
+
+(b) Take $k$ decoys of probability $(1 - p_a)/k$ each and a word $a$ with $p_a = 0.9/(k + 1)$, so each decoy is a little likelier than $a$. Each decoy forks into two words that end the string, and $a$ ends at once. Width $k$ keeps the decoys and returns probability $(1 - p_a)/(2k) \lt p_a$. Width $k + 1$ also keeps $a$, its next candidate $a\,\mathrm{eos}$ outranks every other, and the search stops with the mode.
+
+(c) After $a$ ($0.6$) come ten words of $0.1$, each ending the string. After $b$ ($0.4$) come $c$ and $d$ ($0.5$ each), then fifty words of $0.02$. Greedy decoding returns $0.06$. Width $2$ keeps $a$ and $b$, and at the second step $bc$ and $bd$ ($0.2$ each) push out every $ax_i$ ($0.06$), so it returns $0.004$. Width $3$ keeps one $ax_i$ and returns $0.06$.
+
+</TheoremBlock>
+
+Part (c) is not only a construction. On our two corpus models a wider beam returned a strictly less probable string than a narrower one on $0.016$ of the prompts.
+
+---
+
+## A certificate
+
+Huang, Zhao, and Ma (2017) stop beam search as soon as the best finished string beats every open prefix, and prove the result optimal "modulo beam size": the best among the strings the beam could have kept (their Theorem 1). One more number turns that into a guarantee about every string.
+
+<TheoremBlock type="theorem" number={3} title="A certificate of optimality">
+
+Let $f$ be beam search's best finished string, $m$ the highest log-probability of any candidate it pruned, and $o$ the highest log-probability of a prefix still open when it stopped. If $\log p(f) \ge \max(m, o)$, then $f$ is a mode.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Take any finished string $y$. At each step its prefix was either kept or pruned, and once kept it is finished or open. So $y$ finished inside the beam, and then $\log p(y) \le \log p(f)$; or it extends a pruned candidate, and then $\log p(y) \le m$; or it extends a prefix still open, and then $\log p(y) \le o$. In the last two cases we use that log-probability never rises along a path.
+
+</TheoremBlock>
+
+The certificate is sufficient, not necessary. It stays silent whenever the beam pruned a prefix more probable than its answer, even if every completion of that prefix turned out worse. In the example of the overview, width $2$ pruned "fell" at $0.20$, below the answer's $0.238$, so its answer is certified. Greedy decoding pruned "was" at $0.35$, above its answer's $0.0864$, so its answer is not.
+
+**Length normalization** ranks finished strings by $\log p(y)/\mathrm{lp}(|y|)$ instead. Wu and colleagues (2016) use $\mathrm{lp}(n) = ((5 + n)/6)^\alpha$, with $n$ the number of generated tokens including $\mathrm{eos}$, and $\alpha = 0$ is plain probability. A longer string can now outscore its own prefix, and both Theorem 1 and Theorem 3 lose their footing. A length cap restores the certificate.
+
+<TheoremBlock type="proposition" number={2} title="The certificate under a length cap">
+
+Suppose strings have at most $T$ tokens and $\mathrm{lp}$ is non-decreasing. If the best finished normalized score is at least $\max(m, o)/\mathrm{lp}(T)$, the result is the normalized optimum among strings of at most $T$ tokens.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A completion $y$ of a prefix $h$ has $\log p(y) \le \log p(h) \le 0$ and $\mathrm{lp}(|y|) \le \mathrm{lp}(T)$, so $\log p(y)/\mathrm{lp}(|y|) \le \log p(y)/\mathrm{lp}(T) \le \log p(h)/\mathrm{lp}(T)$. Repeat the three cases of Theorem 3 with this bound.
+
+</TheoremBlock>
+
+The same bound gives the normalized beam a sound place to stop, and our implementation uses it.
+
+---
+
+## Length bias
+
+Why should the mode be short? Every word costs a factor of at most one, and stopping costs one factor too. Whenever stopping is the single most likely move, nothing after it can catch up.
+
+<TheoremBlock type="theorem" number={4} title="The pull of the end mark">
+
+(a) If $\mathrm{eos}$ is the likeliest next token after a prefix $h$, then no completion of $h$ beats stopping: $\max_z p(hz \mid x) = p(h\,\mathrm{eos} \mid x)$. (b) If every step's probability is at most $q \lt 1$, then $p(y \mid x) \le q^{|y|}$, so $|y^\star| \le \log p(y' \mid x)/\log q$ for every finished string $y'$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) A completion that starts with a word $w \ne \mathrm{eos}$ has $p(hwz) = p(h)\, p(w \mid h)\, p(z \mid hw) \le p(h)\, p(w \mid h) \le p(h)\, p(\mathrm{eos} \mid h)$. (b) The $|y|$ word steps contribute at most $q^{|y|}$ and the final $\mathrm{eos}$ at most $1$. Then $q^{|y^\star|} \ge p(y^\star) \ge p(y')$, and taking logarithms reverses the inequality because $\log q \lt 0$.
+
+</TheoremBlock>
+
+Part (a) needs only that $\mathrm{eos}$ beats each word separately. With probability $0.1$ against $0.9$ spread over twenty words, it does. On the trigram the end mark is the argmax after only $0.037$ of the prompts, yet the mode is the empty continuation for $0.197$ of them: the condition is sufficient, far from necessary. Murray and Chiang (2018) relate the bias to local normalization, where every step must hand out a full unit of probability, the label bias of locally normalized models.
+
+The usual remedies reward length: divide by $\mathrm{lp}(|y|)$, or add a reward per word. Both break the monotonicity of Proposition 1, and the first can leave nothing to find.
+
+<TheoremBlock type="proposition" number={3} title="Normalization can have no optimum">
+
+Under the model with $p(w) = 0.9$ and $p(\mathrm{eos}) = 0.1$ after every prefix, and with $\alpha = 1$, the normalized score of $w^n\,\mathrm{eos}$ is $f(n) = 6\,(n \log 0.9 + \log 0.1)/(n + 6)$. It is strictly increasing in $n$ and tends to $6 \log 0.9$, so no string attains the supremum.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The derivative of $f$ has the sign of $6 \log 0.9 - \log 0.1$, which is positive because $0.1 \lt 0.9^6 \approx 0.531$. A strictly increasing bounded sequence converges to its supremum and never reaches it, formalCalculus' [monotone convergence theorem](https://www.formalcalculus.com/topics/sequences-limits) (its Theorem 1).
+
+</TheoremBlock>
+
+In general the normalized score of a long string approaches the mean cost of the cheapest cycle it can repeat, the quantity Karp (1978) characterized, and a cycle can beat every finite string. Huang, Zhao, and Ma bound their per-word reward for this reason, and a cap $T$ does the same job here.
+
+Meister, Cotterell, and Vieira (2020) read the problem the other way round: beam search is the exact solution of a *regularized* decoding objective. Write $u_t(w) = -\log p(w \mid x, y_{\lt t})$ for the surprisal of $w$ at step $t$.
+
+<TheoremBlock type="proposition" number={4} title="Greedy decoding is a regularized optimum">
+
+Let $R(y) = \sum_t \big(u_t(y_t) - \min_w u_t(w)\big)^2$. On a model with finitely many strings and no ties, there is a $\lambda_0 \lt \infty$ such that for every $\lambda \gt \lambda_0$ the unique maximizer of $\log p(y \mid x) - \lambda R(y)$ is the greedy string $g$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$R(y) \ge 0$, with equality exactly when every step of $y$ takes the likeliest token, which without ties means $y = g$. Set $\lambda_0 = \max_{y \ne g} \big(\log p(y) - \log p(g)\big)/R(y)$, a maximum over finitely many strings. For $\lambda \gt \lambda_0$ and $y \ne g$, $\log p(y) - \lambda R(y) \lt \log p(g) = \log p(g) - \lambda R(g)$.
+
+</TheoremBlock>
+
+This is their Theorem 3.1 in its simplest case, with their regularizer of Eq. 11. Their Theorem 3.2 extends it to width $k$ with a regularizer on sets of $k$ strings, which we cite. The regularizer penalizes each step whose surprisal exceeds the locally best one, a form of **uniform information density**: beam search prefers strings that spread their surprisal evenly, and that preference, not the mode, may be what makes its outputs read well.
+
+---
+
+## Search error against model error
+
+We now measure both kinds of error on two models trained on the shared filings. The prompts are the $188$ distinct three-word openings of held-out MD&A sentences, from Topic 3's held-out split, whose words are all in both models' vocabularies. The **trigram** is the n-gram topic's interpolated Kneser–Ney model over $3{,}427$ words, exact by Dijkstra on its state graph. The **decoder** is the toy causal transformer of the [scaling-laws topic](/topics/scaling-laws): two pre-LN blocks of width $32$ over the $509$ commonest words, trained by that topic's recipe on the training sentences, and exact by uniform-cost search with no recombination. Both are decoded under a per-step renormalization that never emits the unknown-word token.
+
+<BeamSearchLab client:visible />
+
+On the trigram, greedy decoding misses the mode on $0.803$ of the prompts. Width $4$ misses on $0.282$, width $16$ on $0.027$, and width $64$ never, with every answer certified by Theorem 3. Meanwhile the outputs shrink: $4.504$ words under greedy decoding, $2.447$ at width $16$, and $2.367$ at width $64$, which is the mode's length. The sentences the prompts came from continue for $7.298$ words. The decoder searches harder, since nothing recombines. Its exact search takes a median of $25.5$ removals and at most $4{,}292$, and width $64$ still misses the mode on $0.207$ of the prompts. Its mode is never empty, but at $4.862$ words it too is shorter than the text, and its outputs shorten from $6.665$ words to $5.511$ as the beam widens.
+
+So a wider beam is a better search for a worse answer. Koehn and Knowles (2017) found the same in translation: quality falls beyond a moderate width, mostly because translations get shorter. Stahlberg and Byrne (2019) ran exact search on a Transformer translation model and found that the empty translation was the mode for $51.8\%$ of their test sentences. Cohen and Beck (2019) traced the damage to early discrepancies: wide beams find strings that pay for one unlikely token early and then follow a highly probable path. The fault is the model's, not the search's, and Eikema and Aziz (2020) argue that the mode is the wrong summary of a spread-out distribution in any case.
+
+---
+
+## Non-termination
+
+Search error and model error both assume the search ends. It need not.
+
+<TheoremBlock type="theorem" number={5} title="Greedy decoding is eventually periodic">
+
+On an order-$n$ Markov model with state set $S$, $|S| \le (|V| + 1)^{n - 1}$, greedy decoding either emits $\mathrm{eos}$ within $|S|$ steps or never does.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Greedy decoding's next token is a function of the state, so the states follow a deterministic map $\sigma_{t+1} = F(\sigma_t)$ on the finite set $S$. Among $\sigma_0, \dots, \sigma_{|S|}$ two coincide, say $\sigma_i = \sigma_j$ with $i \lt j$, and from then on the states, and with them the tokens, repeat with period $j - i$. If $\mathrm{eos}$ has not appeared by step $j$, it never will.
+
+</TheoremBlock>
+
+On the trigram, greedy decoding cycles on $0.282$ of the prompts, and every cycle is the same one. After "include" the likeliest next word is "and", and after "and and" it is "and" again. The prompts reach it by different roads, such as "analysts who cover halvorsen industrial reported revenue of million for the year include and and and", the kind of repetition loop that Holtzman and colleagues (2020) observed when neural models are decoded by maximization. A neural model is not finite-state, but consistency does not rescue it.
+
+<TheoremBlock type="proposition" number={5} title="A consistent model on which beam search never ends">
+
+Take $k$ words of probability $(1 - \varepsilon)/k$ each and $\mathrm{eos}$ of probability $\varepsilon \lt (1 - \varepsilon)/k$, the same after every prefix. The model is consistent, and beam search with width $k$ never terminates.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\Pr(|Y| \ge t) = (1 - \varepsilon)^t \to 0$, so the model is consistent. At every step, the $k$ word-children of the best open prefix score above every $\mathrm{eos}$-child of any open prefix, so no finished string is ever kept.
+
+</TheoremBlock>
+
+Welleck and colleagues (2020) prove the general version: for every decoder that considers fewer than all tokens at each step, there is a consistent recurrent model on which it produces an infinite string with probability one (their Theorem 3.4). Their remedy is a model whose end-mark probability is forced to grow, under which greedy decoding and beam search provably end (their Theorems 4.2–4.3).
+
+---
+
+<FinanceCaseStudy title="Finance case study: the mode is boilerplate">
+
+A filing is written to be predictable: the same disclosures, the same hedges, the same sentence frames. A decoder that maximizes probability finds the most predictable text there is, and on the filings that text is boilerplate or nothing at all.
+
+**The mode stops.** The trigram's exact mode is the empty continuation for $0.197$ of the MD&A prompts, and averages $2.367$ words where the real sentences continue for $7.298$. What it does say is cheap: $1.367$ nats per word, against $2.576$ for the held-out sentences themselves under the same model. A model asked for the most probable continuation of "benedikt kraus chief" answers "executive", and stops.
+
+**Normalization finds the template.** Dividing by Wu and colleagues' length penalty with $\alpha = 1$ lengthens the trigram's beam outputs to $7.053$ words at width $64$, close to the text's length, at $0.707$ nats per word, blander still. The extra words come from the corpus's cheapest long path. At width $16$, $0.133$ of the prompts end in the same five words, "to disclose a material event", the tail of the 8-K sentence "is filing this current report to disclose a material event". "Brightwater analytics competes" becomes "brightwater analytics competes with ostrander machine works is filing this current report to disclose a material event". Length normalization rewards length, and the longest cheap path in a filing corpus is legal boilerplate. Proposition 3 is the limiting case: with no cap, the reward for length would favor repeating the cheapest cycle forever.
+
+**The certificate goes quiet.** Under $\alpha = 1$ the length-capped certificate of Proposition 2 fires on only $0.261$ of the prompts at width $64$, against all of them at $\alpha = 0$. A normalized objective is harder to search and harder to verify, and on this corpus it trades an empty answer for a templated one. What an analyst wants from a model of filings, the sentence that carries the quarter's news, is in neither the mode nor its normalized cousin. The next topic samples instead of maximizing.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+The sampling topic, next in this track, gives up on the mode. Temperature, top-$k$, and nucleus sampling draw strings in proportion to (a reshaped) probability, and the gap between the mode's $1.367$ nats per word and the text's $2.576$ is the typicality question it takes up: real text is not the most probable text. The BLEU and ROUGE topic supplies what this page measured only by length, a score of the output against a reference, and it is on such scores that the beam-search curse was first seen.
+
+Three things are outside our scope. Minimum Bayes risk decoding, which Eikema and Aziz advocate, picks the string with the highest expected similarity to the model's samples rather than the most probable one. Constrained, diverse, and speculative decoding change what is searched for or how fast. And heuristic search with learned estimates of the remaining cost, A* proper, needs a bound on the future that language models do not supply.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and cited.** Theorems 1–5 and Propositions 1–5 are proved here. The hardness of exact decoding for recurrent networks, Meister and colleagues' regularizer for $k \gt 1$, and Welleck and colleagues' recurrent construction are cited; Propositions 4 and 5 prove only their simplest cases.
+2. **Small models.** The trigram has $3{,}427$ words and the decoder $509$, with two blocks of width $32$. Search-error rates at a given width depend on the model, the prompts, and the length cap, and do not transfer to large models.
+3. **A renormalized model.** Both engines are decoded conditioned, step by step, on never emitting the unknown-word token. That is not the model that was trained, nor that model conditioned on the event globally.
+4. **A narrow notion of model error.** We measure length and per-word predictability against held-out synthetic text, not human judgment and not BLEU.
+5. **No exact normalized optimum on the corpus.** Under length normalization the page reports beam search and the share of prompts on which Proposition 2 certifies it, a lower bound on how often it found the optimum.
+6. **Synthetic filings.** The prompts and the boilerplate come from the shared generator's templates, which make the corpus more repetitive than real filings.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `beam_search_decoding.py`, which owns every number on this page. That module imports the n-gram topic's module for the Kneser–Ney trigram, the perplexity topic's module for its vectorized next-word distributions, and the scaling-laws topic's module for the causal decoder and its gradient, which it trains from scratch in NumPy for $1{,}200$ steps. It implements uniform-cost search with lazy successors and optional recombination, beam search that runs several length penalties in one pass and reports Theorem 3's certificate, and greedy orbits on finite-state models. A harness of $19$ assertion-based tests runs in about thirty-one seconds on a laptop CPU. The tests cover:
+
+- Theorem 1 against brute-force enumeration on $200$ random trees, with the work bound on each, and graph search against tree search on every trigram prompt.
+- Theorem 2's three constructions, for $\varepsilon$ down to $10^{-3}$ and widths $1$ to $8$, and non-monotone widths on both corpus models.
+- Theorem 3's soundness on $100$ random trees and on both corpus models at every width, and Proposition 2's on the normalized runs.
+- Theorem 4 on every prefix and every string of $100$ random trees, Proposition 3's monotone limit, and Proposition 4 on $50$ trees.
+- Every decoder score against one full forward pass of the decoded string, to $10^{-9}$ in double precision.
+- Theorem 5 on every trigram prompt, and Proposition 5 for widths $1$ to $5$.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
