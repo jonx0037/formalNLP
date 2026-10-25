@@ -51,7 +51,7 @@
     {
       "id": "contextual-embeddings-masked-lm",
       "label": "Contextual Embeddings and the Masked-LM Objective",
-      "status": "planned",
+      "status": "published",
       "domain": "representations"
     },
     {
