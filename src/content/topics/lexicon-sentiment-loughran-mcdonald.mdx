@@ -1,0 +1,400 @@
+---
+title: "Lexicon Sentiment and the Loughran–McDonald Dictionary"
+subtitle: "A sentiment dictionary is a linear classifier whose weights were fixed before any label was seen. Net tone projects a filing onto one direction of the category simplex and discards the other; length, contamination, and the sentences no word list can read set its ceiling; and as a prior for logistic regression the dictionary is worth about a thousand labeled filings"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "linear-text-classifiers"
+tags:
+  - "sentiment-lexicon"
+  - "loughran-mcdonald"
+  - "net-tone"
+  - "chernoff-bound"
+  - "large-deviations"
+  - "domain-adaptation"
+  - "negation"
+  - "informative-prior"
+  - "label-propagation"
+  - "harmonic-functions"
+  - "financial-text"
+domain: "classification-sentiment"
+financeCaseStudy: true
+rigorFlag: "Proposition 1 and Theorem 1 assume that each token's category is drawn independently given the tone, which no real text satisfies; the synthetic corpus breaks it too, though the independent model happens to predict its measured sign error almost exactly. Theorem 1's tightness is Cramér's theorem, cited rather than proved. The general-purpose list of Proposition 2 is the corpus stand-in plus eight planted finance polysemes, not the Harvard-IV dictionary. Loughran and McDonald's finding that almost three-fourths of Harvard negative words in 10-Ks are not negative in context is quoted from their paper, not reproduced, and no number on this page comes from their dictionary, which is licensed for academic research and is never committed here. A one-token negation scope is exact on this corpus only because its one negation template is \"not\" followed by an adjective. Theorem 2(c) assumes a nondegenerate limit, and its constant is loose by a factor of about 36. The learning curves choose every penalty on a 600-document development set, a luxury when labels are scarce. Theorem 3's induction runs on a synthetic corpus whose templates decide which words share documents, and the tf–idf weighting Loughran and McDonald also propose is cited, not tested."
+videoId: null
+notebookPath: "notebooks/lexicon-sentiment-loughran-mcdonald/01_lexicon_sentiment_loughran_mcdonald.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/lexicon-sentiment-loughran-mcdonald.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 35
+abstract: "A sentiment dictionary scores a document by counting its positive and negative words. Seen through the previous topic, that is a linear classifier whose weights are fixed at plus one, minus one, and zero. This page asks what the fixing costs. Geometrically, a dictionary places a document at its rates of positive and negative hits, and the usual net-tone score keeps only their difference. When each tone draws word categories independently, the Bayes rule cuts the rate plane with lines, and those lines are parallel to the net-tone direction exactly when the tones' log-rate ratios are antisymmetric; on synthetic financial filings they are not, and the two counts beat their difference 0.724 to 0.637, because neutral filings have few polar words of either kind. The sign of the raw score is wrong with probability at most (1 − (√a − √b)²) to the power of the length, an exponent that is exact, and at the hit rates of a finance dictionary a 210-token filing is still misread a quarter of the time. Counting finance words such as tax and liability as negative, as a general-purpose list does, leaves the gap between tones unchanged and inflates every variance, which is Loughran and McDonald's case for a finance-specific dictionary. No word list reads a bare direction (\"costs rose\") or a cost that \"exceeded expectations\". Used as the center of a ridge penalty instead of as a classifier, the dictionary becomes a prior: the fit is ridge on the part of the weights orthogonal to the dictionary's directions, it converges to the dictionary at rate 1/λ, and it is never more than 0.01 below the better of the dictionary and plain logistic regression, which needs about a thousand labeled filings to catch the dictionary's two counts. Propagating polarity from four seed words with a harmonic function recovers most polar words' signs, but cannot tell polar words from topical ones."
+connections: []
+references:
+  - type: "paper"
+    title: "When Is a Liability Not a Liability? Textual Analysis, Dictionaries, and 10-Ks"
+    authors: "Tim Loughran and Bill McDonald"
+    year: 2011
+    url: "https://doi.org/10.1111/j.1540-6261.2010.01625.x"
+    note: "Journal of Finance 66 (1): 35–65. Almost three-fourths of the Harvard-IV negative words in 10-Ks are not negative in financial contexts; six finance word lists, proportional and tf–idf weighted tone"
+  - type: "paper"
+    title: "Textual Analysis in Accounting and Finance: A Survey"
+    authors: "Tim Loughran and Bill McDonald"
+    year: 2016
+    url: "https://doi.org/10.1111/1475-679X.12123"
+    note: "Journal of Accounting Research 54 (4): 1187–1230. Dictionaries against machine learning in finance, and the case for transparency and replicability"
+  - type: "documentation"
+    title: "Loughran-McDonald Master Dictionary w/ Sentiment Word Lists"
+    authors: "Tim Loughran and Bill McDonald"
+    year: 2026
+    url: "https://sraf.nd.edu/loughranmcdonald-master-dictionary/"
+    note: "Software Repository for Accounting and Finance, University of Notre Dame. The 1993–2025 lists used by this page's opt-in loader; free for academic research, with commercial licenses from the authors"
+  - type: "paper"
+    title: "Giving Content to Investor Sentiment: The Role of Media in the Stock Market"
+    authors: "Paul C. Tetlock"
+    year: 2007
+    url: "https://doi.org/10.1111/j.1540-6261.2007.01232.x"
+    note: "Journal of Finance 62 (3): 1139–68. Harvard-IV pessimism in a Wall Street Journal column predicts market returns, the study that brought dictionary tone to finance"
+  - type: "paper"
+    title: "Word Power: A New Approach for Content Analysis"
+    authors: "Narasimhan Jegadeesh and Di Wu"
+    year: 2013
+    url: "https://doi.org/10.1016/j.jfineco.2013.08.018"
+    note: "Journal of Financial Economics 110 (3): 712–29. Weights for dictionary words estimated from the market's reaction, the support-only regression of this page's learning curves"
+  - type: "paper"
+    title: "Yahoo! for Amazon: Sentiment Extraction from Small Talk on the Web"
+    authors: "Sanjiv R. Das and Mike Y. Chen"
+    year: 2007
+    url: "https://doi.org/10.1287/mnsc.1070.0704"
+    note: "Management Science 53 (9): 1375–88. Lexicon-based classifiers for stock message boards, with negation marking"
+  - type: "paper"
+    title: "VADER: A Parsimonious Rule-Based Model for Sentiment Analysis of Social Media Text"
+    authors: "C. J. Hutto and Eric Gilbert"
+    year: 2014
+    url: "https://doi.org/10.1609/icwsm.v8i1.14550"
+    note: "Proceedings of the International AAAI Conference on Web and Social Media 8 (1): 216–25. A rule-based lexicon whose negation looks three tokens back, among other heuristics"
+  - type: "paper"
+    title: "Lexicon-Based Methods for Sentiment Analysis"
+    authors: "Maite Taboada, Julian Brooke, Milan Tofiloski, Kimberly Voll, and Manfred Stede"
+    year: 2011
+    url: "https://doi.org/10.1162/COLI_a_00049"
+    note: "Computational Linguistics 37 (2): 267–307. Semantic orientation calculators with intensifiers and negation shifts, and their cross-domain robustness"
+  - type: "paper"
+    title: "Predicting the Semantic Orientation of Adjectives"
+    authors: "Vasileios Hatzivassiloglou and Kathleen R. McKeown"
+    year: 1997
+    url: "https://aclanthology.org/P97-1023/"
+    note: "Proceedings of the 35th Annual Meeting of the ACL, 174–81. Polarity from conjunctions (\"and\" joins like orientations, \"but\" opposite ones), the first induced lexicon"
+  - type: "paper"
+    title: "Thumbs Up or Thumbs Down? Semantic Orientation Applied to Unsupervised Classification of Reviews"
+    authors: "Peter D. Turney"
+    year: 2002
+    url: "https://aclanthology.org/P02-1053/"
+    note: "Proceedings of the 40th Annual Meeting of the ACL, 417–24. A phrase's orientation as its PMI with \"excellent\" minus its PMI with \"poor\": two seeds"
+  - type: "paper"
+    title: "Inducing Domain-Specific Sentiment Lexicons from Unlabeled Corpora"
+    authors: "William L. Hamilton, Kevin Clark, Jure Leskovec, and Dan Jurafsky"
+    year: 2016
+    url: "https://aclanthology.org/D16-1057/"
+    note: "Proceedings of EMNLP 2016, 595–605. SentProp: random walks from seed words over an embedding graph, with bootstrapped confidence"
+  - type: "paper"
+    title: "Semi-Supervised Learning Using Gaussian Fields and Harmonic Functions"
+    authors: "Xiaojin Zhu, Zoubin Ghahramani, and John Lafferty"
+    year: 2003
+    url: "https://aaai.org/papers/icml03-118-semi-supervised-learning-using-gaussian-fields-and-harmonic-functions/"
+    note: "Proceedings of the Twentieth International Conference on Machine Learning, 912–19. The harmonic solution, its random-walk reading, and its relation to label propagation (Theorem 3)"
+  - type: "book"
+    title: "Random Walks and Electric Networks"
+    authors: "Peter G. Doyle and J. Laurie Snell"
+    year: 1984
+    url: "https://arxiv.org/abs/math/0001057"
+    note: "Mathematical Association of America. Harmonic functions on graphs: uniqueness, the maximum principle, and escape probabilities (Theorem 3(a)–(c))"
+  - type: "book"
+    title: "Large Deviations Techniques and Applications"
+    authors: "Amir Dembo and Ofer Zeitouni"
+    year: 2010
+    url: "https://doi.org/10.1007/978-3-642-03311-7"
+    note: "2nd ed., Springer. Theorem 2.2.3, Cramér's theorem in ℝ, which gives Theorem 1(b)"
+formalmlPrereqs:
+  - topic: "concentration-inequalities"
+    site: "formalml"
+    relationship: "Its Theorem 3, the Chernoff bound, is the method of Theorem 1(a): exponentiate, apply Markov's inequality, and optimize the moment generating function, here for a three-valued token score."
+  - topic: "graph-laplacians"
+    site: "formalml"
+    relationship: "Its Laplacian quadratic form, a sum of squared differences across edges, is the Dirichlet energy whose positivity with seed boundary values makes Theorem 3's harmonic solution unique."
+formalmlConnections:
+  - topic: "naive-bayes"
+    site: "formalml"
+    relationship: "Proposition 1's category world is multinomial naive Bayes on three collapsed categories (positive, negative, other); its development of the multinomial event model is the general case."
+  - topic: "random-walks"
+    site: "formalml"
+    relationship: "Its hitting-time machinery is the probabilistic side of Theorem 3(c): a word's induced polarity is twice the probability that a walk from it reaches a positive seed first, minus one."
+formalstatisticsPrereqs:
+  - topic: "large-deviations"
+    site: "formalstatistics"
+    relationship: "Its Theorem 6, Cramér's theorem for independent sample means, supplies the matching lower bound that makes Theorem 1's exponent log ρ exact rather than only an upper bound."
+  - topic: "regularization-and-penalized-estimation"
+    site: "formalstatistics"
+    relationship: "Theorem 2 is ridge regression's penalty moved off the origin: shrinking a logistic model toward the dictionary's subspace instead of toward zero, which is its Gaussian-prior reading with a nonzero prior mean."
+formalragConnections:
+  - topic: "vector-space-model-tfidf"
+    site: "formalrag"
+    relationship: "Loughran and McDonald also weight dictionary words by tf–idf, the retrieval weighting that topic derives; this page cites that variant rather than re-deriving or testing it."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import LexiconSentimentLab from '../../components/viz/LexiconSentimentLab.tsx';
+
+## Overview & Motivation
+
+Take the $1{,}500$ synthetic financial filings of the [linear classifiers topic](/topics/linear-text-classifiers), labeled negative, neutral, or positive in tone, and score each one with a word list: count its positive words, subtract its negative words, divide by its length. With two cutpoints tuned on the training filings, this *net tone* gets $0.637$ of the test filings right. Logistic regression on all the word counts got $0.739$. The dictionary uses no labels at all, apart from its two cutpoints.
+
+Finance learned to distrust such lists the hard way. Loughran and McDonald (2011) found that in a large sample of 10-K filings, almost three-fourths of the words that the widely used Harvard-IV dictionary calls negative are not negative in a financial context: *tax*, *cost*, *capital*, *liability*, *crude*. Their finance word lists replaced Harvard-IV across the literature. This page treats a dictionary as what the previous topic would call it, a linear classifier with fixed weights, and asks what the fixing costs. In order:
+
+1. **The category simplex.** A dictionary places a document at its rates of positive and negative words, and net tone keeps one direction of that plane.
+2. **Length.** How many words a document needs before the sign of its score can be trusted.
+3. **Contamination.** What counting *tax* as negative does, exactly.
+4. **What no word list reads.** Directions, the valence trap, and negation.
+5. **The dictionary as a prior.** Shrinking logistic regression toward the dictionary instead of toward zero.
+6. **Inducing a dictionary.** Propagating polarity from a few seed words, and where that stops.
+
+The corpus has a hand-written stand-in lexicon (positive, negative, uncertainty, and litigious lists of $15$ to $18$ words each). It is not derived from the Loughran–McDonald dictionary, whose license allows academic research but not redistribution here; every number on this page comes from the stand-in.
+
+---
+
+## A dictionary reads a filing
+
+Here is one sentence from a positive filing, with the stand-in's words marked: "Revenue climbed 4 percent in transprices, a trend executives characterized as **solid**. Liquidity in brokerware and cargoflows was **efficient**." Two positive hits, no negative ones. The same filing also says "Taxes rose 5 percent in freightworks, which analysts viewed as **adverse**," one negative hit for a fact that is bad news, and "Estimates of assumptions **may** change, and the microcredits outlook remains **tentative**," two uncertainty hits that say nothing about direction.
+
+<TheoremBlock type="definition" number={1} title="Lexicon, counts, and net tone">
+
+A **lexicon** is a family of disjoint word sets, here positive $P$, negative $N$, uncertainty, and litigious. For a document with count vector $x$ and length $L = \sum_j x_j$, the **category counts** are $n_+ = \sum_{j \in P} x_j$ and $n_- = \sum_{j \in N} x_j$, the **rates** are $\hat p_\pm = n_\pm / L$, the **weight vector** is $w_L = \mathbf 1_P - \mathbf 1_N$, the **raw score** is $s = w_L \cdot x = n_+ - n_-$, and the **net tone** is $s/L = \hat p_+ - \hat p_-$.
+
+</TheoremBlock>
+
+The raw score is a linear function of the counts with weights in $\{-1, 0, 1\}$, so a lexicon is a point of the previous topic's hypothesis class that was chosen without data. Net tone divides by the length, which is Loughran and McDonald's proportional measure, and the cutpoints turn it into a three-way decision.
+
+---
+
+## The category simplex
+
+Discard everything about a document except its rates. Then the document is a point $(\hat p_+, \hat p_-)$ in a small triangle, the simplex whose third corner is "everything else". Net tone measures that point along the diagonal direction $(1, -1)$, so a net-tone rule cuts the triangle with lines parallel to $\hat p_+ = \hat p_-$. Whether that is the right cut depends on how the tones place their documents.
+
+Suppose each tone $t$ draws every token's category independently with rates $q_t = (q_{t+}, q_{t-}, q_{t0})$, where $q_{t0}$ covers every token that is in neither list, and draws the word within its category from a distribution that does not depend on the tone. Call this a **category world**. For two tones $t$ and $t'$, write
+
+$$u_c = \log\frac{q_{tc}}{q_{t'c}} - \log\frac{q_{t0}}{q_{t'0}} \quad (c = +, -), \qquad v = \log\frac{q_{t0}}{q_{t'0}}.$$
+
+<TheoremBlock type="proposition" number={1} title="The Bayes rule of a category world">
+
+Assume a category world with equal tone priors.
+
+**(a)** The posterior depends on the document only through its category counts: $\log P(t \mid x) = n_+ \log q_{t+} + n_- \log q_{t-} + n_0 \log q_{t0} + c(x)$ with $n_0 = L - n_+ - n_-$ and $c(x)$ free of $t$. Divided by $L$, every tone's score is affine in $(\hat p_+, \hat p_-)$, so the Bayes regions are cut by lines.
+
+**(b)** Tones $t$ and $t'$ are decided by a threshold on net tone if and only if $u_+ = -u_-$.
+
+**(c)** In the **symmetric-tilt world** with $q_0 = (m, m, 1 - 2m)$, $q_+ = (m e^\beta, m e^{-\beta}, 1 - 2m)/Z$, and $q_-$ its mirror image, where $Z = 1 + 2m(\cosh\beta - 1)$, the Bayes rule is: positive if $s/L \gt \tau$, negative if $s/L \lt -\tau$, neutral otherwise, with $\tau = \log Z/\beta \gt 0$. The positive-against-negative log-odds is $2\beta s$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) A word $j$ of category $c$ has probability $q_{tc}\, r_c(j)$ under tone $t$, so $\log P(x \mid t)$ is the multinomial coefficient, plus $\sum_c n_c \log q_{tc}$, plus $\sum_j x_j \log r_{c(j)}(j)$. Only the middle term depends on $t$, and with equal priors the posterior is the softmax of $n \cdot \log q_t$. Since $n_0/L = 1 - \hat p_+ - \hat p_-$, each score divided by $L$ is affine in the rates, and the boundary between two tones is the line $u_+ \hat p_+ + u_- \hat p_- + v = 0$.
+
+(b) The pair's log-odds divided by $L$ is $u_+\hat p_+ + u_-\hat p_- + v$. It is a function of $\hat p_+ - \hat p_-$ alone on the open simplex if and only if its gradient $(u_+, u_-)$ is parallel to $(1, -1)$, that is, if and only if $u_+ = -u_-$.
+
+(c) Positive against neutral has $u_+ = \beta$, $u_- = -\beta$, and $v = -\log Z$, so positive wins exactly when $\beta s/L \gt \log Z$; negative against neutral is the mirror image. Positive against negative has $u_+ = 2\beta$, $u_- = -2\beta$, and $v = 0$, so its log-odds is $2\beta s$. Since $\cosh\beta \gt 1$, we have $Z \gt 1$ and $\tau \gt 0$, and the three pairwise rules agree on the stated regions.
+
+</TheoremBlock>
+
+So net tone is the Bayes rule of a particular world, one in which a positive document trades negative words for positive ones symmetrically. With unequal priors the prior adds $\log \pi_t$ to each score, which becomes a length-dependent offset after dividing by $L$, so even there a fixed cutpoint on net tone is only right for documents of one length.
+
+The finance corpus is not that world. Positive filings have $1.79$ positive hits per $100$ tokens against $0.69$ in neutral ones, but $0.82$ negative hits against $0.68$: a positive filing still reports some bad news. Fitting the category world's rates to the training filings gives $(u_+, u_-) = (0.967, 0.191)$ for positive against neutral, far from antisymmetric. Neutral filings are the ones with few polar words of either kind, and a band of diagonal lines cannot separate them from filings with many polar words in balance. The plug-in Bayes rule of the category world, which uses both counts, scores $0.724$ on the test filings, against net tone's $0.637$, close to logistic regression's $0.739$ on every word. Most of the gap between the dictionary and the learned model is the projection, not the word list. The **Simplex** tab draws the filings and both rules.
+
+<LexiconSentimentLab client:visible />
+
+---
+
+## How long a document must be
+
+Even in a world where net tone is right, a short document does not contain enough hits to decide. Model the tokens of a positive document as independent, each a positive hit with probability $a$, a negative hit with probability $b \lt a$, and neither otherwise, and let $S_L$ be the raw score of $L$ tokens.
+
+<TheoremBlock type="theorem" number={1} title="Length and the sign of the score">
+
+Let $\rho = 1 - (\sqrt a - \sqrt b)^2$. Then **(a)** $P(S_L \le 0) \le \rho^L$ for every $L$, and **(b)** $\frac1L \log P(S_L \le 0) \to \log\rho$ as $L \to \infty$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) For $t \ge 0$, Markov's inequality gives $P(S_L \le 0) = P(e^{-tS_L} \ge 1) \le E\,e^{-tS_L} = M(t)^L$ with $M(t) = a e^{-t} + b e^{t} + 1 - a - b$. The function $M$ is strictly convex, with $M'(t) = 0$ where $e^{2t} = a/b$, at $t^\ast = \tfrac12 \log(a/b) \gt 0$, and there $M(t^\ast) = 2\sqrt{ab} + 1 - a - b = 1 - (\sqrt a - \sqrt b)^2$.
+
+(b) Cramér's theorem for the mean $S_L/L$ ([formalStatistics: large deviations](https://www.formalstatistics.com/topics/large-deviations), Theorem 6; Dembo and Zeitouni, Theorem 2.2.3) has rate function $I(y) = \sup_\lambda [\lambda y - \log M(-\lambda)]$. Because $E X = a - b \gt 0$, the function $I$ is convex, vanishes at $a - b$, and is finite and continuous on $(-1, 1)$, so its infimum over $(-\infty, 0)$ equals its infimum over $(-\infty, 0]$, which is $I(0) = -\log\min_t M(t) = -\log\rho$. The upper and lower bounds of Cramér's theorem therefore meet at $-\log \rho$.
+
+</TheoremBlock>
+
+The factor $\rho = 2\sqrt{ab} + (1 - a - b)$ is the Bhattacharyya coefficient between the hit distributions of positive and negative documents, so $1 - \rho = (\sqrt a - \sqrt b)^2$ is their squared Hellinger distance, and the error is small once $L(\sqrt a - \sqrt b)^2$ is large. For the stand-in on positive filings, $a = 0.0179$ and $b = 0.0082$, so $\rho = 0.998$. Positive filings average $210.5$ tokens, about $5.5$ expected hits, and at that length the bound is $0.671$. That is loose: the exact error of the independent model is $0.253$. The corpus is not independent tokens, since its tone lives in five to eight aspect sentences, yet the measured share of positive filings with a raw score of zero or below is $0.252$. One positive filing in four is misread before any subtlety of language enters. A lexicon ten times denser would bring the error at $193$ tokens down to $0.004$, which is why finance dictionaries are long. The **Length** tab plots the exact error and the bound for three presets.
+
+---
+
+## When is a liability not a liability
+
+<FinanceCaseStudy title="Finance case study: a general-purpose list in a 10-K">
+
+A general-purpose negative list reads *tax*, *cost*, *capital*, *liability*, and *crude* as bad news. In a filing they are the vocabulary of accounting. The corpus plants these five words and their plurals, eight forms in all, in neutral sentences that report a tax expense, a lease liability, or a cost of revenue, and the **general** list adds them to the stand-in's negative list.
+
+<TheoremBlock type="proposition" number={2} title="Contamination by tone-independent words">
+
+Add to the negative list a word set, disjoint from $P$ and $N$, whose tokens occur at rate $c$ in every tone, taking that mass from the non-polar tokens. Per token, in positive documents (hit rates $a$, $b$) and negative ones ($b$, $a$): **(i)** the gap between the two tones' means stays $2(a - b)$; **(ii)** the variances rise by exactly $c(1 - c + 2(a - b))$ and $c(1 - c - 2(a - b))$; **(iii)** if $a \ne b$ and $c + 2\lvert a - b\rvert \lt 1$, Fisher's ratio $(\mu_+ - \mu_-)^2 / \tfrac12(\sigma_+^2 + \sigma_-^2)$ falls strictly. The same holds for documents, with means and variances multiplied by $L$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A token in a positive document now scores $+1$ with probability $a$ and $-1$ with probability $b + c$. Its mean is $a - b - c$ and its second moment is $a + b + c$, so its variance is $a + b + c - (a - b - c)^2$, and subtracting the clean variance $a + b - (a - b)^2$ leaves $c - c^2 + 2c(a - b)$. In a negative document the mean is $b - a - c$, and the same computation gives $c - c^2 - 2c(a - b)$. Both means move by $-c$, so the gap is unchanged. Under the stated condition both increments are positive, so the ratio's denominator grows while its numerator stays fixed. Over $L$ independent tokens the means and variances scale by $L$.
+
+</TheoremBlock>
+
+Re-tuning the cutpoints moves them with the means and absorbs the shift. The added variance cannot be tuned away. On the corpus the polysemes add $1.815$, $1.77$, and $1.837$ negative hits per $100$ tokens to negative, neutral, and positive filings, nearly the same rate in every tone, as Proposition 2 assumes. Every mean slides left, by about that amount; Fisher's ratio between the polar tones falls from $3.653$ to $2.457$; the share of polar filings whose score has the right sign falls from $0.759$ to $0.600$; and three-class accuracy with re-tuned cutpoints falls from $0.637$ to $0.572$. In positive filings the general list's negative rate ($0.0265$) now exceeds the positive rate ($0.0179$), so Theorem 1 gives no bound at all, and the raw score's sign gets *worse* with length. The **Contamination** tab shows the three histograms slide and spread.
+
+The real filings committed with the corpus show the same words. In three short MD&A excerpts from public 10-Ks, the finance stand-in finds $2$ negative words, while a general list would add $4$ more: *cost*, *liabilities*, and *tax* from ExxonMobil, *taxes* from Microsoft. The counts are small because the excerpts are, but the direction is Loughran and McDonald's.
+
+</FinanceCaseStudy>
+
+---
+
+## What no word list reads
+
+The corpus's gold annotation records each aspect a sentence evaluates and its polarity for the company, and its templates tell us how each sentence was written. Restrict to the $5{,}171$ test sentences whose aspects share one nonzero polarity, and ask whether the sign of the sentence's raw score matches it.
+
+| construction | sentences | right |
+|---|---|---|
+| adjective ("margins were solid") | $1{,}205$ | $1.000$ |
+| direction with a comment ("rose 4 percent, a trend executives characterized as solid") | $1{,}746$ | $1.000$ |
+| bare direction ("costs rose 5 percent") | $595$ | $0$ (abstains) |
+| negated adjective ("revenue was not weak") | $302$ | $0$ |
+| verb, up is good ("sales beat expectations") | $446$ | $1.000$ |
+| verb, cost-like ("costs exceeded expectations") | $352$ | $0$ |
+| noun phrase ("Management pointed to strength in demand") | $525$ | $1.000$ |
+
+Overall the lexicon gets $0.758$ of these sentences right and abstains on $0.115$. The failures are of two kinds. A bare direction and a cost-like "exceeded expectations" are the previous topic's exclusive-or of aspect valence and direction: "costs rose" is bad news and "revenue rose" good news, written with the same word, and no fixed weight on single words can read both. Negation is different, because it can be patched with a scope rule.
+
+<TheoremBlock type="definition" number={2} title="Negation scope">
+
+With scope $k$, a positive or negative hit at position $i$ counts for the other side if a negator (*not*, *no*, *never*) occurs among positions $i - k, \dots, i - 1$.
+
+</TheoremBlock>
+
+Das and Chen (2007) mark negated words in this way, and VADER (Hutto and Gilbert 2014) looks three tokens back. On this corpus, whose only negation template is "not" followed by an adjective, scope $k = 1$ repairs all $302$ negated sentences, raising sentence accuracy to $0.817$ and three-class document accuracy from $0.637$ to $0.696$. Wider scopes change nothing until $k = 8$, where $36$ flips land on words in the next sentence and document accuracy slips to $0.694$. Real text negates in more ways and at more distances, so the scope is a trade-off there, not a free fix. The **Constructions** tab shows the table with and without the scope.
+
+Loughran and McDonald's other lists measure something other than polarity. Uncertainty words occur at $1.618$, $1.618$, and $1.565$ per $100$ tokens in negative, neutral, and positive filings: the same rate in every tone. Litigious words occur only in the 8-K filings, at $1.330$ per $100$ tokens. The rule "any uncertainty word means neutral" scores $0.414$, far below net tone, and a logistic model on all four category rates scores $0.725$, exactly what it scores on the two polarity rates alone. Uncertainty is not neutrality; it is a separate dimension of the text.
+
+---
+
+## The dictionary as a prior
+
+A dictionary is free and a labeled filing is not. The previous topic's logistic regression shrinks its weights toward zero; we can shrink them toward the dictionary instead. Let $A$ be a $V \times r$ matrix of dictionary directions, either $A = w_L$ (net tone, $r = 1$) or $A = [\mathbf 1_P, \mathbf 1_N]$ (the two counts, $r = 2$), and give class $k$ the logit $x \cdot \Delta_k + (A^\top x) \cdot \beta_k + b_k$, so that its weight vector is $W_k = \Delta_k + A\beta_k$. Fit by minimizing the mean cross-entropy plus $\frac\lambda2 \sum_k \lVert\Delta_k\rVert^2$, with no penalty on $\beta$ or $b$.
+
+<TheoremBlock type="theorem" number={2} title="Shrinking toward a dictionary">
+
+Let $A$ have full column rank, let $P_\perp$ be the orthogonal projection onto the complement of its column space, and let $G = \frac1n \sum_i \lVert x_i \rVert$.
+
+**(a)** The fit is equivalent to minimizing the cross-entropy of $W$ plus $\frac\lambda2 \sum_k \lVert P_\perp W_k \rVert^2$, ridge on the part of each class's weights orthogonal to the dictionary's directions, with $\Delta_k = P_\perp W_k$. In particular $A^\top \Delta_k = 0$.
+
+**(b)** At the optimum, $\lVert \Delta_k \rVert \le G/\lambda$ for every class $k$.
+
+**(c)** If the limiting problem, softmax regression on the dictionary counts $A^\top x$ alone, has a nondegenerate minimizer (after fixing the common shift of the softmax), then the fitted probabilities converge to its probabilities as $\lambda \to \infty$, uniformly on bounded sets, at rate $O(1/\lambda)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The cross-entropy depends on $(\Delta, \beta)$ only through $W$. For a fixed $W_k$, minimizing $\lVert\Delta_k\rVert^2$ over the decompositions $W_k = \Delta_k + A\beta_k$ is least squares in $\beta_k$, with minimum $\lVert P_\perp W_k \rVert^2$ attained at $\Delta_k = P_\perp W_k$.
+
+(b) Setting the gradient in $\Delta_k$ to zero gives $\nabla_{W_k}\mathrm{CE} + \lambda\Delta_k = 0$. (Setting the gradient in $\beta_k$ to zero gives $A^\top \nabla_{W_k}\mathrm{CE} = 0$, which is the orthogonality of (a) again.) Since $\nabla_{W_k}\mathrm{CE} = \frac1n \sum_i (p_{ik} - y_{ik})\, x_i$ and $\lvert p_{ik} - y_{ik} \rvert \le 1$, we get $\lVert\Delta_k\rVert \le G/\lambda$.
+
+(c) For fixed $\Delta$, the optimal $(\beta, b)$ minimizes the convex function $\mathrm{CE}(\Delta, \cdot, \cdot)$, and at $\Delta = 0$ its stationarity equations are those of the limiting problem. Nondegeneracy and the implicit function theorem give a smooth branch $(\beta(\Delta), b(\Delta))$ of minimizers near $\Delta = 0$, and by convexity the optimum at $\Delta_\lambda$ lies on it, so $(\beta_\lambda, b_\lambda)$ is within $O(\lVert \Delta_\lambda \rVert)$ of the limit. Every logit then moves by $O(\lVert x\rVert\,\lVert\Delta_\lambda\rVert)$, and the softmax is Lipschitz, so by (b) the probabilities move by $O(1/\lambda)$.
+
+</TheoremBlock>
+
+On the full training set, $G = 26.364$ while $\lambda \max_k \lVert\Delta_k\rVert$ is at most $0.725$, so the constant in (b) is loose by a factor of about $36$, and the largest gap between the fitted and limiting test probabilities falls from $0.4674$ at $\lambda = 1$ to $0.1591$, $0.0215$, and $0.0022$ at $\lambda = 10$, $100$, and $1{,}000$: one decade of accuracy per decade of $\lambda$.
+
+The learning curves set the price of the dictionary in labeled filings. Each column is a number of labeled training filings $n$; small $n$ average ten random samples, and every penalty is chosen on $600$ development filings.
+
+| method | $10$ | $100$ | $300$ | $1{,}000$ | $1{,}500$ |
+|---|---|---|---|---|---|
+| dictionary, net tone | $0.547$ | $0.620$ | $0.630$ | $0.639$ | $0.639$ |
+| dictionary, two counts | $0.623$ | $0.712$ | $0.719$ | $0.717$ | $0.717$ |
+| logistic regression on the $35$ lexicon words | $0.471$ | $0.639$ | $0.706$ | $0.729$ | $0.739$ |
+| logistic regression on every word | $0.399$ | $0.532$ | $0.614$ | $0.719$ | $0.739$ |
+| prior toward net tone | $0.549$ | $0.701$ | $0.723$ | $0.751$ | $0.766$ |
+| prior toward two counts | $0.616$ | $0.712$ | $0.725$ | $0.748$ | $0.757$ |
+
+The dictionary rows are flat, because they fit only a scale and two cutpoints. Plain logistic regression first matches the dictionary at $n = 1{,}000$, for both forms of it: the two counts are worth about a thousand labeled filings. Restricting the regression to the dictionary's words, as Jegadeesh and Wu (2013) do with market reactions, gets there faster and ends at the same $0.739$. The priors are never more than $0.01$ below the better of their two ends, and at $1{,}500$ filings the prior toward net tone beats plain logistic regression, $0.766$ to $0.739$. Along the penalty path at $n = 1{,}500$, its accuracy rises from the dictionary's $0.639$ at $\lambda = 10^4$ to $0.766$ at $\lambda = 0.1$, then falls to $0.731$ at $\lambda = 10^{-3}$, where the fit is ordinary ridge logistic regression. All six methods remain well below the corpus's full-text Bayes accuracy of $0.890$, which needs the aspect structure that no bag of words sees. The **Prior** tab draws the curves and the path.
+
+---
+
+## Inducing a dictionary
+
+Loughran and McDonald built their lists by reading words in context. The alternative is to induce a list from unlabeled text: start from a few seed words of known polarity and spread polarity to words that keep their company (Hatzivassiloglou and McKeown 1997; Turney 2002; Hamilton and colleagues 2016). One way to spread it is to solve a Dirichlet problem on a word graph.
+
+Let $W$ be a symmetric nonnegative matrix of edge weights on a vertex set $S \cup U$, with seed values $f_S \in \{-1, +1\}^S$, degrees $d_v = \sum_j W_{vj}$, and $D = \operatorname{diag}(d)$.
+
+<TheoremBlock type="theorem" number={3} title="Harmonic polarity">
+
+Suppose every vertex of $U$ is joined to some seed by a path of positive weight. Then **(a)** $(D - W)_{UU}$ is positive definite, so the system $(D - W)_{UU} f_U = W_{US} f_S$ has exactly one solution; **(b)** that solution is **harmonic**, $f_v = \sum_j (W_{vj}/d_v) f_j$ for $v \in U$, and satisfies $\min f_S \le f \le \max f_S$; **(c)** $f_v = 2h_v - 1$, where $h_v$ is the probability that the random walk with steps $W_{vj}/d_v$, started at $v$, reaches a positive seed before a negative one; and **(d)** clamped label propagation, which repeats $f \leftarrow D^{-1}Wf$ and resets the seeds, converges to $f$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) For $g$ on $U$, $g^\top (D - W)_{UU}\, g = \tfrac12 \sum_{i, j \in U} W_{ij}(g_i - g_j)^2 + \sum_{i \in U} g_i^2 \sum_{s \in S} W_{is} \ge 0$. If it is $0$, then $g$ is constant on each connected component of $U$ and vanishes at every vertex adjacent to a seed; every component contains such a vertex, so $g = 0$.
+
+(b) The averaging identity is row $v$ of the system. Let $\mu = \max_U f$ and suppose $\mu \gt \max f_S$. At a maximizer, $f_v$ is an average of neighbors' values that are all at most $\mu$, so every neighbor also equals $\mu$; following a path from $v$ to a seed reaches a seed of value $\mu \gt \max f_S$, which is impossible. The minimum is symmetric.
+
+(c) From every vertex the seeds are reachable, so the walk is absorbed almost surely. Conditioning on its first step gives $h_v = \sum_j (W_{vj}/d_v) h_j$ on $U$, with $h = 1$ on positive seeds and $h = 0$ on negative ones. Then $2h - 1$ is harmonic on $U$ with the boundary values $\pm 1$, and by (a) it equals $f$.
+
+(d) The iteration is the Jacobi method for the system of (a). Its matrix $D_{UU}^{-1} W_{UU}$ is substochastic, and mass leaks to the seeds from every component, so its spectral radius is below $1$.
+
+</TheoremBlock>
+
+Zhu, Ghahramani, and Lafferty (2003) introduced this solution for semi-supervised learning, and Doyle and Snell (1984) give the classical theory. On the corpus we build the graph from the training filings: one vertex per word type in at least $30$ filings ($699$ types), edge weights equal to the positive part of the words' pointwise mutual information across documents, and seeds *strong*, *robust* against *weak*, *adverse*. We report each word's harmonic value centered at the median and divided by the standard deviation, a score $z$.
+
+The signs come out mostly right: $25$ of the $28$ other stand-in polar words in the graph land on their own side ($0.893$), and over $200$ random choices of two positive and two negative seeds the median is $0.821$. Positive filings contain more positive words, so positive words share documents with each other, and propagation finds that. The magnitudes are another matter. The polar words have mean $\lvert z \rvert$ of $1.085$ and $1.055$, but the polysemes have $0.907$: *liability* ($-1.462$), *taxes* ($-1.267$), *crude* ($-1.143$), and *tax* ($-0.911$) land on the negative side, which reproduces part of the general list's mistake. And the ten most positive words in the whole graph include just one lexicon word, *strength*; the rest are sector words such as *therapeutics* and *biosciences* that happen to share documents with the seeds. Propagation is good at scoring a candidate list. It cannot choose the list, and choosing it is the curation Loughran and McDonald did by hand. The **Induction** tab plots every stand-in word's score.
+
+---
+
+## Where this sits
+
+Dictionary tone entered finance with Tetlock (2007), who found that the Harvard-IV pessimism of a *Wall Street Journal* column predicts market returns. Loughran and McDonald (2011) showed that the same dictionary misreads 10-Ks and built the finance lists that replaced it, and their survey (2016) argues that a transparent list is worth some accuracy in research that others must replicate. Their lists also come with a tf–idf weighting, which formalRAG's [vector-space model topic](https://www.formalrag.com/topics/vector-space-model-tfidf) derives; outside finance, Taboada and colleagues (2011) build lexicons with intensifiers and graded negation.
+
+The next topic, aspect-based sentiment, attaches polarity to the aspect a sentence evaluates, which is what this page's bare directions and cost-like verbs need. The capstone scores earnings calls with a dictionary and a learned model side by side.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and cited.** Propositions 1–2 and Theorems 1–3 are proved here, except the lower bound in Theorem 1(b), which is Cramér's theorem.
+2. **Independent tokens.** Proposition 1 and Theorem 1 assume each token's category is drawn independently given the tone. The corpus breaks this too, though the independent model happens to predict its measured sign error almost exactly.
+3. **A planted general list.** Proposition 2's general-purpose list is the stand-in plus eight planted finance polysemes, not Harvard-IV. Loughran and McDonald's "almost three-fourths" is quoted from their paper, and no number here comes from their dictionary.
+4. **A friendly negation template.** A one-token scope is exact here only because the corpus negates in one way.
+5. **Loose constants, tuned penalties.** Theorem 2(c) assumes a nondegenerate limit, and its constant $G$ is loose by a factor of about $36$. The learning curves choose every penalty on $600$ development filings, which is a luxury when labels are the scarce resource.
+6. **Induction on a synthetic corpus.** Theorem 3's graph comes from templates that decide which words share documents. The tf–idf weighting is cited, not tested.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `lexicon_sentiment_loughran_mcdonald.py`, which owns every number on this page. That module imports the linear classifiers topic's module for its train, development, and test split, its features, and its trust-region Newton fits, and the shared finance corpus through it. Its harness checks:
+
+- Proposition 1 against the literal multinomial likelihood in random category worlds and tilt worlds, and on the corpus.
+- Theorem 1's bound against the exact law of the score on $250$ instances, its exponent's convergence, and its prediction on the corpus.
+- Proposition 2's exact moments on $500$ random instances, and the general list's effect on the corpus and on the EDGAR excerpts.
+- The construction table, the negation sweep, and the uncertainty and litigious profiles.
+- Theorem 2's orthogonality, bound, and $1/\lambda$ convergence for both dictionary subspaces, and the learning curves.
+- Theorem 3's uniqueness, maximum principle, label propagation, and a Monte Carlo random walk, and the induction on the corpus.
+- That no file in the repository looks like the Loughran–McDonald dictionary.
+
+The module also includes `load_lm_dictionary()`, which loads the real dictionary into the stand-in's format if you supply a copy (set `LM_MASTER_DICTIONARY`, or opt in to a download into `~/.cache/formalnlp/lm/`). Nothing on this page or in the harness depends on it. The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
