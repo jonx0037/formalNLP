@@ -79,7 +79,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   excerpts carry none; `fc._tokens` keeps `[a-z]+` only. For names a model never saw, train on
   `generate_corpus(…, roster=fc.split_roster()[0])` and test on `roster=…[1]`. A model trained on filings
   memorizes names and copies none it did not see (Topic 11: 0.000 on held-out names); in-context
-  copying has to be trained on repeated random sequences.
+  copying has to be trained on repeated random sequences. Polysemy: 21 company aliases double as
+  products (gold `Entity.type`; `kestrel` 57 ORG / 61 PRODUCT), while `reserves` (banking/energy) occurs
+  only 8 times. The aspect gold gives each direction word the news it reports ("costs rose" −1), but a
+  lexicon word's own polarity is barely in the text (a whole document's other lexicon words vote it
+  right 0.571 of the time), so no window or context model recovers it.
 - Lab data is `src/components/viz/data/<lab>.json` = `json.dumps(viz_payload(), separators=(',', ':'))`,
   pinned by the `.py`'s `test_viz_mirror_matches_payload` — regenerate it, never hand-edit.
 - `rigorFlag` is load-bearing. Honesty is the differentiator.
@@ -108,7 +112,16 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Score a mechanism by every position that satisfies its definition, not one exemplar. Topic 11's
   induction heads put 0.593 on the most recent copy (i − p + 1) but 0.943 on all earlier copies,
   since they split weight across copies one period apart. The lab's heatmap caught it, so build
-  the views of a mechanism before freezing the page's numbers.
+  the views of a mechanism before freezing the page's numbers. Topic 12's filing windows likewise
+  showed the encoder keeping 0.734 on a visible word where Theorem 2's optimum keeps 0.950.
+- Probes find any cue. Read every probed token at one fixed window position (train on the
+  concatenated stream so centered windows are in distribution): from document-internal windows, Topic
+  12's context-free layer 0 typed `kestrel` at 0.907 through the position table, because product
+  mentions close a document. Score a shuffled-label control against the shuffled labels too; scored on
+  the real labels, a random-label probe on bimodal features lands anywhere (0.84, 0.33). A constant
+  feature under k-fold CV scores below the majority, since each fold predicts its training majority.
+  Where a page claims an optimum, check the trained model against a toy with exact posteriors (an HMM
+  by forward–backward, with the corruption channel folded into the emissions).
 - Check a one-pass/vectorized evaluator against the plain forward pass on full log-probs at every
   position (≤ 10⁻⁹), not argmaxes at a few: Topic 10's filing reader applied ALiBi's bias before 1/τ.
 - Quote page numbers from the harness at ≥ 6 decimals, never from `summary()`'s 4-decimal print
@@ -119,14 +132,18 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose.
 - NumPy SGD: scatter-add minibatch gradients as `csc_matrix((ones, idx, arange(n+1)), shape=(V, n)) @ g`,
   >10× faster than `np.add.at`. Draw an epoch's random numbers in one call (same stream, same results).
-  Time one epoch before fixing a grid.
+  Time one epoch before fixing a grid. Profile a transformer step: `tb.mlp_backward`'s `einsum` was
+  ~40% of it (Topic 12's matmul `mlp_backward` is pinned equal); a masked-LM loss should form logits
+  only at the selected rows, and float32 training is ~2.5× faster (together, 50 → 11 ms/step at V = 879).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
   (`tournament()` trains 15, `filing_benchmark()` 12); import its pure helpers (`frequencies`,
   `sinusoidal`, `rotate`, `kernel`) instead. Topic 11's `train_model` takes ~7 s (`SYNTH2`), ~5 s
   (`SYNTH1`), and ~8 s (`FILING2`); its `mha_forward`/`mha_backward` (batched heads, RoPE, causal) are
-  reusable, gradient-checked attention layers.
+  reusable, gradient-checked attention layers. Topic 12's `train_mlm` takes ~12 s (`HMM_MLM`) and ~22 s
+  (`FILING_MLM`); its `encode`/`mlm_loss_grad` are a gradient-checked bidirectional pre-LN encoder
+  (learned positions, tied embeddings). Topic 7's `SGNSConfig("L2", 25)` takes ~2.8 s.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -140,6 +157,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   breaks cell 1's import. Check titles: arXiv's meta tags share one line, so extract
   `name="citation_title" content="([^"]*)"` with a regex (a plain grep prints the whole line);
   DOIs `api.crossref.org/works/<doi>`, sibling theorem numbers by grepping `<TheoremBlock … number=`.
+  ACL Anthology pages write `<meta content="…" name=citation_title>` (content first, name unquoted);
+  find a paper's anthology ID by grepping `aclanthology.org/volumes/<volume>/` for its title.
   `jupyter execute … | tail` hides the exit code; to read outputs run `jupyter nbconvert --to notebook
   --execute <nb> --output-dir <scratchpad>` from the repo root. Reddit, OpenReview, Semantic Scholar, and
   DBLP refuse fetches, and ar5iv times out. Read a theorem's exact statement with `pdftotext` on the
