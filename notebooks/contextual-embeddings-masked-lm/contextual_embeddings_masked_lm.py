@@ -864,6 +864,39 @@ def alias_typing() -> dict:
 
 
 @lru_cache(maxsize=1)
+def position_leak() -> dict:
+    """§5's cautionary case: kestrel's layer-0 vectors, E[x] + P[k], if each token were read from document-internal
+    windows of n at stride n/2 (the last one end-aligned), at the window position k nearest its center. The position
+    table then carries where a token sits in its document, and product mentions close a document."""
+    m = train_mlm(FILING_MLM)
+    n = FILING_MLM.n
+    words, types, _ = filing_tokens()
+    E, Pt = np.asarray(m.P["E"], float), np.asarray(m.P["P"], float)
+    ids, _ = filing_vocab()
+    ks, ys, base = [], [], 0
+    for seq, pos in filing_docs():
+        starts = list(range(0, len(seq) - n + 1, n // 2))
+        if starts[-1] != len(seq) - n:
+            starts.append(len(seq) - n)
+        best: dict[int, int] = {}
+        for st in starts:
+            for k in range(n):
+                t = st + k
+                if pos[t] >= 0 and (t not in best or abs(k - n / 2) < abs(best[t] - n / 2)):
+                    best[t] = k
+        for t, k in best.items():
+            w = base + int(pos[t])
+            if words[w] == "kestrel":
+                ks.append(k)
+                ys.append(types[w] == "PRODUCT")
+        base += int((pos >= 0).sum())
+    ks, ys = np.array(ks), np.array(ys)
+    X = E[ids["kestrel"]] + Pt[ks]
+    return {"cv": cv_accuracy(X, ys, np.random.default_rng([SEED, 1571])),
+            "product_positions": sorted(set(ks[ys].tolist())), "n": int(len(ys))}
+
+
+@lru_cache(maxsize=1)
 def news_polarity() -> dict:
     """§7(b): the news a direction word or evaluative verb reports. Per word, 5-fold CV of a probe on its occurrences
     at each layer, against Cor 1's static cap (the word's majority share — what SGNS or the token table, one vector per
@@ -947,10 +980,13 @@ def filing_geometry() -> dict:
     return out
 
 
+FIT_VISIBLE = 512
+
+
 @lru_cache(maxsize=1)
 def filing_fit() -> dict:
     """The filing encoder's masked-token cross-entropy on 200 fresh corrupted windows (one stream), beside the
-    unigram entropy of the same targets."""
+    unigram entropy of the same targets; and Thm 2 at visible words, where the encoder falls short of the optimum."""
     m = train_mlm(FILING_MLM)
     xt, x, sel = filing_batch(np.random.default_rng([SEED, 1591]), 200, FILING_MLM.n)
     lq = mlm_log_probs(m.P, m.blocks, xt).astype(float)
@@ -958,7 +994,23 @@ def filing_fit() -> dict:
     cnt = Counter(filing_stream()[0].tolist())
     tot = sum(cnt.values())
     uni = -np.array([math.log(cnt[int(t)] / tot) for t in x[sel]])
-    return {"ce": float(ce.mean()), "unigram_ce": float(uni.mean()), "n": int(sel.sum())}
+    out = {"ce": float(ce.mean()), "unigram_ce": float(uni.mean()), "n": int(sel.sum())}
+    # Thm 2 at visible words: FIT_VISIBLE word tokens, each at the center of a clean window; the encoder's q(v) with
+    # the word visible, its [MASK] guess p̂(v), and Thm 2's optimum from p̂.
+    seq, word_at = filing_stream()
+    n, half, V = FILING_MLM.n, FILING_MLM.n // 2, filing_vocab()[1]
+    t = word_at[(word_at >= half) & (word_at < len(seq) - half)]
+    t = np.random.default_rng([SEED, 1593]).choice(t, FIT_VISIBLE, replace=False)
+    X = seq[t[:, None] + np.arange(-half, half)]
+    v = X[:, half]
+    q_vis = _model_probs(m, X)[np.arange(len(t)), half, v]
+    Xm = X.copy()
+    Xm[:, half] = V
+    pv = _model_probs(m, Xm)[np.arange(len(t)), half, v]
+    formula = pv * (KAPPA + R_RAND / V) / (KAPPA * pv + R_RAND / V)
+    out.update({"visible_model": float(q_vis.mean()), "visible_formula": float(formula.mean()),
+                "visible_masked": float(pv.mean())})
+    return out
 
 
 # --------------------------------------------------------------------------------------------
@@ -970,7 +1022,8 @@ def filing_fit() -> dict:
 def summary() -> dict:
     out = {}
     for prefix, d in (("hmm", hmm_fit()), ("ising", ising_fits()), ("probe", hmm_probe()), ("geom", hmm_geometry()),
-                      ("alias", alias_typing()), ("fgeom", filing_geometry()), ("ffit", filing_fit())):
+                      ("alias", alias_typing()), ("fgeom", filing_geometry()), ("ffit", filing_fit()),
+                      ("leak", position_leak())):
         out.update({f"{prefix}_{k}": v for k, v in d.items() if isinstance(v, (int, float))})
     out.update({f"compat_{k}": v for k, v in compatibility().items() if isinstance(v, float)})
     out.update({f"news_{k}": v for k, v in news_polarity().items() if isinstance(v, (int, float))})
@@ -1265,6 +1318,16 @@ def test_hmm_mlm_matches_bayes():
     assert f["shrink_model_mean"] > f["shrink_masked_mean"] + 0.2
 
 
+def test_filing_visible_shortfall():
+    """Thm 2 on the filing encoder: with V = 879, r/V ≈ 1e-4, so the optimum keeps nearly all its mass on a visible
+    word (0.950 on average over FIT_VISIBLE words); the trained encoder keeps far less, so it has not reached the channel's optimum at
+    visible positions, which carry under 3% of its training signal. Its [MASK] cross-entropy is well below the
+    unigram's."""
+    f = filing_fit()
+    assert f["visible_formula"] > 0.9 and f["visible_model"] < f["visible_formula"] - 0.15
+    assert f["visible_model"] > f["visible_masked"] and f["ce"] < f["unigram_ce"] - 3
+
+
 def test_pseudo_likelihood():
     """Thm 3 on the Ising chain: the expected log-PL's gradient vanishes at the true (h, J), and the PL estimate
     approaches it as the sample grows."""
@@ -1326,6 +1389,14 @@ def test_alias_typing():
     assert a["loao_layer1"] > a["majority"] + 5 * se and a["loao_layer2"] > a["majority"] + 5 * se
     assert a["kestrel_cv_layer1"] > a["kestrel_majority"] + 0.15 and a["kestrel_cv_layer0"] <= a["kestrel_majority"]
     assert filing_geometry()["mev_0"] > 1 - 1e-6  # every kestrel occurrence has one layer-0 vector
+
+
+def test_position_leak():
+    """§5: read at document-internal window positions, the context-free layer 0 types kestrel far above its majority
+    through the position table alone, because every PRODUCT mention sits near the end of the last window."""
+    r = position_leak()
+    assert r["n"] == 118 and r["cv"] > alias_typing()["kestrel_majority"] + 0.3
+    assert min(r["product_positions"]) > FILING_MLM.n // 2
 
 
 def test_news_polarity():

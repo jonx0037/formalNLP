@@ -6,7 +6,7 @@
 formalRAG `dense-retrieval-dual-encoders`.
 
 **Phase A** (this brief and the verified notebook), 2026-10-24:
-- The harness passes 18/18 under numpy==2.5.4 and scipy==1.18.1 in ≈ 38 s, also with warnings promoted to errors.
+- The harness passed 18/18 at Phase A (20/20 after Phase B, §12) under numpy==2.5.4 and scipy==1.18.1 in ≈ 38 s, also with warnings promoted to errors.
 - The narrative notebook (31 cells) executes with exit 0 in ≈ 41 s, including kernel start, and is committed without
   outputs.
 - The lab's data file `src/components/viz/data/masked-lm-lab.json` is 52.3 kB, pinned by
@@ -524,10 +524,11 @@ Every number comes from `viz_payload()`, pinned by `test_viz_mirror_matches_payl
 | 6–11 | §2: Def 2, Thm 1, Thm 2, the encoder and its gradient checks |
 | 12–16 | §3: Thm 3 (Ising), Thm 4, Cor 2 |
 | 17–18 | §4: Def 3, Prop 2, the geometry table |
-| 19–20 | §5: probing |
-| 21–27 | §6: alias typing, news polarity, strong/weak |
-| 28–29 | the lab's data |
-| 30 | `assert cm._run_harness() == 0` |
+| 19–22 | §5: probing; the position leak |
+| 23–29 | §6: alias typing, news polarity, strong/weak |
+| 30–31 | the filing encoder at visible words (Thm 2's shortfall) |
+| 32–33 | the lab's data |
+| 34 | `assert cm._run_harness() == 0` |
 
 **Commands**
 ```bash
@@ -612,3 +613,44 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `representations` track's `planned` (leaving `[]`).
 - **Forward links to keep:** Topic 7's "the contextual-embedding topic gives each occurrence its own vector", Topic 10's
   "trains with it" (the learned table), and Topic 11's "the same block without the causal mask".
+
+## 12. Phase B record (2026-10-24)
+
+**Harness changes** (the module grew; no verified number changed):
+- **`test_filing_visible_shortfall`** (new). Building the lab exposed that the filing encoder gives a visible word only
+  0.50–0.75, where Thm 2 predicts ≈ 1. Over 512 words read at the centers of clean windows:
+  - the encoder keeps 0.734263 on the visible word;
+  - Thm 2's optimum from its own `[MASK]` guess keeps 0.950336;
+  - the guess alone keeps 0.591037.
+
+  The page states the shortfall (rigorFlag 7). Visible positions carry under 3% of the training signal.
+- **`test_position_leak`** (new). It reproduces the Phase A spike's leak on the shipped encoder: layer 0, E[x] + P[k] at
+  document-internal window positions, types kestrel at 0.906780 by 5-fold CV. All 61 PRODUCT occurrences sit at
+  positions 22–24. The page quotes this number in place of the spike's 0.924.
+- **Totals:** 20/20 pass in ≈ 38 s (also under `-W error`). The notebook is regenerated with 35 cells and executes with
+  exit 0 in ≈ 41 s.
+- **Payload:** `viz_payload()` and `masked-lm-lab.json` are unchanged by these additions; the mirror test passes.
+
+**Gates:**
+- `pnpm test` 39/39;
+- `pnpm exec astro sync` clean;
+- `pnpm validate`: all connections valid, 17 planned nodes without MDX;
+- `pnpm audit:cross-site`: formalNLP's row shows 12 topics, 110 outgoing edges, 0 slug drift; missing reciprocals
+  deferred to launch, generated files not committed;
+- `pnpm build` exit 0 (16 pages).
+
+**DOM checks** (`pnpm preview` on port 4330, pane foregrounded):
+- **Desktop:**
+  - 378 `.katex` spans, 0 `.katex-error`, no `‘` in the text;
+  - the island hydrated (`ssr` attribute gone);
+  - every Figure A readout (three HMM positions × three modes, four filing windows, the compatibility medians) and every
+    Figure B readout and bar equals the payload;
+  - the layer slider was driven by real key presses.
+- **Mobile preset:** `innerWidth === 375` and `scrollWidth === 375` in all 16 views and toggles. Kestrel at layer 0 is
+  one point for 118 occurrences (MEV 1.000, probe 0.339).
+
+**MDX fixes:**
+- Three link-then-apostrophe constructions (`)'s`) were reworded, since smart quotes would turn them into an opening
+  `‘`.
+- The chance band in the polarity bars uses `--color-badge-amber-bg`, because `--color-muted-bg` was invisible in dark
+  mode.

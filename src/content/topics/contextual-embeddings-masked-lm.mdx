@@ -1,0 +1,557 @@
+---
+title: "Contextual Embeddings and the Masked-LM Objective"
+subtitle: "Hide a token and ask a bidirectional encoder to put it back: the objective's optimum is the posterior of the hidden token given its corrupted context, with a closed form under BERT's 80/10/10 corruption; its conditionals belong to no joint distribution; and the vectors it learns give each occurrence its own point, which reads what the neighbors determine and nothing more"
+status: "published"
+difficulty: "advanced"
+prerequisites:
+  - "transformer-block-residual-stream"
+  - "word2vec-implicit-factorization"
+tags:
+  - "contextual-embeddings"
+  - "masked-language-model"
+  - "bert"
+  - "pseudo-likelihood"
+  - "brooks-lemma"
+  - "compatibility"
+  - "anisotropy"
+  - "probing"
+  - "polysemy"
+domain: "representations"
+financeCaseStudy: true
+rigorFlag: "Every theorem on this page is proved in full under the conditions it states, and two of those conditions are not BERT's. The closed form for the masked-LM optimum assumes each position is selected independently; BERT selects a fixed 15% of positions, which couples them weakly, so there the formula is an approximation. One mask per sequence makes the objective Besag's pseudo-likelihood, and we prove the population statement (the truth maximizes the expected pseudo-likelihood) but check the estimator's convergence on one Ising chain rather than prove it. That a joint's conditionals pass the four-cycle test is proved; the converse is Arnold and Press's, cited, and the incompatibility of the trained encoder is measured on 200 pairs of one toy model. Anisotropy and maximum explainable variance are descriptive measures, and the degeneration account of the cone is an explanation, not a theorem; in our two-block filing encoder the anisotropy baseline falls to 0.048 at the top layer. A probe shows that information is linearly decodable, not that the model uses it: before we read every token at one window position, the context-free layer typed a company alias from the position table alone. The finance contexts are templates, the evaluative-verb probes fail with 26 to 45 examples each for reasons we cannot separate, and the filing encoder does not reach the channel's optimum at visible words. Topic 7's strong-versus-weak question is not won here, because the corpus does not write polarity into the text. The encoders have two blocks and at most 64 dimensions, on synthetic text; claims about BERT's layers are cited."
+videoId: null
+notebookPath: "notebooks/contextual-embeddings-masked-lm/01_contextual_embeddings_masked_lm.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/contextual-embeddings-masked-lm.mdx"
+datePublished: 2026-10-24
+estimatedReadTime: 45
+abstract: "Word2vec gives each word type one vector, so a word with two senses gets one point for both. We prove that the point sees a mixture: a polyseme's PMI is the log of its senses' exponentiated PMIs, and any probe on a static vector is capped at the majority sense. BERT gives each occurrence its own vector, trained by hiding tokens and asking a bidirectional encoder to put them back. We prove that the masked-LM risk is entropy plus divergence, so its optimum is the posterior of the hidden token given the corrupted sentence, and that under BERT's 80/10/10 corruption that posterior has a closed form: the context's prediction at a mask, shrunk toward the visible token elsewhere, with the selection rate dropping out. With one mask per sequence the objective is Besag's pseudo-likelihood. Brook's lemma rebuilds a joint distribution from its conditionals, and a four-cycle test that every joint passes shows the trained encoder's conditionals belong to no joint: BERT is not a language model in the generative sense. We train two encoders from scratch on Topic 11's block, one on a hidden Markov language whose exact posteriors check every theorem, one on the shared filings. On the filings, context separates a company from its product, and the news a direction word reports, where static vectors cannot; it does not recover a word's dictionary polarity, which the text does not carry."
+connections: []
+references:
+  - type: "paper"
+    title: "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+    authors: "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova"
+    year: 2019
+    url: "https://aclanthology.org/N19-1423/"
+    note: "NAACL-HLT 2019. The masked-LM objective and its 80/10/10 corruption, Definition 2"
+  - type: "paper"
+    title: "Deep Contextualized Word Representations"
+    authors: "Matthew E. Peters, Mark Neumann, Mohit Iyyer, Matt Gardner, Christopher Clark, Kenton Lee, and Luke Zettlemoyer"
+    year: 2018
+    url: "https://aclanthology.org/N18-1202/"
+    note: "NAACL-HLT 2018. Contextual word vectors (ELMo), Definition 1"
+  - type: "paper"
+    title: "Efficient Estimation of Word Representations in Vector Space"
+    authors: "Tomas Mikolov, Kai Chen, Greg Corrado, and Jeffrey Dean"
+    year: 2013
+    url: "https://arxiv.org/abs/1301.3781"
+    note: "CBOW, a single-mask predictor over averaged static vectors"
+  - type: "paper"
+    title: "RoBERTa: A Robustly Optimized BERT Pretraining Approach"
+    authors: "Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov"
+    year: 2019
+    url: "https://arxiv.org/abs/1907.11692"
+    note: "Dynamic masking; the masked-LM objective without next-sentence prediction"
+  - type: "paper"
+    title: "Extracting and Composing Robust Features with Denoising Autoencoders"
+    authors: "Pascal Vincent, Hugo Larochelle, Yoshua Bengio, and Pierre-Antoine Manzagol"
+    year: 2008
+    url: "https://doi.org/10.1145/1390156.1390294"
+    note: "ICML 2008. Corrupt the input, reconstruct the clean one: the objective's ancestor"
+  - type: "paper"
+    title: "Spatial Interaction and the Statistical Analysis of Lattice Systems"
+    authors: "Julian Besag"
+    year: 1974
+    url: "https://doi.org/10.1111/j.2517-6161.1974.tb00999.x"
+    note: "Journal of the Royal Statistical Society, Series B 36. Specifying a joint through its conditionals, beside Theorem 4"
+  - type: "paper"
+    title: "Statistical Analysis of Non-Lattice Data"
+    authors: "Julian Besag"
+    year: 1975
+    url: "https://doi.org/10.2307/2987782"
+    note: "The Statistician 24. Pseudo-likelihood, Theorem 3"
+  - type: "paper"
+    title: "On the Distinction between the Conditional Probability and the Joint Probability Approaches in the Specification of Nearest-Neighbour Systems"
+    authors: "D. Brook"
+    year: 1964
+    url: "https://doi.org/10.1093/biomet/51.3-4.481"
+    note: "Biometrika 51. Brook's lemma, Theorem 4"
+  - type: "paper"
+    title: "Compatible Conditional Distributions"
+    authors: "Barry C. Arnold and S. James Press"
+    year: 1989
+    url: "https://doi.org/10.1080/01621459.1989.10478750"
+    note: "Journal of the American Statistical Association 84. When conditionals come from a joint: the converse of Corollary 2"
+  - type: "paper"
+    title: "BERT has a Mouth, and It Must Speak: BERT as a Markov Random Field Language Model"
+    authors: "Alex Wang and Kyunghyun Cho"
+    year: 2019
+    url: "https://aclanthology.org/W19-2304/"
+    note: "Workshop on Methods for Optimizing and Evaluating Neural Language Generation. Generating from BERT by Gibbs-style sampling"
+  - type: "paper"
+    title: "Masked Language Model Scoring"
+    authors: "Julian Salazar, Davis Liang, Toan Q. Nguyen, and Katrin Kirchhoff"
+    year: 2020
+    url: "https://aclanthology.org/2020.acl-main.240/"
+    note: "ACL 2020. Pseudo-log-likelihood scores"
+  - type: "paper"
+    title: "Deriving Language Models from Masked Language Models"
+    authors: "Lucas Torroba Hennigen and Yoon Kim"
+    year: 2023
+    url: "https://aclanthology.org/2023.acl-short.99/"
+    note: "ACL 2023. The incompatibility of masked-LM conditionals, measured"
+  - type: "paper"
+    title: "Inconsistencies in Masked Language Models"
+    authors: "Tom Young, Yunan Chen, and Yang You"
+    year: 2022
+    url: "https://arxiv.org/abs/2301.00068"
+    note: "Inconsistent conditionals in large masked LMs, measured"
+  - type: "paper"
+    title: "How Contextual are Contextualized Word Representations? Comparing the Geometry of BERT, ELMo, and GPT-2 Embeddings"
+    authors: "Kawin Ethayarajh"
+    year: 2019
+    url: "https://aclanthology.org/D19-1006/"
+    note: "EMNLP-IJCNLP 2019. Self-similarity, the anisotropy baseline, and maximum explainable variance, Definition 3"
+  - type: "paper"
+    title: "Representation Degeneration Problem in Training Natural Language Generation Models"
+    authors: "Jun Gao, Di He, Xu Tan, Tao Qin, Liwei Wang, and Tie-Yan Liu"
+    year: 2019
+    url: "https://arxiv.org/abs/1907.12009"
+    note: "ICLR 2019. An account of the anisotropic cone through tied embeddings"
+  - type: "paper"
+    title: "Designing and Interpreting Probes with Control Tasks"
+    authors: "John Hewitt and Percy Liang"
+    year: 2019
+    url: "https://aclanthology.org/D19-1275/"
+    note: "EMNLP-IJCNLP 2019. Controls for probes"
+  - type: "paper"
+    title: "BERT Rediscovers the Classical NLP Pipeline"
+    authors: "Ian Tenney, Dipanjan Das, and Ellie Pavlick"
+    year: 2019
+    url: "https://aclanthology.org/P19-1452/"
+    note: "ACL 2019. Layerwise probing of BERT"
+  - type: "paper"
+    title: "Linear Algebraic Structure of Word Senses, with Applications to Polysemy"
+    authors: "Sanjeev Arora, Yuanzhi Li, Yingyu Liang, Tengyu Ma, and Andrej Risteski"
+    year: 2018
+    url: "https://aclanthology.org/Q18-1034/"
+    note: "Transactions of the ACL 6. A static vector as a superposition of senses, beside Proposition 1"
+  - type: "paper"
+    title: "A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition"
+    authors: "Lawrence R. Rabiner"
+    year: 1989
+    url: "https://doi.org/10.1109/5.18626"
+    note: "Proceedings of the IEEE 77. The forward–backward algorithm behind every exact posterior here"
+formalmlPrereqs:
+  - topic: "representation-learning"
+    site: "formalml"
+    relationship: "Denoising autoencoders (its Theorem 3.2), masked autoencoding, and the linear probe (its Definition 9.1): BERT is the masked autoencoder for text, and this topic computes its optimum and probes its vectors."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "The cross-entropy decomposition (its Proposition 1) and Gibbs' inequality (its Proposition 2) are the whole proof that the masked-LM risk is minimized by the true posterior."
+formalmlConnections:
+  - topic: "pca-low-rank"
+    site: "formalml"
+    relationship: "PCA as optimal projection (its Theorem 2): maximum explainable variance is the share of a word's occurrence cloud that one principal direction carries, the best a static vector can do."
+formalstatisticsPrereqs:
+  - topic: "conditional-probability"
+    site: "formalstatistics"
+    relationship: "Bayes' theorem (its Theorem 4) applied to the corruption channel is the closed form of the masked-LM optimum at a mask, a kept token, or a random one."
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "The MLE's consistency (its Theorem 3) is the benchmark that pseudo-likelihood trades away, giving up efficiency for conditionals that need no normalizing constant."
+formalstatisticsConnections:
+  - topic: "bayesian-computation-and-mcmc"
+    site: "formalstatistics"
+    relationship: "A Gibbs sampler (its Theorem 2) needs conditionals that come from one joint; the four-cycle test shows a masked LM's do not, so Gibbs-style generation from BERT samples no stated distribution."
+formalragConnections:
+  - topic: "dense-retrieval-dual-encoders"
+    site: "formalrag"
+    relationship: "A dual encoder takes a pretrained encoder as given and trains it contrastively; this topic is where that encoder's token vectors come from and what geometry they have."
+  - topic: "hypersphere-vmf-geometry"
+    site: "formalrag"
+    relationship: "It names the anisotropic cone of contextual embeddings as the first way real data break von Mises–Fisher isotropy; the geometry section here measures the cone layer by layer."
+  - topic: "late-interaction-learned-sparse"
+    site: "formalrag"
+    relationship: "SPLADE's term weights are log(1 + ReLU) of masked-LM logits, the very head this topic trains and whose optimum it computes."
+formalcalculusConnections:
+  - topic: "jacobian"
+    site: "formalcalculus"
+    relationship: "The multivariate chain rule (its Theorem 2) is the encoder's hand-written backward pass through attention, the MLP, and LayerNorm, checked against central differences."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import MaskedLMLab from '../../components/viz/MaskedLMLab.tsx';
+
+## Overview & Motivation
+
+In the shared filings, the word *kestrel* occurs $118$ times. Fifty-seven of them name a company, "Kestrel Turbine Services", and sixty-one name its product, "the Kestrel turbine". The [word2vec topic](/topics/word2vec-implicit-factorization) gives *kestrel* one vector for all $118$, so no classifier reading that vector can tell the company from the turbine: whatever it answers, it answers for every occurrence, and it is right about half the time. An encoder that reads the sentence gives each occurrence its own vector. A linear probe on those vectors types all $118$ correctly in cross-validation.
+
+Such vectors are **contextual embeddings**, and BERT (Devlin and colleagues 2019) made them standard by a simple training signal: hide some tokens and ask a bidirectional encoder to put them back. This topic is about what that signal converges to and what the vectors it produces can and cannot do. We develop it in order:
+
+1. **One vector per type sees a mixture.** A word with two senses has a PMI that is the log of a mixture of its senses' PMIs, and a probe on any static vector is capped at the commoner sense's share.
+2. **The masked-LM optimum has a closed form.** The risk is entropy plus divergence, so the best predictor is the posterior of the hidden token given the corrupted sentence. Under BERT's corruption, that posterior is the context's prediction at a `[MASK]`, shrunk toward the visible token elsewhere, and the selection rate drops out.
+3. **BERT is not a joint language model.** With one mask per sequence the objective is pseudo-likelihood. Brook's lemma says the conditionals of a joint determine it, and a four-cycle test that every joint passes shows that the trained encoder's conditionals come from no joint at all.
+4. **The geometry of the vectors.** Occurrences of one word spread apart with depth, in a cloud that is not isotropic, and we measure how much of the cloud a single static vector could carry.
+5. **What probes see.** Against a language whose exact posteriors we can compute, a linear probe on the encoder's vectors comes within $0.008$ of the Bayes accuracy for a word's sense, far above the static cap.
+
+Then the finance case. On the filings, context separates a company from its product and good news from bad ("costs rose" against "revenue rose"), where static vectors cannot. It does not recover whether *strong* is a positive word, because the filings do not write that into their sentences.
+
+---
+
+## One vector per type
+
+A static embedding is a function of the token. A contextual one is a function of the sentence.
+
+<TheoremBlock type="definition" number={1} title="Static and contextual embeddings">
+
+Write a sentence as $x = (x_1, \dots, x_n)$ over a vocabulary of $V$ tokens. A **static embedding** is a map $x_i \mapsto e(x_i) \in \mathbb{R}^d$ of the token alone. A **contextual embedding** is a map $(x, i) \mapsto h_i(x_1, \dots, x_n) \in \mathbb{R}^d$ of the sentence and the position. The input layer of an encoder, $E[x_i] + P_i$ with a token table $E$ and a position table $P$, is static at any fixed position $i$.
+
+</TheoremBlock>
+
+To see what a static vector loses, we need a language whose senses we know. Ours is a hidden Markov model with two regimes of four hidden states. Each state emits three tokens of its own, and the heaviest state of each regime also emits one shared token, $w$, with probability $0.4$. So $w$ has two senses, one per regime, with shares $0.491$ and $0.509$. A sense is a hidden state, and what follows an occurrence depends on the occurrence only through its state. Because the model is a known distribution, forward–backward (Rabiner 1989) gives every conditional and every sense posterior exactly.
+
+<TheoremBlock type="proposition" number={1} title="A static vector sees the mixture">
+
+Let a word $w$ have senses $s_1, \dots, s_K$ with shares $\pi_k = P(s_k \mid w)$, and let a context $c$ depend on an occurrence of $w$ only through its sense, $P(c \mid s_k, w) = P(c \mid s_k)$. Then
+
+$$
+\operatorname{PMI}(w, c) = \log \sum_{k} \pi_k \exp \operatorname{PMI}(s_k, c),
+$$
+
+and hence $\max_k \bigl(\log \pi_k + \operatorname{PMI}(s_k, c)\bigr) \le \operatorname{PMI}(w, c) \le \max_k \operatorname{PMI}(s_k, c)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By total probability over the senses, $P(c \mid w) = \sum_k P(s_k \mid w) P(c \mid s_k, w) = \sum_k \pi_k P(c \mid s_k)$. Dividing by $P(c)$ and writing $P(c \mid s_k)/P(c) = \exp \operatorname{PMI}(s_k, c)$ gives the identity. For the bounds, $\sum_k \pi_k e^{a_k} \le \bigl(\sum_k \pi_k\bigr) \max_k e^{a_k} = \max_k e^{a_k}$ because the shares sum to $1$, and the sum is at least each of its terms $\pi_k e^{a_k}$.
+
+</TheoremBlock>
+
+The word2vec topic proved that skip-gram with negative sampling fits shifted PMI (its Theorem 1). So the row of a polyseme that it factorizes is this log-mixture. Where one sense dominates a context, the row follows that sense, up to $\log \pi_k$. It is never both senses at once. On the HMM the identity holds to $10^{-12}$, and the two senses' PMIs with the next token differ by up to $3.654$ nats. Arora and colleagues (2018) read trained static vectors as superpositions of sense vectors, which is the same picture in the embedding space.
+
+<TheoremBlock type="corollary" number={1} title="The static cap">
+
+Any classifier that reads only a static embedding, $g \circ e$, labels the senses of the occurrences of $w$ with accuracy at most $\max_k \pi_k$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Every occurrence of $w$ has the same vector $e(w)$, so the classifier gives every occurrence the same label $\ell$, and its accuracy on them is $P(\text{sense} = \ell \mid w) = \pi_\ell \le \max_k \pi_k$.
+
+</TheoremBlock>
+
+On the HMM the cap is $0.509$. A probe on the encoder's token table attains it exactly, and a probe on its second layer reaches $0.962$, where the exact Bayes accuracy is $0.970$.
+
+Word2vec's other architecture, CBOW (Mikolov and colleagues 2013), predicts a word from the average of its neighbors' input vectors. It is already a masked predictor with one hidden token. What it lacks is an encoder: its representation of the context is an average of static vectors, with no positions and no attention.
+
+---
+
+## The masked-LM objective
+
+<TheoremBlock type="definition" number={2} title="The corruption channel and the masked-LM loss">
+
+Each position of $x$ is **selected** independently with probability $\rho$; write $M$ for the set of selected positions. A selected position is replaced by the symbol `[MASK]` with probability $m$, by a token drawn uniformly from the $V$ with probability $r$ (possibly itself), and kept with probability $\kappa = 1 - m - r$. Unselected positions are kept. The result is the corrupted sentence $\tilde x$. The **masked-LM loss** of a predictor $q$ is the mean over selected positions of $-\log q(x_i \mid \tilde x)$. Write $S(s \mid y)$ for what a selected position shows given its token $y$: $S(\texttt{[MASK]} \mid y) = m$, and $S(v \mid y) = \kappa\, \mathbb{1}[v = y] + r/V$ for a token $v$.
+
+</TheoremBlock>
+
+BERT uses $\rho = 0.15$ and $(m, r, \kappa) = (0.8, 0.1, 0.1)$, and selects a fixed $15\%$ of the positions of each sequence rather than each one independently. The independent version is what the next two theorems need, and we come back to the difference in the caveats. The loss counts only the selected positions, so the encoder is trained only where something may have happened; at the other $85\%$ it is free.
+
+<TheoremBlock type="theorem" number={1} title="The masked-LM loss is a proper scoring rule">
+
+At a selected position $i$, let $P_i(\cdot \mid \tilde x) = P(x_i = \cdot \mid \tilde x, i \in M)$. For every predictor $q$,
+
+$$
+\mathbb{E}\bigl[-\log q(x_i \mid \tilde x) \bigm| i \in M\bigr] = \mathbb{E}\, H\bigl(P_i(\cdot \mid \tilde x)\bigr) + \mathbb{E}\, \operatorname{KL}\bigl(P_i(\cdot \mid \tilde x) \,\big\|\, q(\cdot \mid \tilde x)\bigr),
+$$
+
+so the risk is minimized exactly when $q = P_i$, almost surely in $\tilde x$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Condition on $\tilde x$. The conditional risk is $-\sum_y P_i(y \mid \tilde x) \log q(y \mid \tilde x)$, the cross-entropy of $q$ relative to $P_i$. Adding and subtracting $\sum_y P_i \log P_i$ splits it into $H(P_i) + \operatorname{KL}(P_i \,\|\, q)$. The KL term is nonnegative and vanishes only at $q = P_i$ (Gibbs' inequality). The entropy term does not involve $q$, so taking the expectation over $\tilde x$ gives the identity, and the KL term is minimized pointwise.
+
+</TheoremBlock>
+
+This is the decomposition and the strict propriety of the log score from the [perplexity topic](/topics/perplexity-cross-entropy) (its Proposition 1 and Corollary 1), applied to the distribution of the hidden token given the corrupted sentence. formalML's [KL-divergence topic](https://www.formalml.com/topics/kl-divergence) proves both pieces (its Propositions 1 and 2). What makes the theorem useful is that the target $P_i$ can be written down.
+
+<TheoremBlock type="theorem" number={2} title="The optimum under the corruption channel">
+
+Let $p(y) = P(x_i = y \mid \tilde x_{-i})$ be what the rest of the corrupted sentence predicts for position $i$. Then the minimizer of Theorem 1 is
+
+$$
+q(y) = \frac{p(y)\, S(\tilde x_i \mid y)}{\sum_{y'} p(y')\, S(\tilde x_i \mid y')}.
+$$
+
+In particular:
+
+**(i)** at a `[MASK]`, $q = p$;
+
+**(ii)** at a visible token $v$, $q(y) = p(y)\bigl(\kappa\,\mathbb{1}[y = v] + r/V\bigr)/\bigl(\kappa\, p(v) + r/V\bigr)$, so the visible token keeps $q(v) = p(v)(\kappa + r/V)/(\kappa\, p(v) + r/V)$;
+
+**(iii)** the selection rate $\rho$ does not appear;
+
+**(iv)** if $r = 0$ then $q(v) = 1$, and if $\kappa = 0$ then $q = p$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Whether position $i$ is selected, and the draws that corrupt it, are independent of $x$ and of every other position's selection and draws. So $P(i \in M \mid x, \tilde x_{-i}) = \rho$, which gives $P(x_i = y \mid \tilde x_{-i}, i \in M) = p(y)$. Given $i \in M$ and $x$, the symbol shown at $i$ has law $S(\cdot \mid x_i)$, so
+
+$$
+P(x_i = y,\ \tilde x_i = s \mid \tilde x_{-i},\ i \in M) = p(y)\, S(s \mid y).
+$$
+
+Bayes' theorem in $x_i$ gives the formula. The rate $\rho$ entered only through the event $i \in M$, on which we conditioned, which is (iii). For (i), $S(\texttt{[MASK]} \mid y) = m$ for every $y$ and cancels. For (ii), $\sum_{y'} p(y')(\kappa\, \mathbb{1}[y' = v] + r/V) = \kappa\, p(v) + r/V$. For (iv), at $r = 0$ the numerator is $p(y)\kappa\, \mathbb{1}[y = v]$ and the denominator $\kappa\, p(v)$, while at $\kappa = 0$ the channel is $r/V$ for every $y$ and cancels.
+
+</TheoremBlock>
+
+Read (ii) and (iv) together. The random replacements are what keep a contextual prediction alive at visible positions. Without them ($r = 0$), every visible token is the original, so the best predictor copies it, and nothing forces the encoder to represent the context there. With them, the visible token is a strong hint, worth a factor of about $\kappa V/r$, but only a hint. The size of the vocabulary matters a great deal: for the filings below, $V = 879$ and $r/V \approx 1.1 \times 10^{-4}$, so the visible token keeps nearly all the mass unless the context finds it implausible. formalStatistics' [conditional-probability topic](https://www.formalstatistics.com/topics/conditional-probability) proves Bayes' theorem (its Theorem 4), the only tool the proof uses.
+
+On the HMM, the notebook checks the formula against brute-force enumeration of a length-$3$ joint, with the selection of $i$ made explicit and the channel applied to the other positions: they agree to $10^{-12}$ at $\rho = 0.15$ and at $\rho = 0.4$.
+
+**The encoder.** We build the encoder from the pre-LN block of the [transformer-block topic](/topics/transformer-block-residual-stream) (its Definition 1) with the causal mask removed, so every position attends to every other. To that block we add three things from BERT: a learned position table (Definition 1 of the [positional-encodings topic](/topics/positional-encodings-geometry)), input and output embeddings tied into one table $E$, and a final LayerNorm before the logits $\operatorname{LN}(x_L) E^\top/\sqrt{d} + b$. There are two blocks. The HMM encoder has $d = 32$ and is trained for $3000$ Adam steps on fresh corrupted sequences of length $24$. Its gradient is written by hand and checked against central differences.
+
+On $1439$ selected positions of held-out sequences, the exact posterior has a cross-entropy of $1.895$ nats and the encoder $1.917$, so their mean KL is $0.032$, under $2\%$ of the $1.874$-nat entropy. The KL is $0.021$ at a `[MASK]`, $0.098$ at a random token, and $0.040$ at a kept one. We can also read Theorem 2 (ii) off the encoder itself. At a kept token, it puts $0.747$ on the token on average, and the formula applied to its own `[MASK]` guess predicts $0.761$. That guess alone puts only $0.176$ on the same token.
+
+---
+
+## Pseudo-likelihood and the missing joint
+
+A masked LM predicts each token from the rest, which is a different thing from assigning probabilities to sentences. The first question is what the objective estimates.
+
+<TheoremBlock type="theorem" number={3} title="One mask is pseudo-likelihood">
+
+Mask one position $I$, chosen uniformly from $\{1, \dots, n\}$, and corrupt nothing else. Then the masked-LM risk of $q$ is
+
+$$
+-\frac1n\, \mathbb{E} \sum_{i=1}^{n} \log q(x_i \mid x_{-i}) = -\frac1n\, \mathbb{E} \log \operatorname{PL}_q(x),
+$$
+
+with $\operatorname{PL}_q(x) = \prod_i q(x_i \mid x_{-i})$ the **pseudo-likelihood**. If a family $\{q_\theta\}$ contains the true conditionals at $\theta^\ast$, then $\theta^\ast$ maximizes $\mathbb{E} \log \operatorname{PL}_\theta$, and it is the unique maximizer when the conditionals identify $\theta$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Averaging over $I$ gives $\mathbb{E}_I \mathbb{E}_x[-\log q(x_I \mid x_{-I})] = \frac1n \sum_i \mathbb{E}[-\log q(x_i \mid x_{-i})]$, which is the first claim. For each $i$, conditioning on $x_{-i}$ and applying Theorem 1 with nothing corrupted gives $\mathbb{E}[-\log q_\theta(x_i \mid x_{-i})] \ge \mathbb{E}[-\log p(x_i \mid x_{-i})]$, with equality exactly when $q_\theta(\cdot \mid x_{-i}) = p(\cdot \mid x_{-i})$ almost surely. Summing over $i$, the lower bound is attained at $\theta^\ast$. Any other maximizer has the true conditionals and so, under identifiability, equals $\theta^\ast$.
+
+</TheoremBlock>
+
+Besag (1975) introduced the pseudo-likelihood for spatial data, where a joint's normalizing constant is intractable and its conditionals are not. Theorem 3 is the population statement. That the maximizer of a finite sample's pseudo-likelihood converges to $\theta^\ast$ is a separate question, which we check rather than prove. On an open Ising chain of $10$ spins with field $0.2$ and coupling $0.5$, the expected log pseudo-likelihood has zero gradient at the truth to rounding. The estimate from $200$ exact samples is off by $0.011$, and from $20000$ samples by $0.004$. Against formalStatistics' [maximum-likelihood topic](https://www.formalstatistics.com/topics/maximum-likelihood), whose Theorem 3 gives the MLE's consistency, pseudo-likelihood gives up efficiency to get conditionals that need no normalizing constant. BERT's objective, with many masks and the 80/10/10 channel, is not exactly a pseudo-likelihood, but it is built from the same conditionals.
+
+Can the conditionals be turned back into a joint?
+
+<TheoremBlock type="theorem" number={4} title="Brook's lemma">
+
+Let $p$ be a positive distribution on sequences of length $n$. For any two sequences $x$ and $y$,
+
+$$
+\frac{p(x)}{p(y)} = \prod_{i=1}^{n} \frac{p(x_i \mid x_{\lt i},\, y_{\gt i})}{p(y_i \mid x_{\lt i},\, y_{\gt i})},
+$$
+
+so the full conditionals of $p$ determine $p$ up to normalization.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $z^{(i)} = (x_1, \dots, x_i, y_{i+1}, \dots, y_n)$, so that $z^{(0)} = y$ and $z^{(n)} = x$, and telescope: $p(x)/p(y) = \prod_i p(z^{(i)})/p(z^{(i-1)})$. The sequences $z^{(i)}$ and $z^{(i-1)}$ agree everywhere except position $i$, where they hold $x_i$ and $y_i$. Dividing both by the marginal probability of their shared coordinates $(x_{\lt i}, y_{\gt i})$ turns their ratio into $p(x_i \mid x_{\lt i}, y_{\gt i})/p(y_i \mid x_{\lt i}, y_{\gt i})$. Positivity makes every term defined.
+
+</TheoremBlock>
+
+Brook (1964) proved it, and Besag (1974) made it the foundation for specifying a model through its conditionals. The notebook rebuilds the HMM's joint over all $25^4 = 390625$ sequences of length $4$ from its four conditionals alone, to $10^{-15}$. The lemma has a consequence that we can test on any family of conditionals, including a trained network's.
+
+<TheoremBlock type="corollary" number={2} title="The four-cycle test">
+
+Fix two positions $i \ne j$ and everything else. Write $q_i(a \mid b)$ for a conditional of position $i$ given $x_j = b$, and $q_j(b \mid a)$ for one of position $j$ given $x_i = a$. For values $a, a'$ and $b, b'$, let
+
+$$
+\delta = \Bigl[\log \tfrac{q_i(a \mid b)}{q_i(a' \mid b)} + \log \tfrac{q_j(b \mid a')}{q_j(b' \mid a')}\Bigr] - \Bigl[\log \tfrac{q_j(b \mid a)}{q_j(b' \mid a)} + \log \tfrac{q_i(a \mid b')}{q_i(a' \mid b')}\Bigr].
+$$
+
+If the $q$ are the conditionals of a positive joint, then $\delta = 0$. So $\delta \ne 0$ anywhere proves that no joint has them as its conditionals.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Under a joint $p$, the first bracket is $\log \frac{p(a, b)}{p(a', b)} + \log \frac{p(a', b)}{p(a', b')} = \log \frac{p(a, b)}{p(a', b')}$, the change in log-probability along the path $(a, b) \to (a', b) \to (a', b')$. The second bracket is the change along $(a, b) \to (a, b') \to (a', b')$, which is the same quantity.
+
+</TheoremBlock>
+
+Arnold and Press (1989) prove the converse for two variables: conditionals come from some joint exactly when their ratio factors. We need only the direction proved above.
+
+Over $200$ random choices of a sequence, an adjacent pair of positions, and the two likeliest values at each, the median of $\lvert\delta\rvert$ is:
+- $2.2 \times 10^{-16}$ for the HMM's own conditionals, which is rounding;
+- $0.130$ for the trained encoder, with a maximum of $1.623$.
+
+So the encoder's conditionals belong to no joint distribution, and BERT is not a language model in the generative sense. Generating text from it by Gibbs-style resampling (Wang and Cho 2019) runs a Markov chain whose stationary distribution has no stated relation to the conditionals. formalStatistics' [MCMC topic](https://www.formalstatistics.com/topics/bayesian-computation-and-mcmc) shows that a Gibbs sampler needs conditionals from one joint (its Theorem 2). Scoring sentences by their pseudo-log-likelihood (Salazar and colleagues 2020) is a useful heuristic for the same reason it is not a likelihood. Hennigen and Kim (2023) and Young and colleagues (2022) measure the incompatibility in large masked LMs.
+
+There is a subtler point. Even the population optimum of Theorem 2 fails the test slightly, with a median of $3.55 \times 10^{-4}$ and a maximum of $0.915$. At a `[MASK]`, the optimum predicts the clean token from a context it reads through the channel, where any other visible token might be a substitute. Those targets, one per position, are not the conditionals of a single joint. So the incompatibility is not only a training failure: the objective's own optimum, under BERT's corruption, does not define one.
+
+---
+
+## The geometry of contextual vectors
+
+What does the cloud of one word's occurrences look like, layer by layer? Ethayarajh (2019) gave three measures.
+
+<TheoremBlock type="definition" number={3} title="Self-similarity, the anisotropy baseline, and MEV">
+
+Let the occurrences of a word $w$ have vectors $h_1, \dots, h_k$ at some layer, the rows of its **occurrence matrix** $H \in \mathbb{R}^{k \times d}$. The **self-similarity** of $w$ is the mean of $\cos(h_j, h_l)$ over $j \ne l$. The **anisotropy baseline** is the mean cosine between the vectors of uniformly drawn tokens of any words. Self-similarity minus the baseline is the **adjusted self-similarity**. The **maximum explainable variance** is $\operatorname{MEV}(w) = \sigma_1^2 / \sum_i \sigma_i^2$, with $\sigma_i$ the singular values of $H$.
+
+</TheoremBlock>
+
+An isotropic cloud has baseline $0$. A baseline near $1$ means that every vector points the same way, so a high self-similarity says little until the baseline is subtracted.
+
+<TheoremBlock type="proposition" number={2} title="The best static summary">
+
+Let $H \in \mathbb{R}^{k \times d}$ have rank $r \ge 1$ and nonzero singular values $\sigma_1 \ge \dots \ge \sigma_r$.
+
+**(i)** The constant $c$ minimizing $\sum_j \lVert h_j - c \rVert^2$ is the mean of the rows.
+
+**(ii)** $\operatorname{MEV}(w) = \max_{\lVert u \rVert = 1} \sum_j \langle h_j, u \rangle^2 \big/ \sum_j \lVert h_j \rVert^2$, the largest share of the energy of the cloud that one direction carries.
+
+**(iii)** $1/r \le \operatorname{MEV}(w) \le 1$, with equality on the right exactly when all occurrences are collinear.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For (i), the gradient of $\sum_j \lVert h_j - c \rVert^2$ in $c$ is $-2\sum_j (h_j - c)$, which vanishes only at the mean, and the function is strictly convex. For (ii), $\sum_j \langle h_j, u \rangle^2 = \lVert H u \rVert^2$, whose maximum over unit $u$ is $\sigma_1^2$, the top eigenvalue of $H^\top H$, while $\sum_j \lVert h_j \rVert^2 = \lVert H \rVert_F^2 = \sum_i \sigma_i^2$. For (iii), $\sigma_1^2$ is the largest of $r$ positive numbers that sum to $\lVert H \rVert_F^2$, so it is at least their mean and at most their sum, with equality in the latter exactly when $r = 1$.
+
+</TheoremBlock>
+
+By Eckart–Young, $1 - \operatorname{MEV}$ is the share of the cloud that the best rank-$1$ approximation misses. Ethayarajh reads MEV as an upper bound on how well a single static vector could stand in for a word's contextual ones. formalML's [PCA topic](https://www.formalml.com/topics/pca-low-rank) proves the optimal projection (its Theorem 2), of which (ii) is the one-dimensional case.
+
+| layer | HMM $w$: self-similarity | MEV | baseline | adjusted | *kestrel*: self-similarity | MEV | baseline | adjusted |
+|---|---|---|---|---|---|---|---|---|
+| $0$ | $0.763$ | $0.763$ | $0.068$ | $0.695$ | $1.000$ | $1.000$ | $0.182$ | $0.818$ |
+| $1$ | $0.620$ | $0.638$ | $0.152$ | $0.467$ | $0.862$ | $0.868$ | $0.320$ | $0.542$ |
+| $2$ | $0.676$ | $0.691$ | $0.203$ | $0.473$ | $0.846$ | $0.862$ | $0.048$ | $0.798$ |
+
+Layer $0$ of the HMM encoder is not static, because positions vary across occurrences. In the filings we read every token at one position, so the layer-$0$ vectors of *kestrel* are a single point. Context lowers the adjusted self-similarity at both layers, most at layer $1$. The baseline rises from layer $0$ to layer $1$ in both encoders, as Ethayarajh found for BERT, ELMo, and GPT-2, but it is not monotone: the filing encoder's top layer is nearly isotropic. Gao and colleagues (2019) explain the cone through tied embeddings, which push the vectors of rare tokens along a common direction. That is an account, not a theorem, and two blocks are too few to test it.
+
+---
+
+## Probing
+
+A **probe** is a simple classifier trained on frozen vectors to read off a property. Ours is a logistic regression with a ridge penalty, as formalML's [representation-learning topic](https://www.formalml.com/topics/representation-learning) defines a linear probe (its Definition 9.1), on standardized vectors, with a strength fixed before the final runs and never tuned on a test split. The HMM lets us compare it with two references we can compute: Corollary 1's static cap, and the exact Bayes accuracy $\mathbb{E} \max_k P(\text{sense } k \mid x)$.
+
+| layer | probe | shuffled control |
+|---|---|---|
+| $0$ | $0.501$ | $0.504$ |
+| $1$ | $0.963$ | $0.499$ |
+| $2$ | $0.962$ | $0.505$ |
+| static cap | $0.509$ | — |
+| exact Bayes | $0.970$ | — |
+
+The probe is trained on $1500$ sequences and tested on $1500$ others ($6663$ occurrences of $w$). The **shuffled control** trains and scores the same probe on permuted senses. A probe that found structure in noise would beat the cap there, and it does not. Hewitt and Liang (2019) design controls of this kind for probes of real models, and Tenney and colleagues (2019) probe BERT layer by layer. One layer of attention already reads off almost all the sense information the context contains.
+
+A probe shows that information is linearly decodable, which is not the same as showing that the model uses it. Suppose we read each token of the filings from document-internal windows, at whichever window position lies nearest its center. Then the context-free layer $0$ types *kestrel* as company or product with five-fold accuracy $0.907$, through the position table alone. Product mentions close a document, so all $61$ of them land at positions $22$ to $24$ of the last window. Reading every token at the center of its own window removes the cue, and that is how every finance number below is measured.
+
+---
+
+## The encoder, interactively
+
+The laboratory has two figures.
+
+Figure A puts Theorem 2 in front of you. Pick a token of an HMM sentence and choose what it shows: `[MASK]`, itself, or a substitute. The bars are the exact posterior and the encoder's prediction, with their divergence. On the four filing windows of the case study below, clicking a word shows the encoder's five best guesses with that word masked. Beside them, the readout compares the encoder's probability of the visible word with what Theorem 2 predicts from its own guess. A third view plots the four-cycle gap for the three families of conditionals.
+
+Figure B is the geometry. Choose the HMM word or *kestrel* and a layer, and see the occurrences on their own two principal axes, colored by sense, beside the measures of Definition 3, the probes, and the finance results.
+
+<MaskedLMLab client:visible />
+
+---
+
+## Finance case study: a company or its product, and the news a word reports
+
+<FinanceCaseStudy title="Finance case study: a company or its product, and the news a word reports">
+
+We train the same encoder, with $d = 64$, four heads, two blocks, and windows of $32$ tokens, on the shared corpus's $300$ filings, the text that the word2vec topic trained on. The vocabulary is the $877$ words seen at least five times, which cover $94.3\%$ of tokens, plus `[UNK]` and a `[SEP]` between sentences. On held-out windows its masked-token cross-entropy is $1.843$ nats, against $5.364$ for the unigram distribution. Every token we analyze is read at the center of its own window, so its layer-$0$ vector, $E[x] + P_{16}$, is static. The static baseline is the word2vec topic's skip-gram model with a $\pm 2$ window and $d = 25$.
+
+**A company or its product.** The corpus reuses $21$ company aliases as product names: "Kestrel Turbine Services" and "the Kestrel turbine". The gold annotations type each of their $1720$ occurrences, $254$ of them as PRODUCT. We hold out one alias at a time, train a probe on the other $20$, and type the held-out alias's occurrences:
+
+| representation | accuracy |
+|---|---|
+| per-alias majority (the static cap) | $0.855$ |
+| skip-gram ($\pm 2$, $d = 25$) | $0.852$ |
+| layer $0$ (static) | $0.852$ |
+| layer $1$ | $0.948$ |
+| layer $2$ | $0.966$ |
+
+On *kestrel* alone (57 ORG, 61 PRODUCT, majority $0.517$), five-fold cross-validation gives $0.339$ at layer $0$ and $1.000$ at layers $1$ and $2$. The static layer scores below its own majority because each fold predicts its training majority, which is the test fold's minority. The contexts are templates, so $1.000$ says that the cue is in the window, not that the encoder is an entity tagger. Making it one is the subject of the named-entity-recognition topic.
+
+**The news a word reports.** The corpus attaches a polarity to every aspect it mentions, and the direction word after it inherits that polarity: "costs rose" is bad news, and "revenue rose" is good news. The same goes for evaluative verbs ("costs exceeded expectations" is bad news). One vector per word can only predict each word's commoner polarity. We probe each word with five-fold cross-validation and pool the $13$ words that have at least $20$ labeled occurrences, $973$ occurrences in all:
+
+| representation | accuracy |
+|---|---|
+| static cap | $0.559$ |
+| layer $0$ (static) | $0.518$ |
+| layer $1$ | $0.868$ |
+| layer $2$ | $0.863$ |
+| shuffled control (layer $1$) | $0.536$ |
+
+The six direction words, with $101$ to $133$ occurrences each, are read at $0.945$ to $0.991$ at layer $1$. The seven evaluative verbs, with $26$ to $45$ each, are not: their accuracies run from $0.357$ to $0.853$. They have few examples for a $64$-dimensional probe, and their aspect term sits four or more words back. This corpus cannot tell us which matters.
+
+**Topic 7's question.** The word2vec topic found that window-trained vectors cannot tell *strong* from *weak*, and that a contextual embedding gives each occurrence its own vector. So we rerun its leave-one-out polarity probe on each lexicon word's mean vector:
+- skip-gram: $0.571$;
+- layer $0$: $0.343$;
+- layer $1$: $0.629$;
+- layer $2$: $0.571$.
+
+Chance is $0.5 \pm 0.085$ for $35$ words, and no representation is two standard errors above it. The reason is in the text. Let the other lexicon words near each of the $1414$ lexicon occurrences vote on its polarity. Within $8$ words they get it right $0.514$ of the time, within $32$ words $0.546$, and over the whole document $0.571$. A word's polarity is a fact about the dictionary, not about the sentences it sits in, and these filings barely write it down. What an occurrence *reports* is a fact about its context, and there the contextual vectors find it.
+
+One more measurement keeps the encoder honest. With $V = 879$, Theorem 2 says the optimum keeps $0.950$ of its mass on a visible word, on average over $512$ words read in clean windows. The encoder keeps $0.734$. It has not reached the channel's optimum at visible positions, which carry under $3\%$ of its training signal. Its guesses at `[MASK]` positions, where the signal is, are what the probes and the laboratory show.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+- **Fine-tuning.** A pretrained encoder is usually adapted by training a linear head on its vectors, as the probes here do, and by updating the encoder itself. The fine-tuning topic asks how small an update can be, through low-rank adaptation.
+- **Named entities.** Typing *kestrel* as company or product is entity typing done one token at a time. The named-entity-recognition topic labels whole spans, with a sequence model over these vectors.
+- **Dense retrieval.** formalRAG's [dual-encoder topic](https://www.formalrag.com/topics/dense-retrieval-dual-encoders) takes a pretrained encoder as given, pools its vectors, and trains it contrastively; its [hypersphere topic](https://www.formalrag.com/topics/hypersphere-vmf-geometry) meets the anisotropic cone measured here.
+- **Learned sparse retrieval.** SPLADE turns the masked-LM head into term weights, $\log(1 + \operatorname{ReLU})$ of the logits, which is formalRAG's [late-interaction topic](https://www.formalrag.com/topics/late-interaction-learned-sparse).
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **BERT selects a fixed 15%.** Theorem 2 is exact when positions are selected independently. With a fixed count, the selection of one position is weakly tied to the others, and the closed form becomes an approximation.
+2. **Pseudo-likelihood's estimator is checked, not proved.** Theorem 3 is the population statement. Its finite-sample convergence is shown on one Ising chain, and we cite no general consistency theorem.
+3. **The converse of the four-cycle test is cited.** Arnold and Press characterize compatible conditionals. The encoder's incompatibility is measured on $200$ pairs of one toy model; for large models it is Hennigen and Kim's and Young and colleagues' measurement.
+4. **The cone is described, not explained.** Anisotropy and MEV are descriptive. The degeneration account of Gao and colleagues is an explanation, and our two-block filing encoder is nearly isotropic at its top layer.
+5. **A probe finds any cue.** Probes show linear decodability, not use. The position leak that typed *kestrel* through the position table is the cautionary example.
+6. **Templates and small samples.** The finance contexts are templates, so a perfect probe says the cue is present, not that the model is a tagger. The evaluative-verb probes fail with $26$ to $45$ examples each, for reasons we cannot separate.
+7. **The filing encoder falls short at visible words.** It keeps $0.734$ of its mass on a visible word where the optimum keeps $0.950$.
+8. **Topic 7's question is not won.** Contextual vectors do not recover a word's dictionary polarity here, because the text does not carry it.
+9. **Toy scale.** The encoders have two blocks and at most $64$ dimensions and are trained on synthetic text. Statements about BERT's layers are cited.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `contextual_embeddings_masked_lm.py`, which owns every number on this page. That module imports the transformer-block topic's module for the pre-LN block, LayerNorm, and attention with their backward passes, and through it the neural-language-models topic's Adam constants and the shared finance corpus. It imports the word2vec topic's module for its skip-gram vectors and polarity probe, and through it the distributional-semantics topic's corpus and vocabulary. It trains two encoders from scratch in NumPy with hand-written gradients and runs a harness of $20$ assertion-based tests in about forty seconds on a laptop CPU. The tests cover:
+
+- Proposition 1 exactly on the HMM, and Corollary 1 against the token table's probe.
+- Theorem 1's identity on random distributions and on the trained encoder.
+- Theorem 2 against brute-force enumeration at two selection rates, with its limiting cases, and the encoder's shrinkage at kept tokens.
+- Theorem 3's population gradient and the pseudo-likelihood estimates on the Ising chain.
+- Theorem 4 against the enumerated joint, and Corollary 2 on three families of conditionals.
+- Proposition 2 on random matrices and on both encoders.
+- The probes and their controls, the position leak, and the finance tables, including the encoder's shortfall at visible words.
+- The encoder's gradient against central differences, the selected-rows loss against the full forward pass, and the faster MLP backward pass against the transformer-block topic's.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
