@@ -76,7 +76,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   longest continuation once and take prefixes; `ds.cooccurrence_of` counts new text on Topic 6's
   vocabulary (new types drop out, and windows close over them). Synthetic docs carry entity spans
   (`doc.entities`: ORG, GPE, DATE, MONEY, PERCENT, PERSON, PRODUCT, SECTOR; 1–5 companies/doc); EDGAR
-  excerpts carry none; `fc._tokens` keeps `[a-z]+` only.
+  excerpts carry none; `fc._tokens` keeps `[a-z]+` only. For names a model never saw, train on
+  `generate_corpus(…, roster=fc.split_roster()[0])` and test on `roster=…[1]`. A model trained on filings
+  memorizes names and copies none it did not see (Topic 11: 0.000 on held-out names); in-context
+  copying has to be trained on repeated random sequences.
 - Lab data is `src/components/viz/data/<lab>.json` = `json.dumps(viz_payload(), separators=(',', ':'))`,
   pinned by the `.py`'s `test_viz_mirror_matches_payload` — regenerate it, never hand-edit.
 - `rigorFlag` is load-bearing. Honesty is the differentiator.
@@ -84,7 +87,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `.katex-error` spans and the build still exits 0. Open the page and assert zero `.katex-error`.
 - MDX: a bare `<` is JSX — use `\lt`/`\gt` in math, backtick `<s>`/`</s>`/`<unk>`. Long inline
   number lists get one `$…$` per number (one KaTeX span can't wrap); at the mobile preset assert
-  `innerWidth === 375`.
+  `innerWidth === 375`. Smart quotes turn an apostrophe right after `)` or `$…$` into an opening
+  quote: write "the score of head $h$", not "$h$'s score", and assert the built page's text has no `‘`.
 - **Verify with DOM checks, not screenshots.** Viz uses `client:visible`: `scrollIntoView` and wait
   ~1–1.5 s before interacting. A hidden browser pane never hydrates any island (server-rendered
   readouts still look right) — show the preview pane first; `/paths`' graph is also
@@ -98,6 +102,13 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   the payload. When the page quotes a number the lab shows, copy the payload's value
   (`round(0.2865, 3)` is `0.286`). When the page narrates a lab example, assert it in
   `test_viz_payload` and pick the lab's default by a rule that finds it, not a hard-coded index.
+  `ak._sig(x, 3)` keeps significant figures (10.169 → 10.2): use `ak._r(x, 3)` for anything the page
+  quotes to 3 decimals. Key payload dicts by `f"{beta:g}"`: `f"{1.0}"` is `"1.0"`, but JS's
+  `` `${1}` `` is `"1"`.
+- Score a mechanism by every position that satisfies its definition, not one exemplar. Topic 11's
+  induction heads put 0.593 on the most recent copy (i − p + 1) but 0.943 on all earlier copies,
+  since they split weight across copies one period apart. The lab's heatmap caught it, so build
+  the views of a mechanism before freezing the page's numbers.
 - Check a one-pass/vectorized evaluator against the plain forward pass on full log-probs at every
   position (≤ 10⁻⁹), not argmaxes at a few: Topic 10's filing reader applied ALiBi's bias before 1/τ.
 - Quote page numbers from the harness at ≥ 6 decimals, never from `summary()`'s 4-decimal print
@@ -113,7 +124,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
   (`tournament()` trains 15, `filing_benchmark()` 12); import its pure helpers (`frequencies`,
-  `sinusoidal`, `rotate`, `kernel`) instead.
+  `sinusoidal`, `rotate`, `kernel`) instead. Topic 11's `train_model` takes ~7 s (`SYNTH2`), ~5 s
+  (`SYNTH1`), and ~8 s (`FILING2`); its `mha_forward`/`mha_backward` (batched heads, RoPE, causal) are
+  reusable, gradient-checked attention layers.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -124,11 +137,14 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
-  breaks cell 1's import. Check titles: arXiv `curl -sL arxiv.org/abs/<id> | grep citation_title`,
+  breaks cell 1's import. Check titles: arXiv's meta tags share one line, so extract
+  `name="citation_title" content="([^"]*)"` with a regex (a plain grep prints the whole line);
   DOIs `api.crossref.org/works/<doi>`, sibling theorem numbers by grepping `<TheoremBlock … number=`.
   `jupyter execute … | tail` hides the exit code; to read outputs run `jupyter nbconvert --to notebook
   --execute <nb> --output-dir <scratchpad>` from the repo root. Reddit, OpenReview, Semantic Scholar, and
-  DBLP refuse fetches: verify via the citing paper's bibliography (`pypdf` on its arXiv PDF),
+  DBLP refuse fetches, and ar5iv times out. Read a theorem's exact statement with `pdftotext` on the
+  arXiv PDF, downloaded into its own scratchpad directory. Verify venues via the citing paper's
+  bibliography (`pypdf` on its arXiv PDF),
   `proceedings.iclr.cc/paper_files/paper/<year>` (lists 2024, not 2022), or arXiv's Comments field.
 - Deeper, topic-specific lessons from 50 shipped topics (numerical traps, nbformat generation,
   hydration quirks) live in `../formalRAG/CLAUDE.md` — read the relevant section rather than
