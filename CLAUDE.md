@@ -64,6 +64,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 
 ## Content & verification conventions
 
+- Start each topic with `git checkout main && git pull`: the checkout is often left on the last
+  (merged) docs branch, which lacks the previous topic's files.
 - Three pillars per topic: rigorous math (KaTeX) + interactive D3 viz + working Python. The
   notebook contract is in `notebooks/README.md`; the `.py` owns every number the viz mirrors.
 - A dependent topic's `.py` **imports** its prereq's `.py`, never reimplements it: add the prereq's
@@ -158,6 +160,22 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   length (48 → 31 s). Exact search under length normalization does not scale (per-length uniform-cost:
   88 s for 60 prompts, incomplete); report the length-capped certificate instead. For a
   sufficient-not-necessary check like Thm 3's certificate, pin where it stays silent; never assert it fires.
+- Sampling on corpus models (Topic 15). Draw one uniform per open string per step and invert the CDF;
+  restart the engine's stream for every setting (common random numbers), transform each trigram state
+  once, and dedupe the decoder's prefixes within a step. `np.logaddexp.reduce` is slow on V = 3,427 rows:
+  use a max-shifted logsumexp (with the dedupe and skipping `exact_modes("decoder")`, 45 → 29 s).
+  Neither Topic 14 engine knows a KB fact (decoder P(correct sector) 0.205, chance; the trigram cannot
+  see the company). An order-5 KN (`pce.kn_fit_any(train, 5, pce.word_alphabet())`, 0.3 s) does, but a
+  fact seen once loses to the backoff's sector prior (discounted count ≈ 0.12 vs 0.28): split probes
+  by the context's training count. A KN row's seen set is `vec._rows[u][0]`, exactly where
+  P > freed(u)/c(u·)·P(·|u⁻); drop rows whose context is unseen (empty set, recall 0). For an oracle,
+  fit KN to `ng.continuation_run(n)["continuation"]` (a fresh `generate_corpus` seed has other
+  pseudo-words) with its singletons as `<unk>`; oracle NLL rewards blandness (the mode scores best). The
+  decoder can score only held-out sentences inside its 509 words and 32 positions, a templated subset
+  (NLL 0.445): give it no held-out reference. Grid τ as 10^{k/20} so τ = 1 is on it exactly. KN rows
+  tie at the top, so test τ → 0 as uniform on the argmax set (near-ties need τ ≈ 10⁻⁶). Typical
+  sampling at a small mass drops the head and its NLL rises: never assert it monotone. In leaf-frequency
+  tests, take per-cell z-scores only where the expected count is ≥ 5.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -176,7 +194,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   steps) in ~5 s on windows that start at a sentence's `<s>` (position 0 holds `<s>`, as when decoding)
   and decodes with float64 copies, so every search score matches one full forward pass to 10⁻⁹. Topic
   14's `uniform_cost`, `beam_search_multi` (with the pruned-score certificate), and `greedy_orbit` are
-  reusable; its `_beam_table("decoder")` takes ~12 s and `exact_modes("decoder")` ~6 s.
+  reusable; its `_beam_table("decoder")` takes ~12 s and `exact_modes("decoder")` ~6 s. Topic 15's
+  `draws(name, setting)` (1,504 strings) averages ~0.7 s, its 25-setting grid on both engines ~25 s,
+  `oracle()` ~1.5 s, `fact_model()` 0.3 s; `truncation_set`, `temper`, `tree_dist`, and
+  `local_tempered`/`global_tempered` are pure and reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
