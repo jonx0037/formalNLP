@@ -1,0 +1,627 @@
+---
+title: "Linear Text Classifiers: Generative vs. Discriminative"
+subtitle: "Naive Bayes and logistic regression draw the same kind of boundary through word-count space and disagree only about where to put it. They share a hypothesis class and match different moments; Zipf's long tail breaks the generative shortcut; on separable text the logistic MLE runs off to infinity while its direction settles on the maximum-margin line; and no unigram model of financial tone can see that \"costs rose\" is bad news"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "zipf-heaps-vocabulary-statistics"
+tags:
+  - "naive-bayes"
+  - "logistic-regression"
+  - "generative-vs-discriminative"
+  - "sample-complexity"
+  - "bag-of-words"
+  - "smoothing"
+  - "separability"
+  - "max-margin"
+  - "implicit-bias"
+  - "nbsvm"
+  - "sentiment"
+domain: "classification-sentiment"
+financeCaseStudy: true
+rigorFlag: "Ng and Jordan's generative bound is proved here as they state it, for binary features whose every rate lies in [ρ₀, 1 − ρ₀]; with explicit constants it is vacuous at any realistic sample size (a margin of 402 nats against observed discriminant gaps near 2). Their discriminative results concern the classifier that minimizes training 0-1 error over half-spaces, not the logistic MLE, and are cited rather than proved. Neither regime is universal: Xue and Titterington (2008) find the two-regime picture unreliable on real data, and on this page's finance corpus there is no crossover at all, since logistic regression leads at every training size. The crossover shown lives in simulated worlds built for it, and every hyperparameter there is tuned on a fresh validation draw, which real data does not offer. Theorem 3's token count is sufficient, not necessary. Theorem 4's limit is Rosset, Zhu, and Hastie's; gradient descent's implicit bias is Soudry and colleagues', checked here only numerically. The finance numbers come from a synthetic corpus whose Bayes accuracy (0.890) assumes a reader who parses every aspect sentence, and the naive-Bayes-weighted model is a logistic one-vs-rest variant of NBSVM whose probabilities are normalized scores, not posteriors."
+videoId: null
+notebookPath: "notebooks/linear-text-classifiers/01_linear_text_classifiers.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/linear-text-classifiers.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 40
+abstract: "A bag-of-words classifier turns a document into a vector of word counts and draws a hyperplane through that space. Naive Bayes and logistic regression draw the same family of hyperplanes: naive Bayes's posterior is exactly a softmax of a linear function of the counts, and logistic regression's family is naive Bayes's with one extra feature, the document's length. They differ in how they place the boundary. Logistic regression's optimum reproduces every class-by-word co-count of the training data and every class total; naive Bayes reproduces each class's word totals instead, and misses its own class totals. How fast each learns is Ng and Jordan's question. With binary features whose rates are bounded away from zero, naive Bayes needs only logarithmically many documents in the vocabulary size to get every parameter right, though with explicit constants the bound is vacuous at realistic sizes. A multinomial vocabulary cannot meet that hypothesis: some word has probability at most 1/V, so getting every rate right to a relative tolerance costs order V tokens, and V to a power under Zipf's law. In worlds where naive Bayes is the true model it leads logistic regression at every training size; the textbook crossover appears when words come in bursts, which keeps logistic regression well specified and makes naive Bayes overcount repeated words. With more words than documents the training set is separable, the logistic MLE does not exist, and the direction of the ridge-penalized solution converges to the maximum-margin separator as the penalty vanishes. Naive Bayes features act as a per-word prior. In synthetic financial filings, tone is an exclusive-or of aspect and direction, which no unigram model represents and bigrams do; logistic regression beats naive Bayes at every training size, naive Bayes is badly overconfident, and nothing reaches the full-text Bayes accuracy of 0.890."
+connections: []
+references:
+  - type: "paper"
+    title: "On Discriminative vs. Generative Classifiers: A Comparison of Logistic Regression and Naive Bayes"
+    authors: "Andrew Y. Ng and Michael I. Jordan"
+    year: 2002
+    url: "https://proceedings.neurips.cc/paper_files/paper/2001/file/7b7a53e239400a13bd6be6c91c4f6c4e-Paper.pdf"
+    note: "Advances in Neural Information Processing Systems 14, 841–48 (NIPS 2001, MIT Press 2002). Generative–discriminative pairs; Proposition 1 (asymptotic errors), Proposition 2 (the discriminative side, m = Ω(n)), Lemma 3 and Theorem 4 (the generative side), Corollary 6 (m = O(log n)), on which Lemma 1 and Theorem 2 are modeled"
+  - type: "paper"
+    title: "Comment on 'On Discriminative vs. Generative Classifiers: A Comparison of Logistic Regression and Naive Bayes'"
+    authors: "Jing-Hao Xue and D. Michael Titterington"
+    year: 2008
+    url: "https://doi.org/10.1007/s11063-008-9088-7"
+    note: "Neural Processing Letters 28 (3): 169–87. Simulations and real data on which the two regimes of Ng and Jordan are not reliable, and no general criterion for choosing between the two kinds of classifier"
+  - type: "paper"
+    title: "A Comparison of Event Models for Naive Bayes Text Classification"
+    authors: "Andrew McCallum and Kamal Nigam"
+    year: 1998
+    url: "https://cdn.aaai.org/Workshops/1998/WS-98-05/WS98-05-007.pdf"
+    note: "Learning for Text Categorization: Papers from the 1998 AAAI Workshop, 41–48. The multinomial and Bernoulli event models of Proposition 1"
+  - type: "paper"
+    title: "Margin Maximizing Loss Functions"
+    authors: "Saharon Rosset, Ji Zhu, and Trevor Hastie"
+    year: 2004
+    url: "https://proceedings.neurips.cc/paper_files/paper/2003/file/0fe473396242072e84af286632d3f0ff-Paper.pdf"
+    note: "Advances in Neural Information Processing Systems 16, 1237–44. Theorem 2.1: as the penalty vanishes, the normalized penalized solution of a margin-maximizing loss converges to the max-margin separator, Theorem 4(c) here at p = 2"
+  - type: "paper"
+    title: "Boosting as a Regularized Path to a Maximum Margin Classifier"
+    authors: "Saharon Rosset, Ji Zhu, and Trevor Hastie"
+    year: 2004
+    url: "https://jmlr.org/papers/v5/rosset04a.html"
+    note: "Journal of Machine Learning Research 5: 941–73. Section 5, Theorem 3: the same limit along the constrained path"
+  - type: "paper"
+    title: "The Implicit Bias of Gradient Descent on Separable Data"
+    authors: "Daniel Soudry, Elad Hoffer, Mor Shpigel Nacson, Suriya Gunasekar, and Nathan Srebro"
+    year: 2018
+    url: "https://jmlr.org/papers/v19/18-188.html"
+    note: "Journal of Machine Learning Research 19 (70): 1–57. Theorem 3: gradient descent on separable logistic loss grows like the max-margin vector times log t; Theorem 5: its direction converges at rate O(log log t / log t)"
+  - type: "paper"
+    title: "On the Existence of Maximum Likelihood Estimates in Logistic Regression Models"
+    authors: "A. Albert and J. A. Anderson"
+    year: 1984
+    url: "https://doi.org/10.1093/biomet/71.1.1"
+    note: "Biometrika 71 (1): 1–10. Complete separation, quasi-complete separation, and overlap, the trichotomy behind Theorem 4(a)"
+  - type: "paper"
+    title: "Geometrical and Statistical Properties of Systems of Linear Inequalities with Applications in Pattern Recognition"
+    authors: "Thomas M. Cover"
+    year: 1965
+    url: "https://doi.org/10.1109/PGEC.1965.264137"
+    note: "IEEE Transactions on Electronic Computers EC-14 (3): 326–34. Theorem 1, the function-counting theorem: how many labelings of points in general position a hyperplane can realize"
+  - type: "paper"
+    title: "Baselines and Bigrams: Simple, Good Sentiment and Topic Classification"
+    authors: "Sida Wang and Christopher D. Manning"
+    year: 2012
+    url: "https://aclanthology.org/P12-2018/"
+    note: "Proceedings of the 50th Annual Meeting of the ACL (Volume 2: Short Papers), 90–94. The log-count ratio (their Eq. 2) and NBSVM (Eq. 4), whose feature weighting Proposition 3 analyzes"
+  - type: "paper"
+    title: "Tackling the Poor Assumptions of Naive Bayes Text Classifiers"
+    authors: "Jason D. M. Rennie, Lawrence Shih, Jaime Teevan, and David R. Karger"
+    year: 2003
+    url: "https://cdn.aaai.org/ICML/2003/ICML03-081.pdf"
+    note: "Proceedings of the Twentieth International Conference on Machine Learning, 616–23. Complement naive Bayes, weight normalization, and log term-frequency transforms against burstiness"
+  - type: "paper"
+    title: "Predicting Good Probabilities with Supervised Learning"
+    authors: "Alexandru Niculescu-Mizil and Rich Caruana"
+    year: 2005
+    url: "https://doi.org/10.1145/1102351.1102430"
+    note: "Proceedings of the 22nd International Conference on Machine Learning, 625–32. Naive Bayes pushes its probabilities toward 0 and 1"
+  - type: "paper"
+    title: "On the Optimality of the Simple Bayesian Classifier under Zero-One Loss"
+    authors: "Pedro Domingos and Michael Pazzani"
+    year: 1997
+    url: "https://doi.org/10.1023/A:1007413511361"
+    note: "Machine Learning 29 (2–3): 103–30. Why naive Bayes can classify well while its probabilities are badly wrong"
+  - type: "paper"
+    title: "Naive (Bayes) at Forty: The Independence Assumption in Information Retrieval"
+    authors: "David D. Lewis"
+    year: 1998
+    url: "https://doi.org/10.1007/BFb0026666"
+    note: "Machine Learning: ECML-98, 4–15. Lecture Notes in Computer Science 1398"
+  - type: "paper"
+    title: "Discriminative vs Informative Learning"
+    authors: "Y. Dan Rubinstein and Trevor Hastie"
+    year: 1997
+    url: "https://cdn.aaai.org/KDD/1997/KDD97-008.pdf"
+    note: "Proceedings of the Third International Conference on Knowledge Discovery and Data Mining, 49–53. The two ways of fitting one classifier, before Ng and Jordan"
+  - type: "paper"
+    title: "The Efficiency of Logistic Regression Compared to Normal Discriminant Analysis"
+    authors: "Bradley Efron"
+    year: 1975
+    url: "https://doi.org/10.1080/01621459.1975.10480319"
+    note: "Journal of the American Statistical Association 70 (352): 892–98. When the Gaussian model is right, logistic regression loses a third to a half of the discriminant's asymptotic efficiency"
+  - type: "paper"
+    title: "Probability Inequalities for Sums of Bounded Random Variables"
+    authors: "Wassily Hoeffding"
+    year: 1963
+    url: "https://doi.org/10.1080/01621459.1963.10500830"
+    note: "Journal of the American Statistical Association 58 (301): 13–30. The inequality behind Lemma 1"
+  - type: "paper"
+    title: "Text Categorization with Support Vector Machines: Learning with Many Relevant Features"
+    authors: "Thorsten Joachims"
+    year: 1998
+    url: "https://doi.org/10.1007/BFb0026683"
+    note: "Machine Learning: ECML-98, 137–42. Text is high-dimensional, sparse, and nearly separable, the setting of Theorem 4"
+  - type: "paper"
+    title: "When Is a Liability Not a Liability? Textual Analysis, Dictionaries, and 10-Ks"
+    authors: "Tim Loughran and Bill McDonald"
+    year: 2011
+    url: "https://doi.org/10.1111/j.1540-6261.2010.01625.x"
+    note: "Journal of Finance 66 (1): 35–65. Financial tone and the words a general-purpose sentiment model misreads; the next topic"
+formalmlPrereqs:
+  - topic: "naive-bayes"
+    site: "formalml"
+    relationship: "It develops the Gaussian, multinomial, and Bernoulli variants, Laplace smoothing as a conjugate update, calibration repair, and Ng and Jordan's comparison for Gaussian naive Bayes (its §7); this page proves the discrete-feature version of the generative bound, and what a multinomial vocabulary and Zipf's law do to it."
+  - topic: "vc-dimension"
+    site: "formalml"
+    relationship: "Its Theorem 6, the VC dimension of half-spaces, is what makes Ng and Jordan's discriminative sample complexity linear in the number of features, the side of their comparison this page cites rather than proves."
+  - topic: "convex-analysis"
+    site: "formalml"
+    relationship: "Theorem 1's convexity of the softmax log loss and the uniqueness arguments of Theorem 4 use its first- and second-order conditions for convexity."
+formalmlConnections:
+  - topic: "high-dimensional-regression"
+    site: "formalml"
+    relationship: "Its §11 logistic lasso is the L1 counterpart of this page's ridge-penalized logistic regression on high-dimensional, sparse text features."
+  - topic: "generalization-bounds"
+    site: "formalml"
+    relationship: "Its margin-based generalization bound (Theorem 6) is why the max-margin direction that Theorem 4 and gradient descent converge to is a good one to converge to."
+  - topic: "gradient-descent"
+    site: "formalml"
+    relationship: "Its convergence rates for convex smooth objectives govern Theorem 1's loss; on separable text the same gradient descent never converges in the weights, only in direction (Theorem 4)."
+formalstatisticsPrereqs:
+  - topic: "generalized-linear-models"
+    site: "formalstatistics"
+    relationship: "Its Theorems 1 and 2 give binary logistic regression's score, Hessian, concavity, and IRLS; Theorem 1 here is the multiclass softmax version its Remark 27 defers, and Theorem 4 turns its Remark 8 on separation into theorems."
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "Both classifiers are maximum-likelihood fits, naive Bayes of the joint likelihood and logistic regression of the conditional one; Theorem 1's estimating equations are the score equations of the conditional likelihood."
+  - topic: "multivariate-distributions"
+    site: "formalstatistics"
+    relationship: "Its Theorem 6, Dirichlet–multinomial conjugacy, is why add-α smoothing is a posterior mean, the smoothing whose effect on rare words Proposition 3(b) bounds."
+formalstatisticsConnections:
+  - topic: "regularization-and-penalized-estimation"
+    site: "formalstatistics"
+    relationship: "Its correspondence between Gaussian priors and ridge penalties is what Proposition 3(a) specializes: weighting features by naive Bayes log-count ratios is a ridge penalty with a different prior variance for every word."
+formalragConnections:
+  - topic: "bm25-binary-independence-model"
+    site: "formalrag"
+    relationship: "Its Theorem 1, the Robertson–Spärck Jones relevance weight, is the Bernoulli naive Bayes weight of Proposition 1(a) with relevance as the class."
+  - topic: "query-likelihood-language-models"
+    site: "formalrag"
+    relationship: "Query likelihood scores a document with a smoothed multinomial, exactly naive Bayes's class-conditional model, and its Dirichlet smoothing (Theorem 1) is the background-smoothing alternative to add-α."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import LinearTextClassifiersLab from '../../components/viz/LinearTextClassifiersLab.tsx';
+
+## Overview & Motivation
+
+Train two classifiers on $1{,}500$ synthetic financial filings labeled negative, neutral, or positive in tone, using nothing but each document's word counts, and test them on $1{,}500$ more. Naive Bayes gets $0.601$ of the test documents right. Logistic regression, given exactly the same counts, gets $0.739$. Both draw linear boundaries through the same space of count vectors; on this page we work out why they draw them in different places, and when that difference favors which one. Then we look at the one thing neither can see. The word "rose" gets a weight of $0.060$ from logistic regression, close to nothing, because "revenue rose" is good news and "costs rose" is bad. A reader who parses every sentence could reach $0.890$.
+
+The [Zipf topic](/topics/zipf-heaps-vocabulary-statistics) showed that a vocabulary is mostly rare words. That fact runs through everything below. We develop it in order:
+
+1. **One hypothesis class.** Naive Bayes is a softmax of a linear function of the counts, so it and logistic regression choose from the same family of boundaries.
+2. **Two estimating equations.** They differ in which moments of the training data they reproduce.
+3. **How fast the generative side learns.** Ng and Jordan's bound, made explicit, and why it is honest but loose.
+4. **The Zipf tail.** A multinomial vocabulary cannot meet that bound's hypothesis, and the cost is polynomial in the vocabulary.
+5. **Burstiness and the crossover.** When naive Bayes is the true model there is no crossover; when words come in bursts, there is.
+6. **Separation.** With more words than documents the logistic MLE does not exist, and its direction does.
+7. **Naive Bayes features as a prior.**
+
+Then the finance corpus, where tone turns out to be an exclusive-or.
+
+---
+
+## Two ways to draw one line
+
+Take only two words, "strong" and "weak," and plot each document as a point: how many times it says "strong" on one axis, how many times it says "weak" on the other. Positive documents sit toward the first axis and negative ones toward the second, with a cloud of neutral documents near the origin, and a classifier is a line through that plane.
+
+**Naive Bayes** draws the line by modeling each class's words. It estimates how often positive documents use "strong" and how often negative ones do, takes the log of the ratio as the word's weight, and puts the line where the two classes' models assign equal probability. Every word gets a vote proportional to its log ratio, whatever the other words are doing. **Logistic regression** draws the line directly. It moves the line until its predicted probabilities fit the labels as well as possible, and a word whose evidence the other words already carry gets less weight.
+
+With $3{,}246$ words the plane becomes a $3{,}246$-dimensional space, and the line a hyperplane, but the picture is the same. Both methods draw a hyperplane. The rest of this page is about where each one puts it.
+
+---
+
+## One hypothesis class
+
+We write $x \in \mathbb{N}^V$ for a document's count vector over a vocabulary of $V$ features, $L(x) = \sum_j x_j$ for its length, and $y \in \{1, \dots, K\}$ for its class.
+
+<TheoremBlock type="definition" number={1} title="Bag of words">
+
+A document's **count vector** $x$ has $x_j$ equal to the number of occurrences of feature $j$, a word or, with bigrams, an adjacent pair of words. Its **binarization** is $\hat x_j = \mathbf{1}\{x_j \gt 0\}$.
+
+</TheoremBlock>
+
+Multinomial naive Bayes models a document of class $k$ as $L$ independent draws from a distribution $\theta_k$ over the vocabulary, so $P(x \mid y = k) \propto \prod_j \theta_{kj}^{x_j}$. Bernoulli naive Bayes models each feature's presence as an independent coin with probability $\theta_{kj}$. Both are generative: they model $x$ given $y$ and invert with Bayes's rule.
+
+<TheoremBlock type="proposition" number={1} title="Naive Bayes is softmax-linear">
+
+**(a)** Multinomial naive Bayes has $\log P(y = k \mid x) = \log \operatorname{softmax}_k(Wx + b)$ with $W_{kj} = \log \theta_{kj}$ and $b_k = \log \pi_k$. Bernoulli naive Bayes has the same form in $\hat x$, with $W_{kj} = \operatorname{logit} \theta_{kj}$ and $b_k = \log \pi_k + \sum_j \log(1 - \theta_{kj})$.
+
+**(b)** For every $(W, b)$ and every length $L$, some multinomial naive Bayes model has posterior $\operatorname{softmax}(Wx + b)$ on all documents of length $L$. Across lengths,
+
+$$
+\operatorname{softmax}(Wx + b) = \operatorname{softmax}\big(\tilde W x + b + L(x)\,\bar\lambda\big), \qquad \bar\lambda_k = \log \textstyle\sum_j e^{W_{kj}}, \quad \tilde W_k = W_k - \bar\lambda_k \mathbf{1},
+$$
+
+with each row of $e^{\tilde W}$ a probability distribution. The softmax-linear family is naive Bayes's posteriors with one more feature, the length.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** By Bayes's rule, $\log P(y = k \mid x) = \log \pi_k + \log P(x \mid y = k) - \log P(x)$. For the multinomial, $\log P(x \mid k) = \log\big(L! / \prod_j x_j!\big) + \sum_j x_j \log \theta_{kj}$, and the coefficient is the same for every class, so it cancels in the normalization. For the Bernoulli model, $\log P(\hat x \mid k) = \sum_j \big[\hat x_j \log \theta_{kj} + (1 - \hat x_j)\log(1 - \theta_{kj})\big] = \sum_j \hat x_j \operatorname{logit}\theta_{kj} + \sum_j \log(1 - \theta_{kj})$.
+
+**(b)** Set $\theta_k = \operatorname{softmax}(W_k)$, so $W_k = \log \theta_k + \bar\lambda_k \mathbf{1}$ and $W_k \cdot x = \sum_j x_j \log \theta_{kj} + L(x)\,\bar\lambda_k$. When every document has length $L$, choose $\log \pi_k = b_k + L \bar\lambda_k$ up to a constant, and the naive Bayes posterior is $\operatorname{softmax}(Wx + b)$. When lengths vary, $L(x)\,\bar\lambda_k$ depends on the document, so it is a feature rather than a bias.
+
+</TheoremBlock>
+
+The extra feature matters. With a one-word vocabulary every document is just a length, every naive Bayes posterior is its prior, and a softmax of $w_k L + b_k$ can still use the length. The Bernoulli weight in (a) is the Robertson–Spärck Jones relevance weight, with relevance as the class ([formalRAG BM25 topic](https://www.formalrag.com/topics/bm25-binary-independence-model), Theorem 1). The harness checks (a) against the literal Bayes rule to $10^{-9}$ and against scikit-learn to $10^{-8}$.
+
+<TheoremBlock type="definition" number={2} title="Generative–discriminative pair">
+
+A **generative** classifier fits a model of $p(x, y)$ and predicts $\arg\max_y p(y \mid x)$. Its **discriminative** partner fits $p(y \mid x)$ directly, in the parametric family that the generative model induces. Multinomial naive Bayes and softmax logistic regression on counts are such a pair.
+
+</TheoremBlock>
+
+The pairing is Ng and Jordan's (2002), building on Rubinstein and Hastie (1997). The [formalML naive-Bayes topic](https://www.formalml.com/topics/naive-bayes) develops the three variants and their smoothing; here we take the pair as given and ask what distinguishes its members.
+
+---
+
+## Two estimating equations
+
+**Logistic regression** fits $W$ and $b$ by minimizing the average cross-entropy of $p_i = \operatorname{softmax}(Wx_i + b)$, with a ridge penalty on the weights:
+
+$$
+F(W, b) = \frac{1}{n}\sum_{i=1}^n \Big[\log \sum_k e^{z_{ik}} - z_{i, y_i}\Big] + \frac{\lambda}{2}\lVert W \rVert^2, \qquad z_i = Wx_i + b.
+$$
+
+We write $y_{ik}$ for the one-hot label, $n_k$ for the number of training documents in class $k$, and $\tilde x_i = (x_i, 1)$.
+
+<TheoremBlock type="theorem" number={1} title="Two estimating equations">
+
+**(a)** $F$ is convex, with Hessian
+
+$$
+\frac{1}{n}\sum_i \big(\operatorname{diag} p_i - p_i p_i^\top\big) \otimes \tilde x_i \tilde x_i^\top \;+\; \lambda\, I_K \otimes \operatorname{diag}(1, \dots, 1, 0).
+$$
+
+At $\lambda = 0$ its null space contains every $\mathbf{1}_K \otimes v$, a subspace of dimension $V + 1$. At $\lambda \gt 0$, when the $p_i$ are interior and the $\tilde x_i$ span $\mathbb{R}^{V+1}$, the null space is the single direction that shifts every intercept together.
+
+**(b)** At any minimizer,
+
+$$
+\sum_i (y_{ik} - p_{ik})\, x_{ij} = n\lambda W_{kj} \quad \text{for all } k, j, \qquad \sum_i p_{ik} = n_k \quad \text{for all } k.
+$$
+
+**(c)** Multinomial naive Bayes instead sets $\hat\theta_{kj} = \sum_{i:\,y_i = k} x_{ij} \big/ \sum_{i:\,y_i = k} L_i$, which matches each class's word totals and in general satisfies neither equation in (b).
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** The function $z \mapsto \log\sum_k e^{z_k}$ is convex with Hessian $\operatorname{diag} p - p p^\top$, and $z_i = (I_K \otimes \tilde x_i^\top)\,\theta$ is linear in $\theta = (W, b)$, so the chain rule gives the Kronecker form and each term is positive semidefinite. Since $(\operatorname{diag} p - p p^\top)\mathbf{1} = 0$, every $\mathbf{1} \otimes v$ is in each term's null space. With $\lambda \gt 0$, a direction $(U, c)$ has quadratic form at least $\lambda \lVert U \rVert^2$, which vanishes only if $U = 0$; then the form is $\frac1n \sum_i c^\top(\operatorname{diag} p_i - p_i p_i^\top)c$, which vanishes only for $c \propto \mathbf{1}$ when the $p_i$ are interior.
+
+**(b)** The gradient is $\partial F / \partial W_{kj} = \frac1n \sum_i (p_{ik} - y_{ik})x_{ij} + \lambda W_{kj}$ and $\partial F / \partial b_k = \frac1n \sum_i (p_{ik} - y_{ik})$. Set both to zero.
+
+**(c)** Naive Bayes maximizes the joint likelihood $\sum_i \big[\log \pi_{y_i} + \sum_j x_{ij}\log \theta_{y_i j}\big]$ subject to $\sum_j \theta_{kj} = 1$, and stationarity of the Lagrangian gives the ratio.
+
+</TheoremBlock>
+
+The first equation in (b) says that at $\lambda = 0$ the fitted model predicts, for every class and every word, exactly as many occurrences of the word in documents of the class as the training data contains. The second says the predicted class totals equal the observed ones, for every $\lambda$: logistic regression is calibrated in the large on its training data. Naive Bayes matches a different set of moments. On the finance unigrams its fitted posteriors miss the neutral and positive class totals by $22.3$ and $21.9$ documents out of $1{,}500$, and its co-counts by up to $268$; logistic regression's largest residual is $4.5 \times 10^{-8}$.
+
+Theorem 1 is the multiclass version of the binary logistic results in the [formalStatistics GLM topic](https://www.formalstatistics.com/topics/generalized-linear-models) (its Theorems 1 and 2). The harness checks the gradient and Hessian against finite differences, the null-space dimensions on a random instance, and agreement with scikit-learn, whose solver stops at an objective no lower than ours.
+
+---
+
+## How fast the generative side learns
+
+Ng and Jordan compare how much data each member of a pair needs to come within $\varepsilon_0$ of its own asymptotic error. Their generative side is about binary features whose rates are bounded away from $0$ and $1$. We state it with explicit constants.
+
+<TheoremBlock type="lemma" number={1} title="Uniform concentration of the parameters">
+
+Take $V$ binary features and suppose each of the two classes has at least $m_0 = \lceil \ln(4V/\delta)/(2\varepsilon^2) \rceil$ training documents.
+
+**(a)** Conditional on the labels, with probability at least $1 - \delta$ every estimated rate satisfies $\lvert \hat p(x_j = 1 \mid b) - p(x_j = 1 \mid b) \rvert \le \varepsilon$.
+
+**(b)** With $m \ge \ln(4/\delta)/(2\varepsilon^2)$ documents, $\lvert \hat\pi - \pi \rvert \le \varepsilon$ with probability at least $1 - \delta$; if $\rho_0 \le \pi \le 1 - \rho_0$, then $m \ge m_0 / (\rho_0 - \varepsilon)$ documents give each class at least $m_0$ on that event.
+
+**(c)** Add-$l$ smoothing moves each rate by at most $l / m_b$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** Each $\hat p_{jb}$ is a mean of $m_b$ independent Bernoulli variables, so Hoeffding's inequality gives $P(\lvert \hat p_{jb} - p_{jb} \rvert \gt \varepsilon) \le 2e^{-2\varepsilon^2 m_b}$. A union bound over the $2V$ pairs $(j, b)$ gives at most $4V e^{-2\varepsilon^2 m_0} \le \delta$.
+
+**(b)** Hoeffding's inequality for the labels; on its event, $m_b \ge (\pi_b - \varepsilon)m \ge (\rho_0 - \varepsilon) m$.
+
+**(c)** $\big\lvert (c + l)/(m_b + 2l) - c/m_b \big\rvert \le l / m_b$ for $0 \le c \le m_b$.
+
+</TheoremBlock>
+
+The union bound is where $\log V$ comes from: $V$ parameters cost only $\log V$ in the sample size. Ng and Jordan state this as their Lemma 3, with $m = O\big(\varepsilon^{-2}\log(V/\delta)\big)$.
+
+Let $l(x) = \sum_j \log\big[p(x_j \mid 1)/p(x_j \mid 0)\big] + \log\big[\pi/(1 - \pi)\big]$ be the population discriminant, $h_\infty$ its sign rule, and $\hat l$, $\hat h$ the plug-in versions from estimated parameters. For a margin width $\tau$, let
+
+$$
+G(\tau) = P\big[\big(l(x) \in [0, \tau V] \wedge y = 1\big) \vee \big(l(x) \in [-\tau V, 0] \wedge y = 0\big)\big],
+$$
+
+the probability that $h_\infty$ is right but by a margin of at most $\tau V$.
+
+<TheoremBlock type="theorem" number={2} title="The generative error bound">
+
+Suppose every true rate $p(x_j = 1 \mid b)$, and $\pi$, lie in $[\rho_0, 1 - \rho_0]$, and every estimate is within $\varepsilon \le \rho_0/2$ of the truth. Then
+
+**(a)** $\lvert \hat l(x) - l(x) \rvert \le \tau V$ for every $x$, with $\tau V = 4(V + 1)\varepsilon / \rho_0$;
+
+**(b)** $\operatorname{err}(\hat h) \le \operatorname{err}(h_\infty) + G(\tau)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** Every true probability, for $x_j = 1$ and for $x_j = 0$, is at least $\rho_0$, and every estimate is within $\varepsilon \le \rho_0/2$, so both are at least $\rho_0/2$. By the mean value theorem, $\lvert \log \hat a - \log a \rvert \le \lvert \hat a - a \rvert / \min(\hat a, a) \le 2\varepsilon/\rho_0$. The discriminant has $2V$ feature log terms and $2$ prior log terms, so $\lvert \hat l - l \rvert \le (2V + 2)(2\varepsilon/\rho_0)$.
+
+**(b)** If $\hat h$ errs on a document that $h_\infty$ gets right, the two discriminants have opposite signs, so $\lvert l(x) \rvert \le \lvert \hat l(x) - l(x) \rvert \le \tau V$, and $h_\infty$ was right: that is the event that $G$ measures.
+
+</TheoremBlock>
+
+With Lemma 1, $\varepsilon = O\big(\sqrt{\log(V/\delta)/m}\big)$, so $\tau = O\big(\sqrt{\log V / m}\big)$, which is Ng and Jordan's Theorem 4. If $G(\tau) \le \varepsilon_0/2 + F(\tau)$ for some $F$ with $F(\tau) \to 0$, then $m = O(\log V)$ documents bring naive Bayes within $\varepsilon_0$ of its asymptotic error (their Corollary 6). The discriminative side we cite. Half-spaces in $\mathbb{R}^V$ have VC dimension $V + 1$ ([formalML VC-dimension topic](https://www.formalml.com/topics/vc-dimension), Theorem 6), which gives their Proposition 2: the discriminative classifier comes within $O\big(\sqrt{(V/m)\log(m/V)}\big)$ of its asymptotic error, and needs $m = \Omega(V)$ documents in the worst case. Their Proposition 1 adds that the discriminative classifier's asymptotic error is never worse. Both concern the classifier that minimizes training 0-1 error over half-spaces; logistic regression's MLE is a convex stand-in for it.
+
+**How loose is it?** The harness builds a world where Bernoulli naive Bayes is exactly true: $V = 200$ features, rates clipped to $[0.1, 0.9]$, $\varepsilon = 0.05$, $\delta = 0.2$. Lemma 1 asks for $m_0 = 1{,}659$ documents per class. In $40$ draws of that size no parameter was ever off by more than $\varepsilon$, and the largest deviation's $0.8$ quantile was $0.040$. Theorem 2's margin is $\tau V = 402$ nats. The largest gap between $\hat l$ and $l$ on any test document in any draw was $2.15$ nats, and the median $\lvert l \rvert$ is $1.63$. With a margin of $402$, $G(\tau)$ is every correctly classified document, and the bound says nothing. A margin of one nat would take $2.7 \times 10^8$ documents per class. The bound adds $V$ errors as if they all pointed the same way. The sample size it predicts grows the right way in $V$, but the constants make it vacuous at any realistic size.
+
+---
+
+## Multinomial counts and the Zipf tail
+
+Lemma 1 needs every rate to be at least $\rho_0$. A multinomial vocabulary cannot have that: its rates sum to $1$, so some word has $\theta_j \le 1/V$, and under Zipf's law most words are far rarer.
+
+<TheoremBlock type="theorem" number={3} title="Relative accuracy costs the rarest word">
+
+Let a class's $N$ training tokens be independent draws from $\theta \in \Delta^V$, and let $\hat\theta = C/N$ be the empirical rates. Fix $\varepsilon \in (0, 1/2]$.
+
+**(a)** If $N \ge 3\ln(2V/\delta)/(\varepsilon^2 \theta_{\min})$, then with probability at least $1 - \delta$ every $\lvert \hat\theta_j / \theta_j - 1 \rvert \le \varepsilon$. Then every $\lvert \log\hat\theta_j - \log\theta_j \rvert \le 2\varepsilon$, and for two such classes a document's discriminant moves by at most $4\varepsilon L$.
+
+**(b)** If $N \le 1/(2\theta_{\min})$, the rarest word is unseen with probability at least $1/2$, and its relative error is $1$. So relative accuracy for every word needs more than $1/(2\theta_{\min}) \ge V/2$ tokens.
+
+**(c)** Under Zipf($s$), $\theta_{\min} = V^{-s}/H_{V,s}$, so (a) asks for a number of tokens that grows like $V^s H_{V,s} \log V$: polynomially in $V$, not logarithmically.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** The multiplicative Chernoff bound gives $P\big(\lvert C_j - N\theta_j \rvert \ge \varepsilon N\theta_j\big) \le 2e^{-\varepsilon^2 N\theta_j/3}$, and a union bound over $V$ words with $\theta_j \ge \theta_{\min}$ gives at most $2V e^{-\varepsilon^2 N \theta_{\min}/3} \le \delta$. For $\varepsilon \le 1/2$, $-\log(1 - \varepsilon) \le \varepsilon/(1 - \varepsilon) \le 2\varepsilon$ and $\log(1 + \varepsilon) \le \varepsilon$. The discriminant $\sum_j x_j(\log\hat\theta_{1j} - \log\hat\theta_{0j})$ moves by at most $\sum_j x_j \cdot 4\varepsilon = 4\varepsilon L$.
+
+**(b)** $P(C_{\min} = 0) = (1 - \theta_{\min})^N \ge 1 - N\theta_{\min} \ge 1/2$.
+
+**(c)** Zipf($s$) gives word $j$ probability $j^{-s}/H_{V,s}$, the law of the [Zipf topic](/topics/zipf-heaps-vocabulary-statistics), and the last word has the smallest.
+
+</TheoremBlock>
+
+In the long-tailed world of the next section ($V = 3{,}071$ words, rates in proportion to the corpus's), $\theta_{\min}$ is $4.8 \times 10^{-6}$, and part (a) at $\varepsilon = 1/2$, $\delta = 0.1$ asks for $27.7$ million tokens per class. A uniform vocabulary of the same size would need $0.41$ million, and a pure Zipf(1.1) vocabulary $5.5$ million. Training on $4{,}096$ documents supplies $0.44$ million tokens per class and leaves about $67$ words never seen.
+
+The bound is sufficient, not necessary, because rare words are rare in test documents too. The share of test tokens whose word occurred fewer than five times in training falls from $0.104$ at $64$ training documents to $0.028$ at $512$ and $0.0018$ at $4{,}096$. What the long tail does change is the smoothing. When the smoothing strength $\alpha$ is chosen on validation data, its median choice in the $3{,}071$-word world climbs from about $0.5$ at small $n$ to $20$ at $n = 4{,}096$, while in a $101$-word world it stays between $0.1$ and $0.65$. As $n$ grows, more rare words are seen once, and each one needs more shrinkage.
+
+---
+
+## Burstiness and the crossover
+
+Ng and Jordan's two results predict two regimes. Naive Bayes approaches its asymptote faster, so it should lead early. Logistic regression has the better asymptote, so it should lead late if the two asymptotes differ. When naive Bayes is the true model they do not differ, and the prediction is no crossover at all.
+
+Real words also come in **bursts**: a document that mentions "impairment" once tends to mention it again. Model it in the simplest way: draw an underlying count vector $u$ from naive Bayes, and observe $x = r \odot u$, where each word's occurrences repeat $r_j \ge 1$ times.
+
+<TheoremBlock type="proposition" number={2} title="Bursts keep logistic regression right and make naive Bayes overcount">
+
+Let $u \sim \operatorname{Multinomial}(L, \theta_y)$ with $L$ independent of $y$, and observe $x = r \odot u$ for fixed $r_j \ge 1$.
+
+**(a)** $P(y \mid x) = \operatorname{softmax}_y\big(\sum_j (x_j/r_j)\log\theta_{yj} + \log\pi_y\big)$, which is linear in $x$. Softmax logistic regression contains the true conditional, and its population error is the Bayes error.
+
+**(b)** Multinomial naive Bayes fit to infinitely many such documents converges to $\tilde\theta_k = r \odot \theta_k / Z_k$ with $Z_k = \sum_j r_j\theta_{kj}$. Its weight per observed count is $\log(\theta_{1j}/\theta_{0j}) + \log(Z_0/Z_1)$: per underlying occurrence, $r_j$ times the Bayes weight, plus a term in the length. Its asymptotic error is generally above the Bayes error.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** $u = x / r$ is a function of $x$, so $P(y \mid x) = P(y \mid u)$, which Proposition 1(a) writes as a softmax of $\sum_j u_j \log\theta_{yj} + \log\pi_y$.
+
+**(b)** By the law of large numbers, $\hat\theta_{kj} \to \mathbb{E}[x_j \mid k] / \mathbb{E}[L(x) \mid k] = r_j \theta_{kj}\mathbb{E}[L] / (\mathbb{E}[L]\, Z_k)$.
+
+</TheoremBlock>
+
+The harness builds four worlds from the corpus. In each, $71$ informative words (the sentiment lexicon, the direction words, and "not") have class-dependent rates taken from the corpus and hold $6.2\%$ of every document. The rest of each document is spread over uninformative words in proportion to their corpus frequencies: $30$ of them ($V = 101$) or $3{,}000$ ($V = 3{,}071$). In the bursty worlds a fixed half of the words repeat four times. The Bayes accuracy is the same with and without bursts, $0.853$ at $V = 101$ and $0.855$ at $V = 3{,}071$, because the bursts are a deterministic relabeling. Naive Bayes's asymptote in the bursty worlds is $0.820$ and $0.815$. Each method's hyperparameter, the smoothing $\alpha$ for naive Bayes and the penalty $\lambda$ for logistic regression, is chosen for every fit on a fresh validation draw, and each curve averages four nested training draws.
+
+- **Naive Bayes true, $V = 101$:** naive Bayes leads at every training size and reaches $0.852$ at $4{,}096$ documents, against $0.848$. No crossover.
+- **Naive Bayes true, $V = 3{,}071$:** again no crossover; at $4{,}096$ documents naive Bayes has $0.831$ and logistic regression $0.811$.
+- **Bursty, $V = 101$:** naive Bayes leads until $512$ documents, and logistic regression leads from there on, finishing at $0.849$, past naive Bayes's asymptote; naive Bayes finishes at $0.817$.
+- **Bursty, $V = 3{,}071$:** the crossover moves out to $2{,}048$ documents, and at $4{,}096$ logistic regression has $0.790$ and naive Bayes $0.772$.
+
+Ng and Jordan's two regimes appear exactly where their asymptotic errors differ. Choose the world and the vocabulary in the laboratory.
+
+<LinearTextClassifiersLab client:visible />
+
+---
+
+## Separation
+
+The finance corpus has $1{,}500$ training documents and $3{,}246$ unigram features, $17{,}706$ with bigrams. With more features than documents, a hyperplane can usually separate the training classes perfectly, and that changes what logistic regression's fit means. We use the homogeneous model here (no intercept), write $z_i = s_i x_i$ for a document times its label $s_i \in \{\pm 1\}$, and let
+
+$$
+\ell(w) = \frac{1}{n}\sum_i \log\big(1 + e^{-z_i \cdot w}\big), \qquad F_\lambda(w) = \ell(w) + \frac{\lambda}{2}\lVert w \rVert^2 .
+$$
+
+<TheoremBlock type="theorem" number={4} title="Separation, the missing MLE, and the max-margin limit">
+
+**(a)** If some $\bar w$ has $z_i \cdot \bar w \gt 0$ for every $i$, then $\inf \ell = 0$ and no $w$ attains it; $\nabla\ell(w)\cdot\bar w \lt 0$ at every $w$, so $\ell$ has no stationary point. For $\lambda \gt 0$, $F_\lambda$ has a unique minimizer $\hat w_\lambda$.
+
+**(b)** If the $x_i$ are linearly independent, which needs $n \le V$, every labeling is separable.
+
+**(c)** Let $\hat w = \arg\min \lVert w \rVert^2$ subject to $z_i \cdot w \ge 1$ for all $i$, the hard-margin SVM, which is unique, and let $u^* = \hat w / \lVert \hat w \rVert$ and $\gamma^* = 1/\lVert \hat w \rVert$. As $\lambda \to 0$, $\lVert \hat w_\lambda \rVert \to \infty$, $\min_i z_i \cdot \hat w_\lambda / \lVert \hat w_\lambda \rVert \to \gamma^*$, and $\hat w_\lambda / \lVert \hat w_\lambda \rVert \to u^*$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** Along $t\bar w$ every margin grows, so $\ell(t\bar w) \to 0$ as $t \to \infty$, while $\ell \gt 0$ everywhere. The directional derivative $\nabla\ell(w)\cdot\bar w = -\frac1n\sum_i \sigma(-z_i\cdot w)\, z_i\cdot\bar w$ is negative. $F_\lambda$ is strictly convex and grows without bound, so it has exactly one minimizer.
+
+**(b)** The map $w \mapsto Xw$ from $\mathbb{R}^V$ onto $\mathbb{R}^n$ is surjective, so $Xw = s$ has a solution for any sign vector $s$, and then $z_i \cdot w = s_i^2 = 1$.
+
+**(c)** Write $\hat w_\lambda = \rho_\lambda u_\lambda$ with $\lVert u_\lambda \rVert = 1$, and $\gamma_\lambda = \min_i z_i \cdot u_\lambda$.
+
+*The norm grows without bound.* Fix $R$. On the ball $\lVert w \rVert \le R$, $F_\lambda \ge c_R = \min_{\lVert w \rVert \le R} \ell(w) \gt 0$. Since $\log(1 + e^{-m}) \le e^{-m}$, $F_\lambda(R' u^*) \le e^{-R'\gamma^*} + \lambda R'^2/2$, which is below $c_R$ for $R'$ large and then $\lambda$ small. So eventually $\hat w_\lambda$ lies outside the ball.
+
+*Compare at equal norm.* $F_\lambda(\hat w_\lambda) \le F_\lambda(\rho_\lambda u^*)$ and the penalties are equal, so $\ell(\rho_\lambda u_\lambda) \le \ell(\rho_\lambda u^*) \le e^{-\rho_\lambda \gamma^*}$.
+
+*The margin is eventually positive.* If $\gamma_\lambda \lt 0$, one term of $\ell(\rho_\lambda u_\lambda)$ is at least $\log 2$, so $\ell \ge \log 2 / n$, which exceeds $e^{-\rho_\lambda\gamma^*}$ once $\rho_\lambda$ is large.
+
+*The margin approaches the maximum.* For $m \ge 0$, $\log(1 + e^{-m}) \ge e^{-m}/2$, so $\frac{1}{2n}e^{-\rho_\lambda\gamma_\lambda} \le e^{-\rho_\lambda\gamma^*}$, which gives $\gamma_\lambda \ge \gamma^* - \ln(2n)/\rho_\lambda \to \gamma^*$.
+
+*The direction converges.* Every limit point $\bar u$ of $u_\lambda$ on the unit sphere has $\min_i z_i \cdot \bar u \ge \gamma^*$, so it is a max-margin direction, and by uniqueness $\bar u = u^*$. A bounded sequence whose every convergent subsequence has the same limit converges to it.
+
+</TheoremBlock>
+
+Part (c) is Rosset, Zhu, and Hastie's (2004) Theorem 2.1 for the logistic loss with the squared $L_2$ penalty; their JMLR paper proves the same limit along the constrained path $\lVert w \rVert \le c$. Albert and Anderson (1984) classify when the MLE exists; part (a) is the complete-separation case. Cover's (1965) function-counting theorem gives (b) its exact form: $n$ points in general position in $\mathbb{R}^d$ admit all $2^n$ homogeneous labelings exactly when $n \le d$.
+
+The harness takes the $200$ polar tone documents of a $300$-document corpus, with $2{,}738$ words. Their count vectors have full rank, so every labeling is separable, and a linear program confirms it for the true labels and three random ones. The SVM normalized margin is $\gamma^* = 0.692$. As $\lambda$ falls from $10^{-1}$ to $10^{-7}$ the norm $\lVert \hat w_\lambda \rVert$ runs from $1.541$ to $18.005$, the cosine to the SVM direction rises from $0.930$ to $0.998$, and the normalized margin from $0.032$ to $0.645$. The last decade of $\lambda$ adds $3.047$ to the norm, near $\ln 10 / \gamma^* = 3.326$, as $\lVert \hat w_\lambda \rVert \approx \ln(1/\lambda)/\gamma^*$ would predict.
+
+Unregularized **gradient descent** does the same thing with time in place of $\lambda$. Soudry and colleagues (2018, Theorems 3 and 5) prove that on separable data, from any start and with a small enough step, $w(t)$ grows like $\hat w \log t$ and its direction converges to the max-margin direction, at rate $O(\log\log t / \log t)$. From $w = 0$ on the tone documents, the cosine to the SVM direction is $0.591$ after $10$ steps, $0.906$ after $1{,}000$, and $0.987$ after $100{,}000$, while the loss falls to $0.0025$. The laboratory plots both paths. A logistic regression on separable text that reports its weights is reporting how long it ran; only the direction is a fact about the data, and the margin bound of the [formalML generalization topic](https://www.formalml.com/topics/generalization-bounds) (Theorem 6) is why that direction is a good one.
+
+---
+
+## Naive Bayes features as a prior
+
+Wang and Manning (2012) reuse naive Bayes inside a discriminative model. Their **log-count ratio** for a binary task is
+
+$$
+r = \log\frac{p / \lVert p \rVert_1}{q / \lVert q \rVert_1}, \qquad p = \alpha + \sum_{i:\,y_i = 1} f_i, \quad q = \alpha + \sum_{i:\,y_i = 0} f_i,
+$$
+
+naive Bayes's weight vector for features $f$, and their NBSVM fits a linear model to $r \odot f$.
+
+<TheoremBlock type="proposition" number={3} title="Naive Bayes weights as a prior">
+
+**(a)** Let every $r_j \ne 0$. Logistic regression on the features $r \odot x$ with penalty $\frac{\lambda}{2}\lVert v \rVert^2$ has the same decision function as logistic regression on $x$ with penalty $\frac{\lambda}{2}\sum_j w_j^2 / r_j^2$, through $w = r \odot v$.
+
+**(b)** For raw counts with class totals $N_1$, $N_0$, and word totals $c_j = c_{0j} + c_{1j}$,
+
+$$
+\lvert r_j \rvert \le \ln\frac{c_j + \alpha}{\alpha} + \Big\lvert \ln\frac{N_1 + \alpha V}{N_0 + \alpha V} \Big\rvert .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** The substitution $w = r \odot v$ is a bijection that leaves every score $x \cdot w = (r \odot x)\cdot v$ unchanged and sends $\lVert v \rVert^2$ to $\sum_j w_j^2/r_j^2$.
+
+**(b)** $r_j = \ln\frac{c_{1j} + \alpha}{c_{0j} + \alpha} + \ln\frac{N_0 + \alpha V}{N_1 + \alpha V}$, and since $0 \le c_{kj} \le c_j$, the first ratio lies between $\alpha / (c_j + \alpha)$ and $(c_j + \alpha)/\alpha$.
+
+</TheoremBlock>
+
+Part (a) is a Gaussian prior with a different variance for each word, $r_j^2/\lambda$, set by naive Bayes ([formalStatistics regularization topic](https://www.formalstatistics.com/topics/regularization-and-penalized-estimation)). A word that naive Bayes finds uninformative gets a tight prior around zero, and a word it finds strongly polar is free to move. Part (b) is the funnel in the laboratory. On the $1{,}000$ polar training documents ($6{,}307$ words), the most extreme log ratio of any word seen once is $2.408$ at $\alpha = 0.1$, $0.703$ at $\alpha = 1$, and $0.102$ at $\alpha = 10$, each exactly the bound. Smoothing caps what a rare word can say, and under Zipf most words are rare. Add-$\alpha$ smoothing is a posterior mean under a symmetric Dirichlet prior ([formalStatistics multivariate topic](https://www.formalstatistics.com/topics/multivariate-distributions), Theorem 6). The [formalRAG query-likelihood topic](https://www.formalrag.com/topics/query-likelihood-language-models) smooths toward a background distribution instead.
+
+---
+
+## The aspect exclusive-or
+
+The finance corpus writes its tone into $5$ to $8$ aspect sentences per document. Each sentence names an aspect (revenue, margins, demand, liquidity, costs, taxes, liabilities) and says what happened to it. For revenue, up is good news; for costs, up is bad.
+
+<TheoremBlock type="proposition" number={4} title="Valence times direction is not linear in unigrams">
+
+On the four one-clause documents "revenue rose" (positive), "revenue fell" (negative), "costs rose" (negative), and "costs fell" (positive), no $(w, b)$ separates the labels using unigram counts. Bigram indicators separate them.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Suppose $(w, b)$ separates them. The positive documents give $w_{\text{revenue}} + w_{\text{rose}} + b \gt 0$ and $w_{\text{costs}} + w_{\text{fell}} + b \gt 0$, whose sum is $S = w_{\text{revenue}} + w_{\text{costs}} + w_{\text{rose}} + w_{\text{fell}} + 2b \gt 0$. The negative documents give $w_{\text{revenue}} + w_{\text{fell}} + b \lt 0$ and $w_{\text{costs}} + w_{\text{rose}} + b \lt 0$, whose sum is the same $S \lt 0$. With bigram indicators, weight $+1$ on "revenue rose" and "costs fell" and $-1$ on the other two separates them.
+
+</TheoremBlock>
+
+This is the exclusive-or that a single hyperplane cannot draw, and the corpus shows its signature. In the unigram fit, logistic regression gives "rose" a weight of $0.060$ and "fell" $0.024$ (positive minus negative): the words cancel across aspects. The bigram fit puts the sign on the pairs:
+
+| bigram | weight |
+|---|---|
+| costs rose | $-0.355$ |
+| costs fell | $0.526$ |
+| taxes rose | $-0.351$ |
+| sales rose | $0.265$ |
+| not strong | $-0.199$ |
+| not weak | $0.336$ |
+
+Negation is the same kind of interaction: "not" flips the adjective after it, and "not weak" is positive.
+
+---
+
+<FinanceCaseStudy title="Finance case study: tone in synthetic filings">
+
+**The ceiling.** Each document has $k$ aspect sentences, $k$ uniform on $5$ to $8$, whose polarities are independent draws from a mixture that depends on the tone. Nothing else in a document depends on its tone, so the counts of positive, neutral, and negative sentences are sufficient, and the Bayes accuracy is an exact sum over them: $0.890$. That is the accuracy of a reader who recovers every sentence's polarity, which the corpus's templates make possible.
+
+**The classifiers.** Train on $1{,}500$ documents, choose each hyperparameter on $600$ more, test on $1{,}500$, all three tones. The NB-weighted model is the one of Proposition 3(a), one-versus-rest: for each tone, logistic regression on binarized features scaled by that tone's log-count ratio against the others (Wang and Manning's NBSVM uses a squared hinge loss and an interpolation we leave out).
+
+| method | features | accuracy | confidence | ECE |
+|---|---|---|---|---|
+| naive Bayes | unigrams | $0.601$ | $0.899$ | $0.301$ |
+| naive Bayes | bigrams | $0.694$ | $0.962$ | $0.270$ |
+| logistic regression | unigrams | $0.739$ | $0.780$ | $0.046$ |
+| logistic regression | bigrams | $0.771$ | $0.869$ | $0.099$ |
+| NB-weighted | unigrams | $0.719$ | $0.728$ | $0.029$ |
+| NB-weighted | bigrams | $0.776$ | $0.796$ | $0.027$ |
+
+Confidence is the mean top probability and ECE the 15-bin expected calibration error of the [calibration topic](/topics/language-model-calibration). Bigrams help every method, by Proposition 4. Logistic regression beats naive Bayes by $0.138$ on unigrams and $0.077$ on bigrams, and nothing comes within $0.11$ of the ceiling: no bag of n-grams parses a contrast sentence ("margins improved, but costs rose") as a whole.
+
+**No crossover here.** Train on the first $n$ documents with each method's chosen hyperparameter:
+
+| $n$ | naive Bayes | logistic regression |
+|---|---|---|
+| $30$ | $0.324$ | $0.460$ |
+| $100$ | $0.437$ | $0.515$ |
+| $300$ | $0.517$ | $0.620$ |
+| $1{,}000$ | $0.602$ | $0.723$ |
+| $1{,}500$ | $0.601$ | $0.739$ |
+
+Logistic regression leads at every size. Most of each document is company names, products, and Pitman–Yor content words that carry no tone, thousands of them. Naive Bayes gives each one a log ratio fit to noise and adds them all up, while logistic regression shrinks them toward zero. Naive Bayes is misspecified here, its asymptote is far below logistic regression's, and the early lead the theory allows never shows.
+
+**Calibration.** Naive Bayes is overconfident by $0.30$ on unigrams: its template words co-occur, and it counts their evidence as if independent, the failure Niculescu-Mizil and Caruana (2005) document. Logistic regression on unigrams is close to calibrated, as Theorem 1's class-total equation suggests. On bigrams it is overconfident ($0.869$ against $0.771$). With $17{,}706$ features and $1{,}500$ documents its training set is nearly separable (Theorem 4), so the moments it matches on the training data are optimistic about new data.
+
+**Label noise.** Flip a share of the training labels to another tone at random, keep the test labels clean:
+
+| noise | naive Bayes | logistic regression | NB-weighted |
+|---|---|---|---|
+| $0$ | $0.601$ | $0.739$ | $0.719$ |
+| $0.15$ | $0.526$ | $0.660$ | $0.689$ |
+| $0.30$ | $0.510$ | $0.584$ | $0.598$ |
+
+Logistic regression stays ahead of naive Bayes at every level. The real EDGAR excerpts carry no tone labels, so they appear in none of these numbers.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this sits
+
+Naive Bayes for text goes back decades, and its independence assumption has been examined from many sides: Lewis (1998) surveys its history in retrieval, Domingos and Pazzani (1997) explain why it can classify well with badly wrong probabilities, McCallum and Nigam (1998) compare the multinomial and Bernoulli event models, and Rennie and colleagues (2003) repair several of its biases, including burstiness, with complement classes and log term frequencies. Joachims (1998) showed that text is the high-dimensional, nearly separable setting where margin methods do well, the geometry of Theorem 4. The [formalML naive-Bayes topic](https://www.formalml.com/topics/naive-bayes) covers Gaussian naive Bayes, Ng and Jordan for that case, and the Platt and isotonic repairs of its probabilities.
+
+The next topic replaces learned weights with a fixed dictionary, Loughran and McDonald's (2011), and asks what a lexicon gets wrong about financial words. The same log-linear model, lifted from documents to label sequences, is the linear-chain conditional random field of the sequence-labeling topic. Whether a $0.03$ accuracy gap between two of these classifiers is real is a question for the significance-testing topic. And a fine-tuned encoder replaces the bag of words with a representation that can see "costs rose" as a phrase.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and cited.** Propositions 1–4, Lemma 1, and Theorems 1–4 are proved here. Ng and Jordan's discriminative results (their Propositions 1 and 2) and Soudry and colleagues' theorems on gradient descent are cited.
+2. **A vacuous bound, honestly stated.** Theorem 2 holds as stated, and with explicit constants its margin is $402$ nats where observed gaps are near $2$. It describes how the sample size scales, not what it is.
+3. **The discriminative side concerns 0-1 error.** Ng and Jordan analyze the classifier that minimizes training 0-1 error over half-spaces. Logistic regression's MLE minimizes log loss, and on separable data it does not exist.
+4. **Crossovers are not universal.** Xue and Titterington (2008) find Ng and Jordan's two regimes unreliable on real data. Our crossover appears only in a world built for it, and the finance corpus shows none.
+5. **Simulated worlds tune on fresh data.** Every hyperparameter in the learning curves is chosen on an independent validation draw from the world, which real data does not provide.
+6. **Sufficient, not necessary.** Theorem 3's token count is a worst case over words; rare words are rare in test documents, too.
+7. **A synthetic corpus.** The finance tone and its $0.890$ ceiling come from a generator with planted structure. The NB-weighted model is a logistic one-versus-rest variant of NBSVM, and its probabilities are normalized scores.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `linear_text_classifiers.py`, which owns every number on this page. That module imports the Zipf topic's module for Zipf's law and the shared finance corpus through it. It implements multinomial and Bernoulli naive Bayes in Proposition 1's closed form, softmax and binary logistic regression by trust-region Newton–CG with exact Hessian-vector products, the hard-margin SVM through its dual, the simulated worlds with common random numbers, and the finance classifiers. A harness of $23$ assertion-based tests runs in under fifty seconds on a laptop CPU. The tests cover:
+
+- Proposition 1 against the literal Bayes rule and scikit-learn's naive Bayes, and the length counterexample.
+- Theorem 1's gradient, Hessian, and null spaces against finite differences, its estimating equations at the fitted optimum, and scikit-learn's logistic regression.
+- Lemma 1 and Theorem 2 in a Bernoulli world that meets their hypotheses, including how loose the bound is; Theorem 3 in the long-tailed world, with a Monte Carlo check of its Chernoff step.
+- Proposition 2's identity, and the learning curves' regimes in all four worlds.
+- Theorem 4's rank, separability by linear programming, the missing stationary point, and the monotone path and gradient-descent directions.
+- Proposition 3's equivalence and bound, Proposition 4 by linear programming and on the corpus, and the finance tables, ceiling, prefixes, and label noise.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

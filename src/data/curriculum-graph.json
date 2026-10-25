@@ -99,7 +99,7 @@
     {
       "id": "linear-text-classifiers",
       "label": "Linear Text Classifiers: Generative vs. Discriminative",
-      "status": "planned",
+      "status": "published",
       "domain": "classification-sentiment"
     },
     {
