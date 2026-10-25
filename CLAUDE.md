@@ -83,7 +83,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   products (gold `Entity.type`; `kestrel` 57 ORG / 61 PRODUCT), while `reserves` (banking/energy) occurs
   only 8 times. The aspect gold gives each direction word the news it reports ("costs rose" −1), but a
   lexicon word's own polarity is barely in the text (a whole document's other lexicon words vote it
-  right 0.571 of the time), so no window or context model recovers it.
+  right 0.571 of the time), so no window or context model recovers it. MD&A document openers are
+  templated (two distinct first sentences in `generate_corpus(100, 1)`): draw prompts from every
+  sentence's distinct opening instead (Topic 14's 188).
 - Lab data is `src/components/viz/data/<lab>.json` = `json.dumps(viz_payload(), separators=(',', ':'))`,
   pinned by the `.py`'s `test_viz_mirror_matches_payload` — regenerate it, never hand-edit.
 - `rigorFlag` is load-bearing. Honesty is the differentiator.
@@ -132,6 +134,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Mobile: assert `scrollWidth === 375` in *every* lab view/toggle. A `nowrap` readout inside a grid
   `minmax(0, 1fr)` cell overflows — use flex-wrap rows. To find the culprit, list elements with no
   overflow-clipped ancestor whose `getBoundingClientRect().right > 375`.
+- D3 trees: `d3.stratify` silently drops a node whose id is `""` (falsy), so prefix every id
+  (`n:${id}`); `d3.tree`'s default separation gives siblings half the gap of cousins, so labeled trees
+  need `.separation(() => 1)` and about 26 px of height per leaf (Topic 14's 34-node tree takes 600).
 - `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose.
 - NumPy SGD: scatter-add minibatch gradients as `csc_matrix((ones, idx, arange(n+1)), shape=(V, n)) @ g`,
   >10× faster than `np.add.at`. Draw an epoch's random numbers in one call (same stream, same results).
@@ -143,6 +148,16 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   positions. Tiny decoders (d ≤ 48) are optimization-limited at Adam's lr 0.01: a peak of 1.28/d
   with 10% warmup took d = 32 from 2.14 to 1.70 nats and halved the seed spread (0.010 nats per run).
   Sweep the rate before fixing a scaling grid.
+- Decoding on corpus models (Topic 14). Topic 3's KN trigram (`pce.word_vector("ikn")`) is Markov, so
+  Dijkstra on its last-two-words states finds the exact mode in milliseconds; Topic 13's decoder
+  recombines nothing (best-first tree search: median 25 pops, max 4,292). Mask `<unk>` (and the decoder's
+  `<s>`) and renormalize per step, or `<unk>` becomes a frequent output, and say so in the rigorFlag.
+  KN backoff hands `</s>` its unigram share after rare contexts, so 0.197 of the trigram's modes are
+  empty. Push only a node's best child and next sibling (lazy successors), so the heap stays O(pops) at
+  V = 3,427. Beam runs for several length penalties share one search, since all open prefixes have one
+  length (48 → 31 s). Exact search under length normalization does not scale (per-length uniform-cost:
+  88 s for 60 prompts, incomplete); report the length-capped certificate instead. For a
+  sufficient-not-necessary check like Thm 3's certificate, pin where it stays silent; never assert it fires.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -156,7 +171,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   ~31 s; its `decoder_loss_grad` is a gradient-checked causal pre-LN decoder (learned positions, tied
   embeddings), `_Counted` an ndarray subclass that counts matmul FLOPs, `sgd_losses` exact one-pass SGD
   on a Gaussian power-law model (no Monte Carlo), and `compute_optimal`/`fit_loss_law` Chinchilla's
-  closed form and Approach 3.
+  closed form and Approach 3. Its `init_decoder`/`decoder_loss_grad` hard-code V = `sl.TOY_V` (512) and
+  n = `sl.TOY_CTX` (32), so a new vocabulary needs exactly 512 ids. Topic 14 trains it (d = 32, 1,200
+  steps) in ~5 s on windows that start at a sentence's `<s>` (position 0 holds `<s>`, as when decoding)
+  and decodes with float64 copies, so every search score matches one full forward pass to 10⁻⁹. Topic
+  14's `uniform_cost`, `beam_search_multi` (with the pruned-score certificate), and `greedy_orbit` are
+  reusable; its `_beam_table("decoder")` takes ~12 s and `exact_modes("decoder")` ~6 s.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -167,7 +187,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   Besiroglu et al.'s Eq. 4, do). When a cited remark seems to contradict the harness, read its setting:
   Hutter (2021, §6)'s "β = 1" for Pitman–Yor is the d = 0 case, not the missing mass's 1 − d. Prototype
   trained experiments in the scratchpad before the scaffold, but treat spike numbers as provisional; never
-  name a scratch script after a stdlib module (an `inspect.py` broke numpy's import).
+  name a scratch script after a stdlib module (an `inspect.py` broke numpy's import). Read a cited
+  theorem's own statement, not the prose around it: Meister et al. (2020)'s R_greedy squares the
+  surprisal gap (Eq. 11), their text calls its k = 1 case "beam search", and their Appendix A proves Thm
+  3.1 under Thm 3.2's name; Welleck et al. (2020)'s Thms 4.2–4.3 appear only in Appendix C. Huang, Zhao,
+  and Ma (2017) is arXiv 1809.00069, not 1808.09582 (another paper); Karp (1978) has two Crossref DOIs
+  (use 0012-365X(78)90011-0); Lowerre's 1976 thesis has no full text online (cite CMU CSD's degree record).
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -196,6 +221,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   retrieval, rerankers) — formalRAG owns them; cross-link instead.
 - Cover agentic topics (MCP, tool calling, workflows, agent security) — reserved for formalAgentic.
 - Cite a sibling slug without checking it exists **and** is `status: published` on the sibling's
-  GitHub `main` — a local sibling checkout can lag or sit on another branch.
+  GitHub `main` — a local sibling checkout can lag or sit on another branch. Check what it covers, too:
+  formalML `message-passing` is GNNs, with no max-product or Viterbi, and as of 2026-10-24 no published
+  sibling covers Viterbi (formalStatistics `hidden-markov-models` is still draft).
 - Hardcode hex colors in components — use the `--color-*` tokens.
 - Commit `docs/plans/audit-output/`, `cross-site-audit-report.md`, or `deferred-reciprocals.md`.
