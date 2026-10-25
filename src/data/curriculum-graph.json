@@ -111,7 +111,7 @@
     {
       "id": "aspect-based-sentiment",
       "label": "Aspect-Based Sentiment Analysis",
-      "status": "planned",
+      "status": "published",
       "domain": "classification-sentiment"
     },
     {
