@@ -470,19 +470,23 @@ def repeated_test_set() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
 def head_scores(P: Params) -> dict[str, np.ndarray]:
-    """On the test set: each head's mean attention to the previous position (over i ≥ 1) and to the position after
-    the current token's previous occurrence, i − p + 1 (over the masked positions) — the induction target."""
+    """On the test set: each head's mean attention to the previous position (over i ≥ 1); to the position after the
+    current token's previous occurrence, i − p + 1 (over the masked positions) — the induction target; and to every
+    position j ≤ i whose predecessor is the current token (t_{j−1} = t_i), all of which hold a correct copy."""
     tok, _, mask, p = repeated_test_set()
     _, _, caches = model_forward(P, tok)
     i = np.arange(N_CTX)
-    prev, ind = [], []
+    before = np.concatenate([np.full((len(tok), 1), -1), tok[:, :-1]], 1)
+    copies = (before[:, None, :] == tok[:, :, None]) & np.tri(N_CTX, dtype=bool)[None]
+    prev, ind, cop = [], [], []
     for c in caches:
         A = c[4]
         prev.append(A[:, :, i[1:], i[1:] - 1].mean((0, 2)))
         j = np.clip(i[None, :] - p[:, None] + 1, 0, N_CTX - 1)
         a = np.take_along_axis(A, np.broadcast_to(j[:, None, :, None], (*A.shape[:3], 1)), -1)[..., 0]
         ind.append((a * mask[:, None]).sum((0, 2)) / mask.sum())
-    return {"prev": np.array(prev), "induction": np.array(ind)}
+        cop.append(((A * copies[:, None]).sum(-1) * mask[:, None]).sum((0, 2)) / mask.sum())
+    return {"prev": np.array(prev), "induction": np.array(ind), "copies": np.array(cop)}
 
 
 def composition_scores(P: Params, kind: str = "k") -> np.ndarray:
@@ -658,6 +662,7 @@ def summary() -> dict:
         "induction_loss_1layer": one["loss"], "induction_acc_1layer": one["acc"],
         "induction_loss_k_cut": cut["loss"], "induction_acc_k_cut": cut["acc"],
         "prev_token_score": float(hs["prev"][0].max()), "induction_scores": [float(v) for v in hs["induction"][1]],
+        "copy_scores": [float(v) for v in hs["copies"][1]],
         "k_composition_max": float(composition_scores(s2, "k").max()),
         "q_composition_max": float(composition_scores(s2, "q").max()),
         "v_composition_max": float(composition_scores(s2, "v").max()),
@@ -730,14 +735,15 @@ def viz_payload() -> dict:
     return {
         "collapse": {
             "betas": list(COLLAPSE_BETAS), "depth": COLLAPSE_DEPTH,
-            "runs": {f"{b}|{'skip' if r else 'pure'}": {
+            "runs": {f"{b:g}|{'skip' if r else 'pure'}": {
                 "X": [_sig(X.ravel(), 4) for X in collapse_run(b, r)["X"]],
-                "diam": _sig(collapse_run(b, r)["diam"], 4), "spread": _r(collapse_run(b, r)["spread"], 3),
-                "tau": _r(collapse_run(b, r)["tau"], 3), "bound": _sig(collapse_run(b, r)["bound"], 4)}
+                "diam": _sig(collapse_run(b, r)["diam"], 4), "spread": _r(collapse_run(b, r)["spread"], 4),
+                "tau": _r(collapse_run(b, r)["tau"], 3), "bound": _sig(collapse_run(b, r)["bound"], 4),
+                "growth": _sig(collapse_run(b, r)["diam"][-1] / collapse_run(b, r)["diam"][0], 4)}
                 for b in COLLAPSE_BETAS for r in (False, True)}},
         "layernorm": {k: _r(np.asarray(v).ravel(), 3) for k, v in cloud.items()},
-        "gradients": {s: {str(L): {"w2": _sig(gradient_profile(s, L)["w2"], 3),
-                                   "norm": _sig(gradient_profile(s, L)["norm"], 3)} for L in GRAD_DEPTHS}
+        "gradients": {s: {str(L): {"w2": _r(gradient_profile(s, L)["w2"], 3),
+                                   "norm": _r(gradient_profile(s, L)["norm"], 3)} for L in GRAD_DEPTHS}
                       for s in SCHEMES},
         "induction": {
             "tokens": tok[e].tolist(), "targets": tgt[e].tolist(), "mask": mask[e].tolist(), "period": int(p[e]),
@@ -995,7 +1001,7 @@ def test_induction_heads():
     model stays above 4 nats and below 0.15; computing layer 1's keys from x₀ (no K-composition) sends the 2-layer model
     above the 1-layer model's loss. A layer-0 head puts > 0.8 of its weight on the previous token, with its content-free
     RoPE score (Topic 10's kernel over offsets) peaking at offset 1; both layer-1 heads put > 0.5 on the induction
-    target. K-composition dominates Q and V for every pair and exceeds every K-score of the same model at its
+    target i − p + 1 and > 0.9 on the positions that follow some earlier copy of the current token. K-composition dominates Q and V for every pair and exceeds every K-score of the same model at its
     initialization (train_model's first draw)."""
     s2, s1 = train_model(SYNTH2), train_model(SYNTH1)
     full, one, cut = repeated_metrics(s2), repeated_metrics(s1), repeated_metrics(s2, ablate_k=True)
@@ -1004,7 +1010,7 @@ def test_induction_heads():
     assert cut["loss"] > one["loss"] and cut["acc"] < 0.15, cut
     hs = head_scores(s2)
     h = int(hs["prev"][0].argmax())
-    assert hs["prev"][0, h] > 0.8 and np.all(hs["induction"][1] > 0.5), hs
+    assert hs["prev"][0, h] > 0.8 and np.all(hs["induction"][1] > 0.5) and np.all(hs["copies"][1] > 0.9), hs
     assert int(np.argmax(bias_offset_score(s2, 0, h, range(N_CTX)))) == 1
     K, Qs, Vs = (composition_scores(s2, k) for k in "kqv")
     assert np.all(K > Qs) and np.all(K > Vs)

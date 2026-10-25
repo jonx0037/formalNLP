@@ -339,7 +339,9 @@ alone. In particular it does not change when token j − 1 changes.
 - **The heads.**
   - Head (0, 0) puts 0.887284 of its weight on the previous token. Its content-free score
     b_qᵀR(−Δ)b_k/√d_h, which is Topic 10's kernel over offsets, peaks at Δ = 1 (7.78 against 6.71 at Δ = 0).
-  - Heads (1, 0) and (1, 1) put 0.592626 and 0.594006 on the induction target i − p + 1.
+  - Heads (1, 0) and (1, 1) put 0.592626 and 0.594006 on the induction target i − p + 1, and 0.943116 and
+    0.939879 on every position j ≤ i with t_{j−1} = t_i (each a correct copy). The lab showed the gap: on a long
+    repetition the head splits its weight across copies one period apart (Phase B).
 - **Composition scores.**
   - K-composition is 0.245–0.272 for every pair. Q-composition is 0.046–0.075 and V-composition 0.036–0.076.
   - Every K-score exceeds the largest K-score of the same model at its initialization (0.188).
@@ -567,3 +569,28 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - **Lab data:** regenerate the JSON from `viz_payload()`, never hand-edit it.
 - **Graph:** flip the node to `published`, and remove its title from `curriculum.ts`'s `planned`.
 - **Re-verify** reference 5's author list and reference 12's venue at the B3 gate.
+
+## 12. Phase B record (2026-10-24)
+
+- **Harness:** 18/18, with one claim added. The lab's attention heatmap showed the induction heads splitting weight
+  across copies one period apart, so `head_scores` now also reports the weight on every position that follows an
+  earlier copy of the current token: 0.943 and 0.940, asserted at > 0.9. The page quotes both this and the narrower
+  0.593/0.594.
+- **Payload precision:** the gradient profiles are rounded to 3 decimals (they were 3 significant figures, which would
+  have shown 10.2 where the page says 10.169). The relative spread is rounded to 4 decimals (0.0016), and each collapse
+  run carries its growth ratio (2862, 3.578), so the lab shows no derived value the page could disagree with. The
+  collapse run keys use `{β:g}` so that JavaScript's `${1}` indexes them.
+- **Gates:**
+  - `pnpm test` 39/39; `astro sync` and `validate` clean;
+  - `audit:cross-site` exits 0, and the nine outward edges are missing reciprocals (the expected deferred state) with
+    no missing targets;
+  - `pnpm build` exits 0.
+- **DOM checks at desktop width:**
+  - 407 `.katex` and 0 `.katex-error`;
+  - the island hydrates, and the theorem numbering is in page order;
+  - every lab readout equals the page's number;
+  - the depth slider responds to a real click and key press.
+- **DOM checks at 375 px:** the island hydrates, and `scrollWidth === 375` holds in all 12 views and toggles, with no
+  lab element overflowing.
+- **MDX:** seven possessives were reworded. They followed a parenthesis or inline math ("(ii)'s", "$W_O$'s",
+  "$(l, h)$'s"), where smart quotes render the apostrophe as an opening quote ‘. The built page has none left.

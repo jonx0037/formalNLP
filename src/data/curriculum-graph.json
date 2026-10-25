@@ -69,7 +69,7 @@
     {
       "id": "transformer-block-residual-stream",
       "label": "The Transformer Block and the Residual Stream",
-      "status": "planned",
+      "status": "published",
       "domain": "attention-transformers"
     },
     {
