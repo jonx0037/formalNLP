@@ -96,7 +96,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - MDX: a bare `<` is JSX — use `\lt`/`\gt` in math, backtick `<s>`/`</s>`/`<unk>`. Long inline
   number lists get one `$…$` per number (one KaTeX span can't wrap); at the mobile preset assert
   `innerWidth === 375`. Smart quotes turn an apostrophe right after `)` or `$…$` into an opening
-  quote: write "the score of head $h$", not "$h$'s score", and assert the built page's text has no `‘`.
+  quote, a link's closing `)` included ("[Zipf topic](/topics/…)'s"): write "the score of head $h$" or
+  "the event that $G$ measures", not "$h$'s score", and assert the built page's text has no `‘`. A shell
+  grep for `\$'s` silently misses it (quoting): search the MDX with Python `re`.
 - **Verify with DOM checks, not screenshots.** Viz uses `client:visible`: `scrollIntoView` and wait
   ~1–1.5 s before interacting. A hidden browser pane never hydrates any island (server-rendered
   readouts still look right) — show the preview pane first; `/paths`' graph is also
@@ -206,6 +208,29 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   −∞ and L-BFGS takes ~30 s. Fact probes restricted to a relation's answers: seen facts are
   underconfident and unseen ones overconfident, so per-regime τ* sit at opposite grid edges; seed a
   bounded search from the grid argmin (a flat edge stops it short, 0.047 vs the 0.040 edge).
+- Classification on corpus models (Topic 17). Fit logistic models by trust-region Newton–CG with exact
+  Hessian-vector products (`lr_hessp`; the `hp` closures in `blr_fit`/`blr_intercept_fit`): 11–12
+  iterations to gradient 10⁻¹¹ on the finance unigrams, where L-BFGS takes 1,000–1,500 and stops ABNORMAL
+  at 10⁻⁸ (count features are ill-conditioned by their scale). Never refit through the representer dual
+  (w = Xᵀa): it is worse conditioned. Cross-check with `--with scikit-learn==1.9.1`: `LogisticRegression`'s
+  C is λ = 1/(Cn) with the intercept unpenalized, and its lbfgs stops near 10⁻⁵, so compare probabilities
+  to 10⁻⁴ and assert our objective ≤ theirs. Tone: unigram NB 0.601 vs LR 0.739, and LR leads at every
+  training prefix (30 to 1,500), so the corpus has no generative–discriminative crossover. Tone is an XOR
+  of aspect valence × direction: unigram LR gives "rose"/"fell" ≈ 0 (0.060, 0.024) while the bigrams carry
+  the sign ("costs rose" −0.355, "costs fell" +0.526). The full-text Bayes accuracy is 0.889919
+  (`bayes_ceiling`, exact enumeration over k ∈ 5..8 aspect-sentence polarities).
+  `generate_corpus(…, label_noise=q)` regenerates the identical text (~1.2 s per 1,500 documents): cache
+  the tokens once and regenerate only the training labels (`fin_train_labels`). Bigram LR (V = 17,706 >
+  n = 1,500) matches its training moments yet is overconfident on test (confidence 0.869 vs accuracy
+  0.771): a nearly separable training set makes those moments optimistic. Simulated worlds: where NB is
+  the true model, tuned NB stays at or above tuned LR (within 0.01) at every n; the textbook crossover
+  needs NB misspecified and LR well specified, which burstiness gives (x = r ⊙ u; crossover n = 512 at
+  V = 101, 2,048 at V = 3,071). The bursty world is a deterministic transform of the plain one's draws,
+  so share their random streams (without common random numbers their Bayes accuracies differed). Tune
+  each fit's hyperparameter on a fresh validation draw and say so in the rigorFlag, and fix the
+  informative words' mass (m_S = 0.062) so the Bayes error does not move with V. Under a long Zipf tail,
+  uniform add-α shrinks the informative words too, so the validated α grows with n (≈ 0.5 → 20 at
+  V = 3,071).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -231,7 +256,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   per trigram set (≈150 MB of float64 rows each; the decoder adds its ~5 s training), `stats_at` one
   temperature ~0.5 s on a trigram set, `loglinear_bigram` 0.5–3.3 s per λ (smaller λ is slower); `recalibrated`/`log_decomposition`,
   `reliability_bins`, `ece_hat`, `sq_ece_debiased`, `twin_ece`, `fit_beta` (Newton on the convex β
-  objective), and `cross_fit_gain` are reusable.
+  objective), and `cross_fit_gain` are reusable. Topic 17's `learning_curve` takes ~22 s for the four
+  worlds and its finance bigram softmax LR ~5 s (the whole harness ~42 s); `featurize`, `nb_fit`
+  (multinomial/Bernoulli, Prop 1's closed form), `log_posterior`, `lr_fit`, `estimating_residuals`,
+  `log_count_ratio`, `hard_margin_svm` (homogeneous dual), and `bayes_ceiling` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -248,6 +276,14 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   3.1 under Thm 3.2's name; Welleck et al. (2020)'s Thms 4.2–4.3 appear only in Appendix C. Huang, Zhao,
   and Ma (2017) is arXiv 1809.00069, not 1808.09582 (another paper); Karp (1978) has two Crossref DOIs
   (use 0012-365X(78)90011-0); Lowerre's 1976 thesis has no full text online (cite CMU CSD's degree record).
+  Ng and Jordan (NIPS 14, MIT Press 2002, 841–48) number in one sequence (Prop 1, Prop 2 (VC side,
+  m = Ω(n)), Lemma 3, Thm 4, Prop 5, Cor 6), and their formal h_Dis minimizes training 0-1 error, not the
+  logistic MLE. Rosset, Zhu, and Hastie's NIPS 16 Thm 2.1 is the penalized λ → 0 path; their JMLR 2004
+  §5 Thm 3 is the constrained path, and its appendix restarts the theorem numbers. Soudry et al. (JMLR
+  2018)'s Thm 5 direction rate is O(log log t/log t), and O(1/log t) only for almost every dataset; with
+  an intercept, GD finds argmin ‖w‖² + b². Wang and Manning (2012)'s w̄ = ‖w‖₁/|V| is a scalar (β = 0.25,
+  α = 1, C = 1). Albert and Anderson (1984) sits behind a Cloudflare challenge and Xue and Titterington
+  (2008) is paywalled: cite both from the abstract, and say so.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -282,6 +318,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
-  page cites those and proves only what they leave open.
+  page cites those and proves only what they leave open. Topic 17 found formalML `naive-bayes` covering
+  the NB variants, Laplace smoothing as a Dirichlet posterior, and Ng–Jordan for Gaussian NB only (§7);
+  its §6.2 conjugacy proof block closes after one sentence, so cite formalStatistics
+  `multivariate-distributions` Thm 6 for the proof.
 - Hardcode hex colors in components — use the `--color-*` tokens.
 - Commit `docs/plans/audit-output/`, `cross-site-audit-report.md`, or `deferred-reciprocals.md`.
