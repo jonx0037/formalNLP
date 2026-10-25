@@ -45,9 +45,7 @@ export const tracks = [
     layer: 'Representations',
     description:
       'The transformer as mathematics: attention as kernel smoothing, positional encodings as rotations, the residual stream, and empirical scaling laws.',
-    planned: [
-      'Neural Scaling Laws and Compute-Optimal Training',
-    ],
+    planned: [],
     dependsOnFormalML: true,
   },
   {

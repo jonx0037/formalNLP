@@ -75,7 +75,7 @@
     {
       "id": "scaling-laws",
       "label": "Neural Scaling Laws and Compute-Optimal Training",
-      "status": "planned",
+      "status": "published",
       "domain": "attention-transformers"
     },
     {

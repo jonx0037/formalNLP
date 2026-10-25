@@ -639,6 +639,8 @@ def toy_fits() -> dict:
         out["Nne_star"].append(ne_star)
         out["Cne_star"].append(6 * ne_star * D_star)
         out["argmin_d"].append(rs[int(np.argmin(L))]["d"])
+        out.setdefault("coef", []).append([float(c) for c in np.polyfit(np.log(N), L, 2)])
+        out.setdefault("coef_ne", []).append([float(c) for c in np.polyfit(np.log(Nne), L, 2)])
     out["a_chinchilla"] = loglog_slope(out["budgets"], out["N_star"])
     out["a_kaplan"] = loglog_slope(out["Cne_star"], out["Nne_star"])
     fit, obj = fit_loss_law([r["N"] for r in runs], [r["D"] for r in runs], [r["loss"] for r in runs], TOY_FIT_GRID)
@@ -776,14 +778,17 @@ def viz_payload() -> dict:
            "fit": {k: _r(getattr(lf["fit"], k), 4) for k in ("E", "A", "B", "alpha", "beta")},
            "a": {"pred": _r(lf["a_pred"]), "a1": _r(lf["a1"]), "a2": _r(lf["a2"]), "a3": _r(lf["a3"])},
            "C": [ak._sig(c, 4) for c in LIN_C], "star1": [int(x) for x in lf["star1"]],
-           "star2": [ak._sig(x, 4) for x in lf["star2"]]}
+           "star2": [ak._sig(x, 4) for x in lf["star2"]],
+           "valleys": [{"N": [int(n) for n in v[0]], "L": [ak._sig(x, 4) for x in v[1]]}
+                       for v in map(lin_isoflop, LIN_C)]}
     toy = {"runs": [{"budget": r["budget"], "d": r["d"], "N": r["N"], "N_ne": r["N_ne"], "D": r["D"],
                      "loss": _r(r["loss"])} for r in isoflop_grid()],
            "N_star": [ak._sig(x, 4) for x in tf["N_star"]], "Nne_star": [ak._sig(x, 4) for x in tf["Nne_star"]],
            "Cne_star": [ak._sig(x, 4) for x in tf["Cne_star"]], "a_chinchilla": _r(tf["a_chinchilla"]),
            "a_kaplan": _r(tf["a_kaplan"]), "a3": _r(tf["a3"]),
            "fit": {k: _r(getattr(tf["fit"], k), 4) for k in ("E", "A", "B", "alpha", "beta")},
-           "seed_sd": _r(seed_spread()["sd"])}
+           "seed_sd": _r(seed_spread()["sd"]), "coef": [[ak._sig(c, 6) for c in row] for row in tf["coef"]],
+           "coef_ne": [[ak._sig(c, 6) for c in row] for row in tf["coef_ne"]]}
     rep = repetition_runs()
     repeat = {"N": rep["N"], "D": rep["D"], "r_star": R_STAR,
               "rows": [{"epochs": r["epochs"], "unique": int(r["unique"]), "D_eff": int(round(r["D_eff"])),

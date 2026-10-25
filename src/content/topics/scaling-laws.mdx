@@ -1,0 +1,476 @@
+---
+title: "Neural Scaling Laws and Compute-Optimal Training"
+subtitle: "Loss falls as a power of parameters, data, and compute: in two solvable models the exponents are theorems — Zipf's tail for data, a spectrum's tail for size — and a Lagrange multiplier turns the fitted law into the compute-optimal split, whose exponent depends on what you count as a parameter"
+status: "published"
+difficulty: "advanced"
+prerequisites:
+  - "transformer-block-residual-stream"
+  - "perplexity-cross-entropy"
+tags:
+  - "scaling-laws"
+  - "compute-optimal"
+  - "chinchilla"
+  - "power-laws"
+  - "pitman-yor"
+  - "missing-mass"
+  - "sgd"
+  - "flops"
+  - "data-constrained"
+domain: "attention-transformers"
+financeCaseStudy: true
+rigorFlag: "The exponents on this page are theorems only inside two toy models: a memorizer on Pitman–Yor text, and a linear model with a power-law spectrum trained by gradient flow or SGD. For real language models, the law E + A/N^α + B/D^β is a fit, not a theorem, and it is misspecified even in our solvable model, whose loss surface it misses by 13% in root-mean-square log error while recovering the exponents. The SGD-noise analysis that would make Proposition 1's agreement a theorem for every step size is cited, not proved. The published fits disagree with one another: Hoffmann and colleagues' three approaches give exponents from 0.46 to 0.50, their printed parameters give 32B parameters at Gopher's budget where their text says 40B, and Besiroglu and colleagues' refit moves the exponent to 0.51. Kaplan and colleagues' 0.73 is the same law read in other units at small scale (Proposition 3), which explains the gap without saying which units matter. Our toy transformers span less than a decade of compute with one seed per point, about 0.01 nats of noise each; their exponent of 0.63 cannot separate Kaplan from Chinchilla. 6ND leaves out attention's 12Lnd, 8% to 20% of the compute at our widths. Muennighoff and colleagues' repetition law is a fit at a scale and on text unlike ours, and our templated synthetic filings forgive repetition more than it predicts. Extrapolating any of these laws past the range they were fitted on is a bet."
+videoId: null
+notebookPath: "notebooks/scaling-laws/01_scaling_laws.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/scaling-laws.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 45
+abstract: "Test loss against parameters, data, or compute falls on near-straight lines on log–log axes, which means power laws. We ask where the exponents come from and how a compute budget should be split. In two models the exponents are theorems. A memorizer on Pitman–Yor text, the generator behind our finance corpus, errs when the next word is new, with probability that falls exactly as a power of the data. A linear model whose spectrum and target decay as powers of the coordinate index loses the tail it cannot represent as a power of its size, and the tail it has not yet learned as a power of its training time; for Gaussian data we compute one-pass SGD's expected loss exactly. We count a transformer's training FLOPs by instrumenting its arrays, so 6ND is proved with its missing attention term. Minimizing the fitted law on a compute budget gives the compute-optimal size in closed form, which the solvable model predicts and Chinchilla's three fitting approaches recover. We show that Kaplan's exponent and Chinchilla's are one law read in different units, train toy transformers on the shared filings, and ask what a finite domain corpus does to the optimum: a few repeated epochs are nearly free, and a cap binds only far below the data the law wants."
+connections: []
+references:
+  - type: "paper"
+    title: "Scaling Laws for Neural Language Models"
+    authors: "Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown, Benjamin Chess, Rewon Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei"
+    year: 2020
+    url: "https://arxiv.org/abs/2001.08361"
+    note: "N* ∝ C^0.73 (Eq. 6.1) and the FLOP accounting of Table 1 and Eq. 2.2, beside Proposition 2"
+  - type: "paper"
+    title: "Training Compute-Optimal Large Language Models"
+    authors: "Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford, Diego de Las Casas, et al."
+    year: 2022
+    url: "https://proceedings.neurips.cc/paper_files/paper/2022/hash/c1e2faff6f588870935f114ebe04a3e5-Abstract-Conference.html"
+    note: "NeurIPS 35: 30016–30030, printed as “An Empirical Analysis of Compute-Optimal Large Language Model Training”; arXiv 2203.15556. Chinchilla's three approaches, Eq. 2, and Theorem 4's closed form (their Eq. 4)"
+  - type: "paper"
+    title: "Deep Learning Scaling Is Predictable, Empirically"
+    authors: "Joel Hestness, Sharan Narang, Newsha Ardalani, Gregory Diamos, Heewoo Jun, Hassan Kianinejad, Md. Mostofa Ali Patwary, Yang Yang, and Yanqi Zhou"
+    year: 2017
+    url: "https://arxiv.org/abs/1712.00409"
+    note: "Power-law learning curves across domains"
+  - type: "paper"
+    title: "Learning Curve Theory"
+    authors: "Marcus Hutter"
+    year: 2021
+    url: "https://arxiv.org/abs/2102.04074"
+    note: "A lookup learner on Zipf data and its exponent 1 − 1/s, beside Theorem 1"
+  - type: "paper"
+    title: "Explaining Neural Scaling Laws"
+    authors: "Yasaman Bahri, Ethan Dyer, Jared Kaplan, Jaehoon Lee, and Utkarsh Sharma"
+    year: 2024
+    url: "https://doi.org/10.1073/pnas.2311878121"
+    note: "Proceedings of the National Academy of Sciences 121 (27). Resolution- and variance-limited regimes"
+  - type: "paper"
+    title: "A Solvable Model of Neural Scaling Laws"
+    authors: "Alexander Maloney, Daniel A. Roberts, and James Sully"
+    year: 2022
+    url: "https://arxiv.org/abs/2210.16859"
+    note: "Power-law spectra as the source of the exponents, beside Theorems 2 and 3"
+  - type: "paper"
+    title: "4+3 Phases of Compute-Optimal Neural Scaling Laws"
+    authors: "Elliot Paquette, Courtney Paquette, Lechao Xiao, and Jeffrey Pennington"
+    year: 2024
+    url: "https://proceedings.neurips.cc/paper_files/paper/2024/hash/1dccfc3ee01871d05e33457c61037d59-Abstract-Conference.html"
+    note: "NeurIPS 37. One-pass SGD on power-law random features and the phases of its compute-optimal exponent"
+  - type: "paper"
+    title: "A Dynamical Model of Neural Scaling Laws"
+    authors: "Blake Bordelon, Alexander Atanasov, and Cengiz Pehlevan"
+    year: 2024
+    url: "https://proceedings.mlr.press/v235/bordelon24a.html"
+    note: "ICML 2024, PMLR 235. Training dynamics behind the data and time exponents"
+  - type: "paper"
+    title: "Chinchilla Scaling: A Replication Attempt"
+    authors: "Tamay Besiroglu, Ege Erdil, Matthew Barnett, and Josh You"
+    year: 2024
+    url: "https://arxiv.org/abs/2404.10102"
+    note: "The unrounded Chinchilla parameters (Eq. 4) and the refit of Eq. 3, Table 1"
+  - type: "paper"
+    title: "Reconciling Kaplan and Chinchilla Scaling Laws"
+    authors: "Tim Pearce and Jinyeop Song"
+    year: 2024
+    url: "https://openreview.net/forum?id=NLoaLyuUUF"
+    note: "Transactions on Machine Learning Research. Non-embedding parameters at small scale, beside Proposition 3"
+  - type: "paper"
+    title: "Resolving Discrepancies in Compute-Optimal Scaling of Language Models"
+    authors: "Tomer Porian, Mitchell Wortsman, Jenia Jitsev, Ludwig Schmidt, and Yair Carmon"
+    year: 2024
+    url: "https://proceedings.neurips.cc/paper_files/paper/2024/hash/b6341525cd84f3be0ef203e4d7cd8556-Abstract-Conference.html"
+    note: "NeurIPS 37. Last-layer FLOPs, warmup, and optimizer tuning"
+  - type: "paper"
+    title: "Scaling Data-Constrained Language Models"
+    authors: "Niklas Muennighoff, Alexander M. Rush, Boaz Barak, Teven Le Scao, Nouamane Tazi, Aleksandra Piktus, Sampo Pyysalo, Thomas Wolf, and Colin Raffel"
+    year: 2023
+    url: "https://proceedings.neurips.cc/paper_files/paper/2023/hash/9d89448b63ce1e2e8dc7af72c984c196-Abstract-Conference.html"
+    note: "NeurIPS 36. The effective data of repeated epochs (Eq. 5, R* = 15.4)"
+  - type: "paper"
+    title: "BloombergGPT: A Large Language Model for Finance"
+    authors: "Shijie Wu, Ozan İrsoy, Steven Lu, Vadim Dabravolski, Mark Dredze, Sebastian Gehrmann, Prabhanjan Kambadur, David Rosenberg, and Gideon Mann"
+    year: 2023
+    url: "https://arxiv.org/abs/2303.17564"
+    note: "A finance model sized by Chinchilla's laws under a data limit (§3.2); the token counts of the case study"
+  - type: "paper"
+    title: "The Two-Parameter Poisson–Dirichlet Distribution Derived from a Stable Subordinator"
+    authors: "Jim Pitman and Marc Yor"
+    year: 1997
+    url: "https://doi.org/10.1214/aop/1024404422"
+    note: "Annals of Probability 25 (2). The Pitman–Yor process"
+  - type: "book"
+    title: "Combinatorial Stochastic Processes"
+    authors: "Jim Pitman"
+    year: 2006
+    url: "https://doi.org/10.1007/b11601500"
+    note: "Lecture Notes in Mathematics 1875. The seating rule (§3.2, Eq. 3.9) and the growth of E K_n (§3.3), Theorem 1"
+  - type: "paper"
+    title: "The Population Frequencies of Species and the Estimation of Population Parameters"
+    authors: "I. J. Good"
+    year: 1953
+    url: "https://doi.org/10.1093/biomet/40.3-4.237"
+    note: "Biometrika 40. The frequentist estimator of the missing mass"
+  - type: "paper"
+    title: "Robust Estimation of a Location Parameter"
+    authors: "Peter J. Huber"
+    year: 1964
+    url: "https://doi.org/10.1214/aoms/1177703732"
+    note: "Annals of Mathematical Statistics 35 (1). The loss of Approach 3"
+formalmlPrereqs:
+  - topic: "lagrangian-duality"
+    site: "formalml"
+    relationship: "Theorem 4's multiplier is the sensitivity theorem's shadow price (its Theorem 7, ∂p*/∂v = −ν*) for the compute budget 6ND = C: the loss one more FLOP buys."
+  - topic: "gradient-descent"
+    site: "formalml"
+    relationship: "Theorem 3 and Proposition 1 analyze gradient flow and one-pass SGD on a quadratic loss, whose convergence that topic proves (its Theorem 6 for SGD)."
+formalmlConnections:
+  - topic: "double-descent"
+    site: "formalml"
+    relationship: "The sample-wise and model-wise risk curves of least squares, with the interpolation peak that the monotone power laws on this page leave out."
+  - topic: "bayesian-nonparametrics"
+    site: "formalml"
+    relationship: "The Dirichlet process and its Chinese restaurant: its missing mass θ/(θ + n) and logarithmic type count are Theorem 1's case d = 0."
+formalstatisticsPrereqs:
+  - topic: "linear-regression"
+    site: "formalstatistics"
+    relationship: "Every exponent on this page that is not proved is an ordinary least-squares slope on log–log axes, or a vertex of a least-squares quadratic."
+  - topic: "method-of-moments"
+    site: "formalstatistics"
+    relationship: "Chinchilla's Approach 3 is a Huber M-estimator of the five parameters of the loss law (its §15.11 and Theorem 11, Huber's minimax property)."
+formalstatisticsConnections:
+  - topic: "bootstrap"
+    site: "formalstatistics"
+    relationship: "Hoffmann and colleagues' exponent intervals are bootstrap percentiles and Besiroglu and colleagues' are bootstrap standard errors, the intervals the replication found too narrow."
+formalcalculusPrereqs:
+  - topic: "series-convergence"
+    site: "formalcalculus"
+    relationship: "Theorem 2 is the integral test (its Theorem 8) with the remainder written out: a power-law tail bracketed between two integrals."
+  - topic: "improper-integrals"
+    site: "formalcalculus"
+    relationship: "Theorems 1 and 3 evaluate Gamma-function integrals and ratios (its Definition 4 and Theorems 4–5), which set both exponents' constants."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import ScalingLawsLab from '../../components/viz/ScalingLawsLab.tsx';
+
+## Overview & Motivation
+
+Train a small transformer on the shared filings with a fixed budget of compute, and choose how to spend it: a narrow model trained on many tokens, or a wide one trained on few. At each budget the losses form a valley. At $10^{10}$ FLOPs the valley's floor sits near $7{,}100$ weights. At $2.5$ times that budget it sits near $10{,}800$, and at $6.3$ times near $22{,}700$. On log–log axes the floors line up. Kaplan and colleagues (2020) and Hoffmann and colleagues (2022) found the same picture over seven orders of magnitude, and turned it into rules for sizing real models.
+
+Lines on log–log axes are **power laws**, $L \approx E + A/N^\alpha$, and this topic asks two questions about them. Where do the exponents come from? And how should a budget be split? We develop the answer in order:
+
+1. **Data scaling is Zipf's tail.** A memorizer errs when the next word is one it has not seen. Under the Pitman–Yor generator behind our corpus, that probability is a power of the data, exactly.
+2. **Model-size scaling is a spectrum's tail.** A linear model whose spectrum and target decay as powers of the coordinate index leaves a tail it cannot represent, a power of its size.
+3. **Training time has its own exponent.** Gradient flow learns the large-eigenvalue directions first, and what remains decays as a power of time. For Gaussian data we compute SGD's expected loss exactly.
+4. **Compute is $6N$ per token, plus attention.** We count it by instrumenting the arrays of a real training step.
+5. **The optimal split has a closed form.** A Lagrange multiplier on the budget gives the compute-optimal size, and in the solvable model its exponent is a theorem that the fitting procedures must recover.
+6. **Kaplan and Chinchilla measured one law in two units.** Counting only non-embedding parameters at small scale turns Chinchilla's exponent of $0.5$ into Kaplan's $0.73$.
+
+Then the finance case. A firm that trains on its own filings has a fixed amount of text. A few repeated epochs cost almost nothing, and the cap moves the optimum only when the corpus is far smaller than the law asks for.
+
+---
+
+## Data scaling from Zipf: the missing mass
+
+The simplest learner is a lookup table. It predicts a token's type only if that type has occurred before, and it is wrong whenever the next type is new. That error has a name.
+
+<TheoremBlock type="definition" number={1} title="Memorizer and missing mass">
+
+After $n$ tokens $x_1, \dots, x_n$, the **missing mass** is the probability that token $x_{n+1}$ has a type not among $x_1, \dots, x_n$. A **memorizer** is any predictor that can be right only on types it has seen, so its error rate is at least the missing mass.
+
+</TheoremBlock>
+
+The shared corpus draws its content words from Pitman–Yor restaurants (the [Zipf–Heaps topic](/topics/zipf-heaps-vocabulary-statistics), its Definition 4) with discount $d = 0.6$ and strength $\theta = 20$. Customer $n + 1$ opens a new table, which is a new word type, with probability $(\theta + d K_n)/(\theta + n)$, where $K_n$ is the number of tables after $n$ customers.
+
+<TheoremBlock type="theorem" number={1} title="The missing mass under Pitman–Yor">
+
+For a $\mathrm{PY}(d, \theta)$ sequence with $0 \le d \lt 1$ and $\theta \gt 0$,
+
+$$
+\Pr[x_{n+1} \text{ is new}] \;=\; \frac{\theta + d\, \mathbb{E} K_n}{\theta + n} \;=\; \frac{\Gamma(\theta + 1)\, \Gamma(\theta + d + n)}{\Gamma(\theta + d)\, \Gamma(\theta + n + 1)} \;\sim\; \frac{\Gamma(\theta + 1)}{\Gamma(\theta + d)}\; n^{-(1 - d)}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Conditioned on the first $n$ draws, the probability is $(\theta + d K_n)/(\theta + n)$, which is linear in $K_n$; taking expectations gives the first equality. For the second, $\mathbb{E} K_{n+1} = \mathbb{E} K_n + (\theta + d\, \mathbb{E} K_n)/(\theta + n)$, so $m_n = \mathbb{E} K_n + \theta/d$ satisfies $m_{n+1} = m_n (\theta + n + d)/(\theta + n)$ with $m_0 = \theta/d$. The product telescopes to $m_n = (\theta/d)\, \Gamma(\theta + n + d)\, \Gamma(\theta) / (\Gamma(\theta + d)\, \Gamma(\theta + n))$, which is the Zipf–Heaps topic's Theorem 3. Then $\theta + d\, \mathbb{E} K_n = d\, m_n$, and dividing by $\theta + n$ gives the Gamma form. The asymptote is $\Gamma(z + d)/\Gamma(z + 1) \sim z^{d - 1}$ as $z = \theta + n \to \infty$. At $d = 0$ the same argument gives $\theta/(\theta + n)$.
+
+</TheoremBlock>
+
+Over $1000$ simulated restaurants the share of sequences whose draw $1001$ is new is $0.194 \pm 0.013$, against the exact $0.209$, and the agreement holds within three standard errors at every checkpoint from $n = 10$ to $2000$. The corpus's text mixes seven restaurants with template words that stop growing early. Past ten thousand tokens its rate of new types falls with log–log slope $-0.407$, against the theorem's $-(1 - d) = -0.4$.
+
+The exponent is Zipf's. A Pitman–Yor measure's ranked frequencies decay as $i^{-1/d}$, so its Zipf exponent is $s = 1/d$. Hutter (2021, §3) shows that a lookup learner on data with Zipf exponent $s$ errs at a rate proportional to $n^{-(1 - 1/s)}$, which is $n^{-(1 - d)}$ here. At $d = 0$, the one-parameter Chinese restaurant of a Dirichlet process, the rate is $\theta/(\theta + n)$ and the exponent is $1$. Hutter's §6 remarks that the two-parameter process also leads only to exponent $1$, in his continuous-feature extension. For the missing mass itself, Theorem 1 gives $1 - d$. The [n-gram topic](/topics/n-gram-models-smoothing) estimates the same quantity without a model, by Good and Turing's $n_1/n$ (its Theorem 2), and Theorem 1 is its Bayesian counterpart under the generator.
+
+So the heavier the tail of the type distribution, the slower a memorizer learns. With $d = 0.6$, a tenfold increase in data cuts the error by a factor of $10^{0.4} \approx 2.5$, not $10$.
+
+---
+
+## Model-size scaling: the tail of a spectrum
+
+A memorizer has no size: it remembers everything it sees. For a model of size $N$ we need a learner that can only represent part of the target. The cleanest one is linear.
+
+<TheoremBlock type="definition" number={2} title="The solvable model">
+
+Features are $x \sim \mathcal{N}(0, \Lambda)$ in $\mathbb{R}^M$ with $\Lambda = \mathrm{diag}(\lambda_k)$ and $\lambda_k = k^{-a}$. The target is $y = \langle w^\ast, x \rangle$ with $\lambda_k (w^\ast_k)^2 = k^{-b}$, for exponents $a \gt 1$ and $b \gt 1$. A **model of size $N$** fits $f(x) = \langle w, x_{1:N} \rangle$, and its population loss is
+
+$$
+L(w) \;=\; \sum_{k \le N} \lambda_k (w_k - w^\ast_k)^2 \;+\; \sum_{k = N+1}^{M} k^{-b}.
+$$
+
+We take $a = 1.5$, $b = 2.5$, and $M = 8192$.
+
+</TheoremBlock>
+
+Coordinate $k$ is a direction of the input with variance $\lambda_k$, and the target puts $k^{-b}$ of its variance there. The first coordinates are both the loudest and the most important, the way the commonest words in a corpus are both the most frequent and the most predictive. The second sum is what a size-$N$ model cannot touch however long it trains.
+
+<TheoremBlock type="theorem" number={2} title="The approximation tail">
+
+For $1 \le N \lt M$,
+
+$$
+\int_{N+1}^{M+1} x^{-b}\, dx \;\le\; \sum_{k = N+1}^{M} k^{-b} \;\le\; \int_{N}^{M} x^{-b}\, dx,
+$$
+
+so as $M \to \infty$ the tail lies between $(N + 1)^{-(b-1)}/(b - 1)$ and $N^{-(b-1)}/(b - 1)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$x^{-b}$ is decreasing, so $(k + 1)^{-b} \le \int_k^{k+1} x^{-b}\, dx \le k^{-b}$ for every $k$. Summing the right inequality over $k = N+1, \dots, M$ gives the lower bound, and summing the left one over $k = N, \dots, M - 1$ gives the upper.
+
+</TheoremBlock>
+
+This is formalCalculus' [integral test](https://www.formalcalculus.com/topics/series-convergence) (its Theorem 8) with the remainder kept. The harness checks the bracket on $50$ random $(b, N, M)$, and the tail of our model falls with exponent $b - 1 = 1.5$. A size exponent is therefore the exponent of a spectrum's tail.
+
+---
+
+## Data scaling in the same model: gradient flow and exact SGD
+
+Now train the model from $w = 0$. Gradient flow on the population loss moves each coordinate on its own: $w_k(t) - w^\ast_k = -w^\ast_k\, e^{-\lambda_k t}$. Coordinate $k$ is learned on the time scale $1/\lambda_k = k^a$, so at time $t$ the directions with $k \lesssim t^{1/a}$ are done and the rest have barely moved. A frontier sweeps through the spectrum, and what is left behind it is a tail again.
+
+<TheoremBlock type="theorem" number={3} title="The gradient-flow residual">
+
+With every coordinate kept ($N = M = \infty$) and $s = (b - 1)/a$,
+
+$$
+\sum_{k \ge 1} k^{-b}\, e^{-2t k^{-a}} \;=\; \frac{\Gamma(s)}{a}\, (2t)^{-s}\, \big(1 + o(1)\big) \qquad (t \to \infty).
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $\varphi(x) = x^{-b} e^{-2t x^{-a}}$. Substituting $u = 2t x^{-a}$ gives
+
+$$
+\int_0^\infty \varphi(x)\, dx \;=\; \frac{1}{a}\, (2t)^{-s} \int_0^\infty u^{s - 1} e^{-u}\, du \;=\; \frac{\Gamma(s)}{a}\, (2t)^{-s}.
+$$
+
+$\varphi$ rises and then falls, with maximum $(b/(2ta))^{b/a} e^{-b/a}$ at $x^a = 2ta/b$. By the Zipf–Heaps topic's lemma on sums of unimodal functions (its Lemma 1), the sum over $k \ge 1$ is within twice that maximum of the integral over $[0, \infty)$. The maximum is $O(t^{-b/a})$, which is $o(t^{-s})$ because $b/a \gt (b - 1)/a$.
+
+</TheoremBlock>
+
+At $t = 10$ the ratio of the sum to the asymptote is already $0.9999$. One-pass SGD, which takes one fresh sample per step with step size $\eta$, follows gradient flow at time $t = \eta D$ after $D$ samples, plus noise. So the data exponent is $(b - 1)/a$, and in our model it is $1$. For Gaussian features the noise can be computed exactly.
+
+<TheoremBlock type="proposition" number={1} title="One-pass SGD in closed form">
+
+Let $e = w - w^\ast_{1:N}$ and $S_k = \mathbb{E}[e_k^2]$, and let $\tau_N = \sum_{k \gt N} k^{-b}$. One SGD step $w \leftarrow w - \eta\, x_{1:N}(\langle w, x_{1:N} \rangle - y)$ on a fresh sample gives
+
+$$
+S_k \;\leftarrow\; \big(1 - 2\eta\lambda_k + 2\eta^2\lambda_k^2\big)\, S_k \;+\; \eta^2 \lambda_k \Big( \sum_{j \le N} \lambda_j S_j + \tau_N \Big),
+$$
+
+and the expected loss after the step is $\sum_{k \le N} \lambda_k S_k + \tau_N$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The residual is $\langle e, x_{1:N} \rangle - \xi$, where $\xi = \sum_{k \gt N} w^\ast_k x_k$ is independent of $x_{1:N}$ with mean $0$ and variance $\tau_N$. Expanding $e \leftarrow e - \eta\, x_{1:N}(\langle e, x_{1:N}\rangle - \xi)$ and taking expectations, the cross terms in $\xi$ vanish, and Isserlis' theorem for Gaussian $x$ gives $\mathbb{E}[x x^\top A x x^\top] = 2\Lambda A \Lambda + \mathrm{tr}(\Lambda A)\, \Lambda$ for symmetric $A$. With $A = \mathbb{E}[e e^\top]$, the diagonal of the result depends on $A$ only through its diagonal $S$ and through $\mathrm{tr}(\Lambda A) = \sum_j \lambda_j S_j$, which is the stated recursion.
+
+</TheoremBlock>
+
+The off-diagonal entries of $\mathbb{E}[e e^\top]$ are not zero, but the loss never needs them. The recursion costs $O(N)$ per step, so the expected loss of every size at every step is cheap to compute, with no sampling. Against $400$ Monte Carlo runs it agrees within three standard errors. With $\eta = 0.25$, a step costs $N$ multiply-adds, so here compute is $C = ND$. The step is small against $1/\mathrm{tr}\, \Lambda$, where SGD's noise only rescales the size term. Paquette and colleagues (2024) and Bordelon, Atanasov, and Pehlevan (2024) map the phases where it does more. We cite that analysis rather than prove it, and the harness's recovered exponents are the evidence that we are in the simple phase.
+
+---
+
+## Counting compute
+
+The budget of a real model is counted in floating-point operations. A product of an $m \times k$ and a $k \times n$ matrix costs $2mkn$ FLOPs, one multiply and one add per term. Per token, a weight matrix is used once in the forward pass and twice in the backward pass: once to send the gradient back to its input, and once to form its own gradient.
+
+<TheoremBlock type="proposition" number={2} title="The FLOPs of a training step">
+
+Take the toy decoder of this topic: $L$ pre-LN blocks of width $d$ (the [transformer-block topic](/topics/transformer-block-residual-stream), its Definition 1) with causal attention over a context of $n$ tokens, and a tied $V \times d$ embedding that is also the unembedding. Let $N = 12 L d^2 + V d$ be its number of weights. One training step on $B$ windows costs exactly
+
+$$
+B n \,\big( 6N + 12 L n d \big)
+$$
+
+matrix-multiply FLOPs.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Each block's weights are $12 d^2$: the query, key, value, and output maps ($4 d^2$) and the MLP's $d \times 4d$ and $4d \times d$ maps ($8 d^2$). The tied unembedding adds one $d \times V$ product per token. Each weight costs $2$ FLOPs per token forward and $4$ backward, which is $6N$. The scores $QK^\top$ and the weighted sum $AV$ cost $2nd$ each per token per layer forward, and the backward pass takes four products of the same size: $4nd + 8nd = 12nd$ per layer. The embedding lookup and its gradient are a gather and a scatter, not products.
+
+</TheoremBlock>
+
+We check this by counting, not by reading the code. The harness wraps every parameter in an array type that adds $2k$ FLOPs for each output entry of each matrix product it takes part in, then runs one real forward and backward pass. At all seven widths the count equals $Bn(6N + 12Lnd)$ to the integer. The attention term is not small at toy scale: it is $19.5\%$ of $6N$ at $d = 6$ and $7.7\%$ at $d = 48$, because it grows with $n/d$.
+
+Kaplan and colleagues' Table 1 and Eq. 2.2 write the forward cost as $2N + 2 n_{\text{layer}}\, n_{\text{ctx}}\, d$. That is one context-sized term per layer, where the scores and the weighted sum cost that much each, and $N$ is the non-embedding count, which leaves out the unembedding's $2Vd$. At small widths the unembedding is most of the compute. Porian and colleagues (2024) list this last-layer cost as the first of three corrections that move Kaplan's exponent toward Chinchilla's.
+
+---
+
+## Compute-optimal allocation
+
+Fix a budget $C$ and a loss law $L(N, D)$. A model too small for the budget saturates at its own tail, and a model too large sees too few tokens to learn anything. Between them is a valley, and its floor is the compute-optimal size.
+
+<TheoremBlock type="theorem" number={4} title="The compute-optimal split">
+
+Let $L(N, D) = E + A N^{-\alpha} + B D^{-\beta}$ with $A, B, \alpha, \beta \gt 0$. On the budget $6ND = C$ the unique minimizer is
+
+$$
+N^\ast = G \Big(\frac{C}{6}\Big)^{\beta/(\alpha + \beta)}, \qquad D^\ast = G^{-1} \Big(\frac{C}{6}\Big)^{\alpha/(\alpha + \beta)}, \qquad G = \Big(\frac{\alpha A}{\beta B}\Big)^{1/(\alpha + \beta)},
+$$
+
+the frontier is $L^\ast(C) = E + K C^{-\alpha\beta/(\alpha+\beta)}$ for a constant $K$, and the budget's Lagrange multiplier is $\nu = -dL^\ast/dC = \frac{\alpha\beta}{\alpha + \beta}\, (L^\ast - E)/C$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Put $D = C/(6N)$ and $u = \log N$. Then $f(u) = E + A e^{-\alpha u} + B (C/6)^{-\beta} e^{\beta u}$ is a sum of a constant and two strictly convex exponentials, so it has at most one critical point. $f'(u) = 0$ reads $\alpha A N^{-\alpha} = \beta B D^{-\beta}$. At the optimum, the two reducible terms stand in the ratio $\beta : \alpha$. Substituting $D = C/(6N)$ and solving gives $N^\ast$ and $D^\ast$. Then $A N^{\ast -\alpha}$ and $B D^{\ast -\beta}$ are both constant multiples of $(C/6)^{-\alpha\beta/(\alpha+\beta)}$, which gives the frontier, and differentiating it gives $\nu$. By the envelope theorem $\nu$ is the multiplier of the constraint.
+
+</TheoremBlock>
+
+The exponent $a = \beta/(\alpha + \beta)$ splits each extra order of magnitude of compute between size and data. With $a = 0.5$ they grow together, and the number of tokens per parameter is constant. Read through formalML's [Lagrangian-duality topic](https://www.formalml.com/topics/lagrangian-duality), $\nu$ is the sensitivity theorem's shadow price (its Theorem 7): the loss one more FLOP buys at the optimum. The harness checks the closed form against a numeric minimum and $\nu$ against a numeric derivative on $30$ random laws.
+
+For the solvable model, Theorems 2 and 3 give $\alpha = b - 1$ and $\beta = (b - 1)/a$, so
+
+$$
+a^\ast \;=\; \frac{\beta}{\alpha + \beta} \;=\; \frac{1}{1 + a},
+$$
+
+whatever $b$ is. With $a = 1.5$ the prediction is $N^\ast \propto C^{0.4}$: the spectrum's decay alone decides how compute should be split. (Here $C = ND$, since a step costs $N$, and the constant factor does not change the exponent.)
+
+Hoffmann and colleagues estimated $a$ three ways. **Approach 1** takes, at each budget, the size whose training curve is lowest. **Approach 2** fits a parabola in $\log N$ to each budget's valley and takes its vertex. **Approach 3** fits the five parameters of the law to every run at once, minimizing a Huber loss of the log-residuals with $\delta = 10^{-3}$ by L-BFGS from a grid of starting points. That is a robust M-estimator, the subject of formalStatistics' [method-of-moments topic](https://www.formalstatistics.com/topics/method-of-moments) (its Theorem 11). On the solvable model's exact loss over $15$ sizes and $49$ data sizes, the three approaches give $a = 0.403$, $0.408$, and $0.405$, against $0.4$. Approach 3's exponents are $\hat\alpha = 1.523$ and $\hat\beta = 1.035$, against $1.5$ and $1$.
+
+The law recovers the exponents, but it is not the model's loss surface. Its root-mean-square log error over the grid is $0.128$, and its worst point, at $N = 8$ and $D = 64$, is off by a factor of $e^{0.400} \approx 1.49$. The fit overstates the loss there. A size-$N$ model's data term sums only the $N$ coordinates it keeps, so a small model finishes learning sooner than the additive form allows. A law that recovers its exponents can still misdescribe the region it was not built for.
+
+**The published fits.** Hoffmann and colleagues print $E = 1.69$, $A = 406.4$, $B = 410.7$, $\alpha = 0.34$, and $\beta = 0.28$ (their Eq. 10), so $a = 0.452$. Besiroglu and colleagues (2024) recovered the unrounded values from the paper's source, with $\alpha = 0.3392$ and $\beta = 0.2849$, giving $a = 0.4565$. At Gopher's budget of $5.76 \times 10^{23}$ FLOPs, the printed values give $N^\ast = 32.2$B parameters. The unrounded ones give $40.3$B, the paper's own figure for Approach 3. Besiroglu and colleagues then refit the law to data reconstructed from the paper's figures and found $a = 0.513$. That puts $N^\ast$ at $72.2$B and about $18$ tokens per parameter, beside Approaches 1 and 2 (67B and 63B) and Chinchilla's own ratio of $20$.
+
+---
+
+## Toy transformers on the filings
+
+The theorems above live in models we chose. To ask whether text behaves the same way, we train transformers. The decoders have two pre-LN blocks of width $d$, a learned position table, and a tied embedding over the $511$ commonest types of the training text plus `[UNK]`. They read windows of $32$ tokens from $3500$ synthetic filings, about $736$ thousand tokens, of which the last $65{,}536$ are held out. Adam's peak rate is $1.28/d$, a one-over-width rule fixed on a small sweep, with $10\%$ warmup and a linear decay that ends at each run's own horizon. Hoffmann and colleagues stress that the schedule must match the horizon, and Kaplan and colleagues' did not. Each of three budgets, $C = 6ND \in \{10^{10}, 2.5 \times 10^{10}, 6.3 \times 10^{10}\}$, trains five widths between $6$ and $48$.
+
+Every budget's losses form a valley with its minimum inside the grid. The parabola vertices sit at $N^\ast \approx 7{,}130$, $10{,}830$, and $22{,}720$ weights, so Approach 2 gives $a = 0.630$. Approach 3 on all fifteen runs gives $a = 0.694$, with $\hat\alpha = 0.403$, $\hat\beta = 0.914$, and an irreducible $\hat E = 0.772$ nats. Retraining one run with two new seeds moves its loss by a standard deviation of $0.010$ nats, small against the valleys' depths but not against the differences between neighboring widths near a floor. Three budgets spanning a factor of $6.3$ cannot pin down an exponent. Ours sits between Chinchilla's $0.5$ and Kaplan's $0.73$, and the honest reading is that it is consistent with either.
+
+<ScalingLawsLab client:visible />
+
+---
+
+## Kaplan against Chinchilla
+
+Kaplan and colleagues found $N^\ast \propto C^{0.73}$ (their Eq. 6.1), and Hoffmann and colleagues found $C^{0.5}$. The two papers differ in schedules, data, and scale, but one difference is a matter of definition. Kaplan counted only **non-embedding** parameters $N_{\text{ne}}$, and compute as $6 N_{\text{ne}} D$.
+
+<TheoremBlock type="proposition" number={3} title="The same optimum in Kaplan's units">
+
+Suppose $N^\ast \propto C^a$ in total parameters along a family of models, and let $\rho = d \log N_{\text{ne}} / d \log N$ along the family. Then the non-embedding optimum, measured against $C_{\text{ne}} = 6 N_{\text{ne}}^\ast D^\ast$, has local exponent
+
+$$
+\frac{d \log N_{\text{ne}}^\ast}{d \log C_{\text{ne}}} \;=\; \frac{\rho a}{\rho a + 1 - a}.
+$$
+
+If the embedding grows as $N_{\text{ne}}^{1/3}$, then $\rho$ rises from $1$ toward $3$ as the embedding's share grows, and the exponent rises toward $3a/(1 + 2a)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Along the optimum, $d \log N^\ast = a\, d\log C$ and $d \log D^\ast = (1 - a)\, d \log C$, since $N^\ast D^\ast \propto C$. So $d \log N_{\text{ne}}^\ast = \rho a\, d \log C$, and $d \log C_{\text{ne}} = d \log N_{\text{ne}}^\ast + d \log D^\ast = (\rho a + 1 - a)\, d \log C$. Divide. For $N = N_{\text{ne}} + c N_{\text{ne}}^{1/3}$ and $x = c N_{\text{ne}}^{-2/3}$, $\rho = (1 + x)/(1 + x/3)$, which increases from $1$ at $x = 0$ to $3$ as $x \to \infty$, and the exponent is increasing in $\rho$.
+
+</TheoremBlock>
+
+A model family of fixed shape has $d_{\text{model}} \propto N_{\text{ne}}^{1/3}$, so its embedding, $(V + n_{\text{ctx}})\, d_{\text{model}}$, grows as $N_{\text{ne}}^{1/3}$. Take GPT-2's vocabulary of $50{,}257$ and context of $1024$, Kaplan's setting, with $d_{\text{model}} = 64\, n_{\text{layer}}$, and size the models by Besiroglu and colleagues' fit ($a = 0.513$). Below $10^{18}$ FLOPs, where the embedding is between $40\%$ and $99\%$ of the model, the non-embedding exponent is $0.705$. By $10^{23}$ FLOPs the embedding share has fallen below $1\%$, and the exponent is back to $0.514$. The local exponent agrees with Proposition 3 to $2 \times 10^{-3}$ at every budget, and the limit is $3a/(1 + 2a) = 0.759$. This is Pearce and Song's (2024) reconciliation, with the closed form behind it: Kaplan's experiments ran where embeddings dominated, so Kaplan's $0.73$ and Chinchilla's $0.5$ can be the same law. Proposition 3 says nothing about which count is the right one. On our toy grid the same reading moves Approach 2's exponent from $0.630$ to $0.706$.
+
+---
+
+<FinanceCaseStudy title="Finance case study: a finite filing corpus">
+
+A bank or an exchange that trains a model on its own documents cannot buy more of them. The filings, transcripts, and research notes that exist are its unique tokens $U$, and if the law wants more data than that, the model must see some of it twice. Muennighoff and colleagues (2023) fit how much a repeated token is worth. $D$ tokens drawn from $U$ unique ones count as
+
+$$
+D' \;=\; U + U R^\ast \big(1 - e^{-R/R^\ast}\big), \qquad R = D/U - 1,
+$$
+
+fresh tokens, with $R^\ast = 15.4$. A few epochs are nearly free ($D' \approx D$ while $R \ll R^\ast$), and value saturates at $U(1 + R^\ast)$ however long training runs.
+
+**On our filings.** We take the middle budget's $d = 12$ model and spend the same compute, $434{,}176$ training tokens, on corpora of $1$, $4$, $16$, and $64$ times fewer unique tokens. The held-out losses are $2.298$, $2.315$, $2.357$, and $2.827$ nats. Four epochs cost $0.017$ nats, under two seed spreads. Sixty-four cost half a nat, because the model sees the same $6{,}784$ tokens sixty-four times. The toy fit evaluated at Muennighoff's $D'$ predicts $2.301$, $2.326$, $2.471$, and $3.236$. Our filings forgive repetition more than the law says. They are generated from templates, so even their unique text repeats its phrasing, and a repeated window teaches less that is new than a repeated real document would.
+
+**At the scale of a finance model.** BloombergGPT (Wu and colleagues 2023) was sized by Chinchilla's Approaches 1 and 2, and its authors found their roughly $700$ billion tokens "too small for a 'Chinchilla optimal' configuration". With $709$B tokens available, they trained $50.6$B parameters on $569$B of them. Spend that run's compute, $6 \times 50.6 \times 10^9 \times 569 \times 10^9$ FLOPs, under Besiroglu and colleagues' fit. Unconstrained, the optimum is $38.97$B parameters on $739$B tokens, slightly more data than exists. With the cap and Muennighoff's decay, the optimum repeats $1.04$ epochs and grows to only $39.10$B parameters. The cap binds when the corpus is far smaller than the law's $D^\ast$. With $126$B unique tokens the optimum is a $46$B-parameter model on five epochs. With $20$B it is a $77$B-parameter model on nineteen, because once more passes over the data stop paying, the compute goes into the model. The lab's last figure runs this sweep.
+
+What the law cannot tell a firm is whether its documents are worth more than general text. Muennighoff's decay treats every repeated token alike, and BloombergGPT's mixture of $363$B financial and $345$B general tokens is a separate decision that no scaling law here prices.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this goes next
+
+The losses on this page are cross-entropies, so everything in the [perplexity topic](/topics/perplexity-cross-entropy) about what a nat buys applies to the frontier: a loss gain of $0.1$ nats cuts perplexity by a factor of $e^{-0.1}$, about $9.5\%$, whatever the scale. The decoding topics take a trained model as given and ask how to generate from it. The fine-tuning topic asks how few new parameters adapt a pretrained one, which is a scaling question in a regime this page does not touch.
+
+Three things are outside our scope. Emergent abilities on downstream tasks are not losses and need not follow a power law. Compute spent at inference, by sampling longer or more, has its own trade-offs. And the variance-limited regimes of Bahri and colleagues (2024), where a model is large enough to interpolate, belong with formalML's [double-descent topic](https://www.formalml.com/topics/double-descent), whose risk curves have the peak that our monotone laws leave out.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Theorems inside toy models only.** Theorems 1–3 hold for a Pitman–Yor memorizer and a Gaussian linear model with power-law spectrum. For real language models the law $E + A/N^\alpha + B/D^\beta$ is a fit.
+2. **The law is misspecified even where it fits.** On the solvable model it recovers the exponents within $3\%$ and misses the loss by $13\%$ RMS, up to a factor of $1.49$ at small sizes.
+3. **SGD's noise is cited, not proved.** Proposition 1 is exact for every step size, but the claim that our step leaves the exponents alone rests on Paquette and colleagues' and Bordelon and colleagues' analyses and on the recovered exponents.
+4. **The published fits disagree.** Hoffmann and colleagues' approaches give $0.46$ to $0.50$; their printed parameters give 32B at Gopher's budget where their text says 40B; Besiroglu and colleagues' refit gives $0.51$, and they argue the original intervals are far too narrow.
+5. **Units matter, and Proposition 3 does not pick them.** Kaplan's $0.73$ is consistent with Chinchilla's law read in non-embedding units at small scale. That explains the gap, not which count predicts better.
+6. **6ND drops attention.** The attention term is $8\%$ to $20\%$ of $6N$ at our widths, and Kaplan's accounting drops the unembedding as well.
+7. **The toy grid is small.** Three budgets spanning a factor of $6.3$, one seed per point with about $0.01$ nats of noise: its exponent cannot separate Kaplan from Chinchilla.
+8. **Repetition on synthetic text.** Muennighoff and colleagues' $R^\ast$ was fitted at large scale on real text. Our templated filings forgive repetition more than it predicts.
+9. **Extrapolation is a bet.** Every law here is supported only over the range it was fitted on.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `scaling_laws.py`, which owns every number on this page. That module imports the transformer-block topic's module for the pre-LN block, attention, LayerNorm, and their backward passes. Through it, it also gets the neural-language-models topic's Adam constants and the shared finance corpus. It imports the contextual-embeddings topic's module for the faster MLP backward pass, and the perplexity topic's module, which brings the Zipf–Heaps topic's Pitman–Yor sampler and closed form. It computes the solvable model's SGD losses exactly, trains twenty decoders from scratch in NumPy with hand-written gradients, and runs a harness of $21$ assertion-based tests in about thirty-five seconds on a laptop CPU. The tests cover:
+
+- Theorem 1 against $1000$ simulated restaurants, its Dirichlet case, its asymptote at three $(d, \theta)$, and the corpus's own learning curve.
+- Theorem 2's bracket on $50$ random instances, and Theorem 3's bracket against the exact incomplete-gamma integral on $20$.
+- Proposition 1 against $400$ Monte Carlo SGD runs.
+- Theorem 4 against a numeric minimum on $30$ random laws, with its multiplier against a numeric derivative.
+- The three approaches' recovery of the predicted exponent, and the law's misfit.
+- Proposition 2 by instrumented counting at seven widths, and the decoder's gradient against central differences.
+- The published fits' exponents and optima, Proposition 3 against finite differences, the toy grid's valleys, the seed spread, the repetition runs, and the capped optimum.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
