@@ -231,6 +231,18 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   informative words' mass (m_S = 0.062) so the Bayes error does not move with V. Under a long Zipf tail,
   uniform add-α shrinks the informative words too, so the validated α grows with n (≈ 0.5 → 20 at
   V = 3,071).
+- Lexicons on corpus models (Topic 18). Net tone with tuned cutpoints scores 0.637, but the two category counts
+  (plug-in category-world Bayes, or LR on the two rates) score 0.724: neutral filings have few polar words of either
+  kind, and positive filings still carry negative hits (u₊ 0.967, u₋ 0.191), so the pos − neg projection, not the word
+  list, costs most of the gap to unigram LR (0.739). Uncertainty words have the same rate in every tone, and litigious
+  words occur only in 8-Ks (adding both to a rate model changes nothing). The i.i.d.-token model's exact sign error
+  (0.253 at L̄ = 210) matches the measured 0.252. With the general list, b > a even in positive filings (no Chernoff
+  bound). A dictionary-centered ridge prior is `ltc.lr_fit` on features with the dictionary counts Aᵀx appended and a
+  per-feature λ vector (λ on words, η = 10⁻⁴ on the count columns); AᵀΔ = 0 at the optimum. Harmonic induction: use
+  the full document-PPMI graph (kNN sparsification drops sign accuracy to 0.48–0.74), restrict the solve to the seeds'
+  connected components (PPMI-isolated words make L_UU singular), and compute z without the seeds, whose ±1 dwarfs every
+  propagated value (seed z ≈ 246). Signs come out 0.893 right, but polysemes are not neutralized and the extremes are
+  sector words. A dollar amount in MDX prose (`$\$12.5$`) desyncs every later `$…$` pairing check: avoid it.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -259,7 +271,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   objective), and `cross_fit_gain` are reusable. Topic 17's `learning_curve` takes ~22 s for the four
   worlds and its finance bigram softmax LR ~5 s (the whole harness ~42 s); `featurize`, `nb_fit`
   (multinomial/Bernoulli, Prop 1's closed form), `log_posterior`, `lr_fit`, `estimating_residuals`,
-  `log_count_ratio`, `hard_margin_svm` (homogeneous dual), and `bayes_ceiling` are reusable.
+  `log_count_ratio`, `hard_margin_svm` (homogeneous dual), and `bayes_ceiling` are reusable. Topic 18's
+  `learning_curves` takes ~15 s (the harness ~30 s); `tune_thresholds` (exhaustive cutpoints), `category_counts`,
+  `harmonic`, `prior_design`/`prior_fit`, `sign_error` (exact trinomial tail), and `load_lm_dictionary` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -284,6 +298,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   an intercept, GD finds argmin ‖w‖² + b². Wang and Manning (2012)'s w̄ = ‖w‖₁/|V| is a scalar (β = 0.25,
   α = 1, C = 1). Albert and Anderson (1984) sits behind a Cloudflare challenge and Xue and Titterington
   (2008) is paywalled: cite both from the abstract, and say so.
+  Loughran and McDonald (2011)'s Crossref abstract has "almost three-fourths" (Harvard-IV negatives in 10-Ks); the
+  73.8% in the body is unverified. Their Master Dictionary CSV is a Google Drive file linked from
+  sraf.nd.edu/loughranmcdonald-master-dictionary (free for academic research; a category column holds the year added,
+  negative if later removed). formalStatistics `large-deviations` Thm 6 is Cramér; formalML `concentration-inequalities`
+  Thm 3 is Chernoff.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
