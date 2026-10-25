@@ -99,7 +99,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `hidden md:block`, so use desktop width. Hydrated ⟺ the `astro-island` has lost its `ssr`
   attribute (`[data-lab]` is in the server-rendered HTML too). Scope DOM assertions to
   the lab container (pages carry other SVGs). React-controlled range sliders ignore synthesized
-  `input` events — drive them with a real key press after `focus()`.
+  `input` events — drive them with a real key press after `focus()`. At the mobile preset a scripted
+  `scrollIntoView` may never trigger `client:visible`; a real `computer` scroll does.
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
   stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
   two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
@@ -108,7 +109,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `test_viz_payload` and pick the lab's default by a rule that finds it, not a hard-coded index.
   `ak._sig(x, 3)` keeps significant figures (10.169 → 10.2): use `ak._r(x, 3)` for anything the page
   quotes to 3 decimals. Key payload dicts by `f"{beta:g}"`: `f"{1.0}"` is `"1.0"`, but JS's
-  `` `${1}` `` is `"1"`.
+  `` `${1}` `` is `"1"`. Whatever a lab plots that the `.py` computes goes in the payload too (Topic 13's
+  IsoFLOP valleys and parabola coefficients): a lab may draw a curve from payload parameters, but every
+  number it prints is a payload value.
 - Score a mechanism by every position that satisfies its definition, not one exemplar. Topic 11's
   induction heads put 0.593 on the most recent copy (i − p + 1) but 0.943 on all earlier copies,
   since they split weight across copies one period apart. The lab's heatmap caught it, so build
@@ -135,6 +138,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   Time one epoch before fixing a grid. Profile a transformer step: `tb.mlp_backward`'s `einsum` was
   ~40% of it (Topic 12's matmul `mlp_backward` is pinned equal); a masked-LM loss should form logits
   only at the selected rows, and float32 training is ~2.5× faster (together, 50 → 11 ms/step at V = 879).
+  Topic 10's `pe.rotate` writes into a fresh float64 `np.empty`, so RoPE silently upcasts float32
+  attention and drops ndarray subclasses (Topic 13's FLOP counter missed QKᵀ); toy decoders use learned
+  positions. Tiny decoders (d ≤ 48) are optimization-limited at Adam's lr 0.01: a peak of 1.28/d
+  with 10% warmup took d = 32 from 2.14 to 1.70 nats and halved the seed spread (0.010 nats per run).
+  Sweep the rate before fixing a scaling grid.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -143,14 +151,23 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   (`SYNTH1`), and ~8 s (`FILING2`); its `mha_forward`/`mha_backward` (batched heads, RoPE, causal) are
   reusable, gradient-checked attention layers. Topic 12's `train_mlm` takes ~12 s (`HMM_MLM`) and ~22 s
   (`FILING_MLM`); its `encode`/`mlm_loss_grad` are a gradient-checked bidirectional pre-LN encoder
-  (learned positions, tied embeddings). Topic 7's `SGNSConfig("L2", 25)` takes ~2.8 s.
+  (learned positions, tied embeddings). Topic 7's `SGNSConfig("L2", 25)` takes ~2.8 s. Topic 13's
+  `train_run` takes 0.2–5 s per run, and its 20 runs (`isoflop_grid`, `seed_spread`, `repetition_runs`)
+  ~31 s; its `decoder_loss_grad` is a gradient-checked causal pre-LN decoder (learned positions, tied
+  embeddings), `_Counted` an ndarray subclass that counts matmul FLOPs, `sgd_losses` exact one-pass SGD
+  on a Gaussian power-law model (no Monte Carlo), and `compute_optimal`/`fit_loss_law` Chinchilla's
+  closed form and Approach 3.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
   large sparse block matrices raise spurious FP flags — check such determinants block by block.
 - Test a published bound's stated constant on adversarial instances before citing it (Chen et al.
-  2023's PI bound fails as stated for d ≤ 128). Prototype trained experiments in the scratchpad before
-  the scaffold, but treat spike numbers as provisional.
+  2023's PI bound fails as stated for d ≤ 128). Recompute a paper's headline from its printed parameters:
+  Hoffmann et al.'s rounded Eq. 10 gives 32B at Gopher's budget, not their 40B (the unrounded values,
+  Besiroglu et al.'s Eq. 4, do). When a cited remark seems to contradict the harness, read its setting:
+  Hutter (2021, §6)'s "β = 1" for Pitman–Yor is the d = 0 case, not the missing mass's 1 − d. Prototype
+  trained experiments in the scratchpad before the scaffold, but treat spike numbers as provisional; never
+  name a scratch script after a stdlib module (an `inspect.py` broke numpy's import).
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
