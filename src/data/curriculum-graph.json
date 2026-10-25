@@ -87,7 +87,7 @@
     {
       "id": "sampling-temperature-nucleus",
       "label": "Sampling: Temperature, Top-k, and Nucleus",
-      "status": "planned",
+      "status": "published",
       "domain": "decoding-generation"
     },
     {

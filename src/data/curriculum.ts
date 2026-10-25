@@ -55,7 +55,6 @@ export const tracks = [
     description:
       'Turning a distribution into text: decoding as search, temperature and truncation sampling, and whether a language model knows what it does not know.',
     planned: [
-      'Sampling: Temperature, Top-k, and Nucleus',
       'Calibration of Language Models',
     ],
     dependsOnFormalML: true,
