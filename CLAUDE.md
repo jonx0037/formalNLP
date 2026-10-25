@@ -104,7 +104,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   attribute (`[data-lab]` is in the server-rendered HTML too). Scope DOM assertions to
   the lab container (pages carry other SVGs). React-controlled range sliders ignore synthesized
   `input` events — drive them with a real key press after `focus()`. At the mobile preset a scripted
-  `scrollIntoView` may never trigger `client:visible`; a real `computer` scroll does.
+  `scrollIntoView` may never trigger `client:visible`; a real `computer` scroll does. On a long page
+  (Topic 16: 336 KaTeX spans) a scripted `scrollIntoView` can leave the page where it was, even at
+  desktop width: `find` the lab's caption and `computer` `scroll_to` its ref, then check `ssr` is gone.
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
   stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
   two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
@@ -139,7 +141,15 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - D3 trees: `d3.stratify` silently drops a node whose id is `""` (falsy), so prefix every id
   (`n:${id}`); `d3.tree`'s default separation gives siblings half the gap of cousins, so labeled trees
   need `.separation(() => 1)` and about 26 px of height per leaf (Topic 14's 34-node tree takes 600).
-- `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose.
+- `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose. Number each
+  type separately (Theorems 1–3, Propositions 1–3, Corollaries 1–2), and use the same numbers in the
+  brief, the `.py` docstrings, and the notebook: Topic 16's brief numbered in one sequence and had to be
+  renumbered everywhere at Phase B.
+- Markdown tables render `display: block; overflow-x: auto`, and `$…$` cells never wrap, so a wide table
+  scrolls even at desktop width (the prose box is 704 px). Keep headers short and define them in the
+  sentence above; put the long axis down the rows.
+- Clip a lab chart whose curves blow up at a grid end (`clipPath`, and say "clipped at …" in its title):
+  Topic 16's never-seen facts cost ~35 nats at τ = 0.04 and flattened the 0–3 nat range that matters.
 - NumPy SGD: scatter-add minibatch gradients as `csc_matrix((ones, idx, arange(n+1)), shape=(V, n)) @ g`,
   >10× faster than `np.add.at`. Draw an epoch's random numbers in one call (same stream, same results).
   Time one epoch before fixing a grid. Profile a transformer step: `tb.mlp_backward`'s `einsum` was
@@ -176,6 +186,26 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   tie at the top, so test τ → 0 as uniform on the argmax set (near-ties need τ ≈ 10⁻⁶). Typical
   sampling at a small mass drops the head and its NLL rises: never assert it monotone. In leaf-frequency
   tests, take per-cell z-scores only where the expected count is ≥ 5.
+- Calibration on corpus models (Topic 16). Top-label calibration needs only held-out text, so no oracle;
+  canonical calibration over V = 3,427 can't be estimated (a forecaster with distinct rows is
+  canonically calibrated iff it is the truth), so show it on finite worlds with exact level-set
+  averages. Score every token with `<unk>` as an outcome: the trigram from `bs.trigram().vec` (not
+  `TrigramLM`, which renormalizes `<unk>` away), the decoder from `sl.decoder_log_probs` with only `<s>`
+  masked, sentences grouped by length (first 32 inputs). Dedupe trigram rows by context (23k tokens →
+  5,462 rows) and sort each row once: the nucleus order is τ-invariant, so per-τ coverage is a cumsum.
+  Three test sets: `ng.continuation_run(100)["continuation"]` is in distribution; `ng.corpus()["held"]`
+  restarts the restaurants from the seed nouns (trigram `<unk>` share 0.007, *below* the continuation's
+  0.028, and the decoder turns underconfident there); EDGAR is 830 trigram tokens, 58% `<unk>`. KN is
+  nearly calibrated in distribution (τ* 1.003, ECE₁₅ 0.018 vs a calibrated twin's 0.006 ± 0.001):
+  report ECE against the twin (same confidences, hits redrawn as Bernoulli(conf)), never alone. The
+  NLL-optimal τ is not the ECE-optimal one (it raised in-distribution ECE on both engines, and on EDGAR
+  flattened confidence to 0.008 below accuracy 0.059). Cross-fit any temperature gain (even/odd
+  sentences). Topic 14's decoder has no temperature direction (parameter-free final LN, tied E at a fixed
+  1/√d), so its training τ* is 0.943; to show MLE leaves τ*_train = 1, use a log-linear bigram, where
+  d/dβ L_train = −λ‖W‖² exactly at an L2 optimum. Fit it with λ > 0: unpenalized, unseen pairs run to
+  −∞ and L-BFGS takes ~30 s. Fact probes restricted to a relation's answers: seen facts are
+  underconfident and unseen ones overconfident, so per-regime τ* sit at opposite grid edges; seed a
+  bounded search from the grid argmin (a flat edge stops it short, 0.047 vs the 0.040 edge).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -197,7 +227,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   reusable; its `_beam_table("decoder")` takes ~12 s and `exact_modes("decoder")` ~6 s. Topic 15's
   `draws(name, setting)` (1,504 strings) averages ~0.7 s, its 25-setting grid on both engines ~25 s,
   `oracle()` ~1.5 s, `fact_model()` 0.3 s; `truncation_set`, `temper`, `tree_dist`, and
-  `local_tempered`/`global_tempered` are pure and reusable.
+  `local_tempered`/`global_tempered` are pure and reusable. Topic 16's `rows(engine, test)` takes ~2 s
+  per trigram set (≈150 MB of float64 rows each; the decoder adds its ~5 s training), `stats_at` one
+  temperature ~0.5 s on a trigram set, `loglinear_bigram` 0.5–3.3 s per λ (smaller λ is slower); `recalibrated`/`log_decomposition`,
+  `reliability_bins`, `ece_hat`, `sq_ece_debiased`, `twin_ece`, `fit_beta` (Newton on the convex β
+  objective), and `cross_fit_gain` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -244,6 +278,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Cite a sibling slug without checking it exists **and** is `status: published` on the sibling's
   GitHub `main` — a local sibling checkout can lag or sit on another branch. Check what it covers, too:
   formalML `message-passing` is GNNs, with no max-product or Viterbi, and as of 2026-10-24 no published
-  sibling covers Viterbi (formalStatistics `hidden-markov-models` is still draft).
+  sibling covers Viterbi (formalStatistics `hidden-markov-models` is still draft). The design's
+  watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
+  over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
+  binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
+  page cites those and proves only what they leave open.
 - Hardcode hex colors in components — use the `--color-*` tokens.
 - Commit `docs/plans/audit-output/`, `cross-site-audit-report.md`, or `deferred-reciprocals.md`.
