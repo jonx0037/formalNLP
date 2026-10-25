@@ -93,7 +93,7 @@
     {
       "id": "language-model-calibration",
       "label": "Calibration of Language Models",
-      "status": "planned",
+      "status": "published",
       "domain": "decoding-generation"
     },
     {

@@ -25,8 +25,7 @@ export const tracks = [
     layer: 'Foundations',
     description:
       'Assigning probabilities to sequences: n-gram estimation and smoothing, perplexity as cross-entropy, and the move to neural language models.',
-    planned: [
-    ],
+    planned: [],
     dependsOnFormalML: false,
   },
   {
@@ -35,8 +34,7 @@ export const tracks = [
     layer: 'Representations',
     description:
       'Meaning as geometry: co-occurrence statistics and PPMI, word2vec as implicit matrix factorization, GloVe, and contextual embeddings from masked language modeling.',
-    planned: [
-    ],
+    planned: [],
     dependsOnFormalML: true,
   },
   {
@@ -54,9 +52,7 @@ export const tracks = [
     layer: 'Generation',
     description:
       'Turning a distribution into text: decoding as search, temperature and truncation sampling, and whether a language model knows what it does not know.',
-    planned: [
-      'Calibration of Language Models',
-    ],
+    planned: [],
     dependsOnFormalML: true,
   },
   {
