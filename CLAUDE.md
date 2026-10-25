@@ -243,6 +243,21 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   connected components (PPMI-isolated words make L_UU singular), and compute z without the seeds, whose ±1 dwarfs every
   propagated value (seed z ≈ 246). Signs come out 0.893 right, but polysemes are not neutralized and the extremes are
   sector words. A dollar amount in MDX prose (`$\$12.5$`) desyncs every later `$…$` pairing check: avoid it.
+- Aspect sentiment on corpus models (Topic 19). One row per gold aspect (14,179 in the test split); every two-aspect
+  sentence (", but") pairs opposite polarities, so any aspect-blind reader is capped at 1 − m/2N = 0.911 (a blind
+  bigram LR lands on exactly 0.500 of contrast aspects), and polarity is a deterministic function of clause and
+  category (aspect-level Bayes accuracy 1): results are about representation. Keep a "shared votes" attention rung's
+  bias shared too: a per-category bias shifts every vote by an aspect-dependent constant and lets signs flip. Write
+  the layer ragged (`np.maximum.reduceat`/`np.add.reduceat` per row, `np.bincount` scatters) with values in logit space
+  (z ∈ ℝ³): 300 full-batch Adam steps on 14k aspects take 2–6 s, where a padded d = 16 bilinear version took 25–165 s.
+  Contrast sets: never fill a slot with an out-of-vocabulary word ("also" became `<unk>` and broke even the bigram
+  rung); edit within the vocabulary or delete a word (removing "not" keeps the quadruple, since a substitution's sign
+  does not depend on its offset under a separable kernel). Thm 2's reweighting z′ = (z + b)/r − b at r = 10⁶ leaves a
+  logit-ratio spread of ~3·10⁻⁸ from cancellation (test at 10⁻⁶); the trained layer gives aspect words only 0.005 of its
+  attention, so moving it there needs r ≈ 10⁶, and the probabilities flatten to 1/3 (a temperature). Tone-bearing
+  sentences are those opening on an aspect (or "Management pointed to") that name no MONEY, PRODUCT, or ORG entity:
+  exactly the generator's k ∈ 5..8, and their first-aspect polarities through the Bayes rule give 0.883 against the
+  0.890 ceiling. The EDGAR excerpts hold five aspect-term mentions; split them at "." only (";" leaves fragments).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -274,6 +289,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `log_count_ratio`, `hard_margin_svm` (homogeneous dual), and `bayes_ceiling` are reusable. Topic 18's
   `learning_curves` takes ~15 s (the harness ~30 s); `tune_thresholds` (exhaustive cutpoints), `category_counts`,
   `harmonic`, `prior_design`/`prior_fit`, `sign_error` (exact trinomial tail), and `load_lm_dictionary` are reusable.
+  Topic 19's harness takes ~27 s (three attention rungs ~12 s); `aspect_rows`, `batch`/`layer_forward`/`layer_loss_grad`
+  (complex-step safe), `valence_patterns`/`negation_feasible` (LP certificates), `reweighted`, `tone_sentences`, and
+  `bayes_tone` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice.
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
@@ -303,6 +321,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   sraf.nd.edu/loughranmcdonald-master-dictionary (free for academic research; a category column holds the year added,
   negative if later removed). formalStatistics `large-deviations` Thm 6 is Cramér; formalML `concentration-inequalities`
   Thm 3 is Chernoff.
+  Kobayashi et al. (2020)'s f(x) is the value transform followed by W^O: say "transformed vectors", not "value
+  vectors". MAMS (Jiang et al. 2019) defines its sentences as having at least two aspects of different polarity. FiQA's
+  ACM PDF (Maia et al. 2018) returns 403; confirm Task 1 (aspect-based financial sentiment) on sites.google.com/view/fiqa.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
