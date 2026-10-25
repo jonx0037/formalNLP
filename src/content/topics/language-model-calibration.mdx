@@ -1,0 +1,479 @@
+---
+title: "Calibration of Language Models"
+subtitle: "When a model says 0.9, is it right nine times in ten? For a next-token distribution over thousands of words the question splits into a strong form no corpus can test and a weak form any corpus can; every log loss separates into what the text cannot tell us, what the model's context discards, and what a recalibration could recover"
+status: "published"
+difficulty: "advanced"
+prerequisites:
+  - "sampling-temperature-nucleus"
+tags:
+  - "calibration"
+  - "proper-scoring-rules"
+  - "expected-calibration-error"
+  - "reliability-diagram"
+  - "temperature-scaling"
+  - "maximum-likelihood"
+  - "prediction-sets"
+  - "distribution-shift"
+  - "kneser-ney"
+  - "hallucination"
+domain: "decoding-generation"
+financeCaseStudy: true
+rigorFlag: "Every corpus number on this page is top-label calibration estimated by equal-width binning, an estimator Theorem 2 shows is biased in both directions. Canonical calibration over a 3,427-word vocabulary cannot be estimated from 23,000 tokens; it is demonstrated only on finite worlds where every expectation is an exact sum. Theorem 2(b) and the calibrated twin treat a test set's tokens as independent given their confidences, which consecutive tokens of real text are not, so the twin's floor is a floor under that assumption. The in-distribution test set is the training generator run on, a synthetic best case, and the near-calibration of Kneser–Ney there is an empirical finding, not a theorem about its discounts. The EDGAR test set is 830 tokens of real filings, most of them unknown words to both engines. The decoder is scored on its own 512-token event space, with the unknown-word token as an outcome and only through 32 positions, so its accuracy is not comparable to the trigram's. Theorem 3 constrains only the training-data temperature; nothing here explains where held-out temperatures land."
+videoId: null
+notebookPath: "notebooks/language-model-calibration/01_language_model_calibration.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/language-model-calibration.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 40
+abstract: "A forecast is calibrated when the events it calls 70% likely happen 70% of the time. For a language model's next-token distribution over thousands of words the notion splits. Canonical calibration asks the whole distribution to be right among the contexts that receive it; when every context has its own distribution, that is the same as being the true conditional, so no corpus can check it. Top-label calibration asks only that the top token's probability match how often it occurs, and any held-out text can check that. Every log loss splits exactly into three parts: what the text cannot tell any forecaster with the same context, what the forecast discards of that context, and a reliability term that recalibration removes, and no recalibration can recover more. Measuring the reliability term is itself biased: coarse bins hide miscalibration and finite samples invent it, and a calibrated twin of the model, the same confidences with outcomes redrawn from them, measures the invented part. Temperature scaling is a convex one-parameter fit that matches one moment, keeps every argmax, and can reorder confidences across rows. When a model family can scale its own logits, maximum likelihood leaves the training-data temperature at exactly 1, and an L2 penalty leaves the model underconfident on its own training data. A calibrated model's nucleus covers the next token exactly as often as its kept mass says, and sampling at any other temperature miscalibrates it on purpose. On text from their own generator, a Kneser–Ney trigram and a small transformer are nearly calibrated. On real filings both are badly overconfident, the nucleus covers a third of the text, and a fact model is underconfident about what it has seen and overconfident about what it has not, so no single temperature fixes it."
+connections: []
+references:
+  - type: "paper"
+    title: "On Calibration of Modern Neural Networks"
+    authors: "Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q. Weinberger"
+    year: 2017
+    url: "https://proceedings.mlr.press/v70/guo17a.html"
+    note: "ICML 2017, PMLR 70: 1321–30. ECE with 15 bins (their Eq. 3), temperature scaling (§4.2), and its maximum-entropy characterization (Supplement S2, Claim 1), the moment condition of Proposition 2"
+  - type: "paper"
+    title: "The Comparison and Evaluation of Forecasters"
+    authors: "Morris H. DeGroot and Stephen E. Fienberg"
+    year: 1983
+    url: "https://doi.org/10.2307/2987588"
+    note: "The Statistician 32 (1/2): 12–22. Calibration and refinement as the two parts of a forecaster's quality"
+  - type: "paper"
+    title: "A New Vector Partition of the Probability Score"
+    authors: "Allan H. Murphy"
+    year: 1973
+    url: "https://doi.org/10.1175/1520-0450(1973)012<0595:ANVPOT>2.0.CO;2"
+    note: "Journal of Applied Meteorology 12 (4): 595–600. The reliability–resolution–uncertainty partition of the Brier score"
+  - type: "paper"
+    title: "Reliability, Sufficiency, and the Decomposition of Proper Scores"
+    authors: "Jochen Bröcker"
+    year: 2009
+    url: "https://doi.org/10.1002/qj.456"
+    note: "Quarterly Journal of the Royal Meteorological Society 135 (643): 1512–19. The decomposition of any proper score (his Eqs. 10 and 13) and forecast sufficiency (§3), the two steps of Theorem 1"
+  - type: "paper"
+    title: "Strictly Proper Scoring Rules, Prediction, and Estimation"
+    authors: "Tilmann Gneiting and Adrian E. Raftery"
+    year: 2007
+    url: "https://doi.org/10.1198/016214506000001437"
+    note: "Journal of the American Statistical Association 102 (477): 359–78. Proper scores, their entropies, and their divergences"
+  - type: "paper"
+    title: "Evaluating Model Calibration in Classification"
+    authors: "Juozas Vaicenavicius, David Widmann, Carl Andersson, Fredrik Lindsten, Jacob Roll, and Thomas B. Schön"
+    year: 2019
+    url: "https://proceedings.mlr.press/v89/vaicenavicius19a.html"
+    note: "AISTATS 2019, PMLR 89. Calibration of the whole predicted distribution (their Eq. 1), the canonical calibration of Definition 1"
+  - type: "paper"
+    title: "Obtaining Well Calibrated Probabilities Using Bayesian Binning"
+    authors: "Mahdi Pakdaman Naeini, Gregory F. Cooper, and Milos Hauskrecht"
+    year: 2015
+    url: "https://doi.org/10.1609/aaai.v29i1.9602"
+    note: "AAAI 29 (1). The expected calibration error"
+  - type: "paper"
+    title: "Estimating Reliability and Resolution of Probability Forecasts through Decomposition of the Empirical Score"
+    authors: "Jochen Bröcker"
+    year: 2012
+    url: "https://doi.org/10.1007/s00382-011-1191-1"
+    note: "Climate Dynamics 39: 655–67. The bias of the empirical reliability term and its correction"
+  - type: "paper"
+    title: "A Bias-Corrected Decomposition of the Brier Score"
+    authors: "Christopher A. T. Ferro and Thomas E. Fricker"
+    year: 2012
+    url: "https://doi.org/10.1002/qj.1924"
+    note: "Quarterly Journal of the Royal Meteorological Society 138 (668): 1954–60. The corrected reliability term behind Theorem 2(c)"
+  - type: "paper"
+    title: "Verified Uncertainty Calibration"
+    authors: "Ananya Kumar, Percy Liang, and Tengyu Ma"
+    year: 2019
+    url: "https://arxiv.org/abs/1909.10155"
+    note: "NeurIPS 2019. The plug-in and debiased estimators of the squared calibration error (their Defs. 5.1–5.2) and their sample complexities (Thms 5.3–5.4)"
+  - type: "paper"
+    title: "Mitigating Bias in Calibration Error Estimation"
+    authors: "Rebecca Roelofs, Nicholas Cain, Jonathon Shlens, and Michael C. Mozer"
+    year: 2022
+    url: "https://arxiv.org/abs/2012.08668"
+    note: "AISTATS 2022. Binned ECE is biased, most severely for perfectly calibrated models"
+  - type: "paper"
+    title: "Can You Trust Your Model's Uncertainty? Evaluating Predictive Uncertainty under Dataset Shift"
+    authors: "Yaniv Ovadia, Emily Fertig, Jie Ren, Zachary Nado, D. Sculley, Sebastian Nowozin, Joshua V. Dillon, Balaji Lakshminarayanan, and Jasper Snoek"
+    year: 2019
+    url: "https://arxiv.org/abs/1906.02530"
+    note: "NeurIPS 2019. Calibration degrades under dataset shift, and calibration on held-out in-distribution data does not transfer"
+  - type: "paper"
+    title: "Calibration of Pre-trained Transformers"
+    authors: "Shrey Desai and Greg Durrett"
+    year: 2020
+    url: "https://doi.org/10.18653/v1/2020.emnlp-main.21"
+    note: "EMNLP 2020, 295–302. Pre-trained transformers are calibrated in domain and less so out of domain; temperature scaling helps"
+  - type: "paper"
+    title: "Calibration, Entropy Rates, and Memory in Language Models"
+    authors: "Mark Braverman, Xinyi Chen, Sham Kakade, Karthik Narasimhan, Cyril Zhang, and Yi Zhang"
+    year: 2020
+    url: "https://proceedings.mlr.press/v119/braverman20a.html"
+    note: "ICML 2020, PMLR 119. Calibration of a language model's generations: their entropy rate drifts upward, and a one-parameter correction fixes it"
+  - type: "paper"
+    title: "Language Models (Mostly) Know What They Know"
+    authors: "Saurav Kadavath and colleagues"
+    year: 2022
+    url: "https://arxiv.org/abs/2207.05221"
+    note: "Calibration of large language models on multiple-choice questions and of their own self-evaluations"
+  - type: "paper"
+    title: "GPT-4 Technical Report"
+    authors: "OpenAI"
+    year: 2023
+    url: "https://arxiv.org/abs/2303.08774"
+    note: "Figure 8: the pre-trained model is highly calibrated on a subset of MMLU, and post-training reduces its calibration"
+formalmlPrereqs:
+  - topic: "uncertainty-quantification"
+    site: "formalml"
+    relationship: "Its calibration section supplies the binary apparatus this page generalizes: Dawid's definition, the reliability diagram and ECE, strict properness of the Brier score and log loss (its Theorem 2), and Murphy's binned Brier decomposition (its Theorem 3), which Theorem 1 extends to whole next-token distributions and to the log loss."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "Theorem 1 is written in KL divergences: the refinement gap is KL(P ‖ C) and the reliability term KL(C ‖ F), and Gibbs's inequality (KL ≥ 0) is what makes each term a cost."
+formalmlConnections:
+  - topic: "conformal-prediction"
+    site: "formalml"
+    relationship: "Proposition 3 shows that a nucleus covers the next token at its kept mass only if the model is calibrated; split conformal prediction (its Theorem 1) instead chooses the threshold on held-out data and guarantees marginal coverage with no calibration at all."
+formalstatisticsPrereqs:
+  - topic: "exponential-families"
+    site: "formalstatistics"
+    relationship: "Temperature scaling is a one-parameter exponential family with natural parameter 1/τ and sufficient statistic the observed logit: its Theorem 7.1 gives Proposition 2's derivatives as a mean and a variance, and its Theorem 7.4 is the moment equation the optimum solves."
+  - topic: "maximum-likelihood"
+    site: "formalstatistics"
+    relationship: "Theorem 3 is a statement about the score equation of its Theorem 1 along one direction of parameter space, and the temperature fit is its Theorem 6's Newton–Raphson iteration on a convex one-dimensional likelihood."
+formalragConnections:
+  - topic: "significance-testing-calibration"
+    site: "formalrag"
+    relationship: "It calibrates retrieval scores with the reliability diagram and ECE and proves that a monotone recalibration preserves every ranking (its Theorem 2); Proposition 2(c) shows temperature scaling is not monotone in the confidence, so the order of confidences across contexts can change."
+  - topic: "selective-generation-abstention"
+    site: "formalrag"
+    relationship: "A calibrated confidence is the input to a decision to answer or abstain; Chow's rule, the risk–coverage curve, and conformal control of the wrong-answer rate are developed there, and this page stops at measuring and repairing the confidence."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import CalibrationLab from '../../components/viz/CalibrationLab.tsx';
+
+## Overview & Motivation
+
+Score Topic 3's Kneser–Ney trigram on $23{,}219$ tokens of new text from the generator that wrote its training corpus. For every token, write down the probability the model gave its single likeliest next word, and whether that word is the one that came. Sort the tokens into fifteen bins by that probability, and in each bin compare the average probability with the fraction of hits. The fifteen points lie almost on the diagonal: the model's mean confidence is $0.522$ and its accuracy $0.527$. Now do the same on $830$ tokens of real MD&A text from EDGAR filings. The model's mean confidence is $0.144$; its accuracy is $0.059$. It is overconfident by a factor of more than two.
+
+That comparison is a **calibration** check, and this page makes it precise for language models. The [sampling topic](/topics/sampling-temperature-nucleus) treated temperature as a decoding choice that trades quality against diversity. Here the same operation is a repair: the temperature that makes the model's probabilities honest. We develop it in order:
+
+1. **What calibration means for a 3,427-way forecast.** The strong form, that the whole distribution is right, is the same as being the true conditional, and no corpus can check it. The weak form, that the top probability is right, any corpus can check.
+2. **What miscalibration costs.** Every log loss splits into three exact parts, and only one of them can be recalibrated away.
+3. **How to measure it honestly.** The standard estimator is biased in both directions, and a calibrated twin of the model measures one of the biases.
+4. **One dial.** Temperature scaling is a convex fit that matches one moment; it keeps every argmax but not the order of confidences.
+5. **Why $\tau = 1$.** Maximum likelihood leaves the training-data temperature at exactly $1$ when the model can scale its own logits, and below $1$ when it is penalized.
+6. **Calibrated sets.** Calibration is what makes a nucleus a prediction set.
+
+Then we measure both corpus engines on three test sets and return to the filings.
+
+---
+
+## What calibration means for a 3,427-way forecast
+
+We write $X$ for the context a model conditions on (the trigram's last two words, or the decoder's whole prefix), $Y$ for the next token, and $F = f(X) \in \Delta^{\mathcal V}$ for the model's forecast, a point of the probability simplex over the vocabulary $\mathcal V$. The **truth** is $P = P(Y \mid X)$, the next-token distribution given everything the model sees. The **recalibration** of $f$ is
+
+$$
+C \;=\; P(Y \mid F) \;=\; \mathbb{E}[P \mid F],
+$$
+
+the distribution of the next token among all contexts that receive the same forecast. Geometrically, $f$ sends contexts to points of the simplex; $C$ averages the truth over each point's preimage.
+
+<TheoremBlock type="definition" number={1} title="Calibration of a next-token forecaster">
+
+$f$ is **canonically calibrated** if $C = F$ almost surely. With $\mathrm{conf} = \max_v F_v$ and $\hat a$ the likeliest token (ties to the lower token id), $f$ is **top-label calibrated** if $P(Y = \hat a \mid \mathrm{conf}) = \mathrm{conf}$, and its **top-label calibration error** is $\mathbb{E}\,\lvert P(Y = \hat a \mid \mathrm{conf}) - \mathrm{conf} \rvert$.
+
+</TheoremBlock>
+
+The [formalML uncertainty-quantification topic](https://www.formalml.com/topics/uncertainty-quantification) defines calibration for a binary outcome, where there is only one probability to check. A next-token forecast has $3{,}426$ free coordinates, and the two notions above sit at the two ends of what one could ask of them.
+
+<TheoremBlock type="proposition" number={1} title="Canonical, top-label, and the truth">
+
+**(a)** Canonical calibration implies top-label calibration.
+
+**(b)** The converse fails: with one context, truth $(0.5, 0.2, 0.3)$, and forecast $(0.5, 0.3, 0.2)$, the forecaster is top-label calibrated and not canonically calibrated.
+
+**(c)** If $f$ gives distinct contexts distinct forecasts, then $C = P$. So $f$ is canonically calibrated if and only if $F = P$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** If $C = F$, then $P(Y = \hat a \mid F) = F_{\hat a} = \mathrm{conf}$. The confidence is a function of $F$, so by the tower property $P(Y = \hat a \mid \mathrm{conf}) = \mathbb{E}[\mathrm{conf} \mid \mathrm{conf}] = \mathrm{conf}$.
+
+**(b)** The forecaster says $0.5$ for its top token and is right with probability $0.5$, but $C = P \ne F$.
+
+**(c)** Each level set $\{F = q\}$ is a single context, so $\mathbb{E}[P \mid F] = P$.
+
+</TheoremBlock>
+
+Part (c) is why canonical calibration is out of reach for a language model. The trigram has a distinct row for nearly every context it has seen, so checking canonical calibration means checking that every row is the true conditional over $3{,}427$ words, from a few occurrences of each context. What a corpus can check is top-label calibration, one number per token, and that is what every corpus number on this page measures. Canonical calibration we test exactly, on small finite worlds where every expectation is a sum.
+
+---
+
+## What miscalibration costs
+
+The log loss of a forecaster is its [cross-entropy](/topics/perplexity-cross-entropy), $\mathbb{E}[-\log F_Y]$. Calibration is one part of it, and the decomposition is clearest first for the Brier score $\mathbb{E}\lVert F - e_Y \rVert^2$, where $e_Y$ is the corner of the simplex at the token that occurred. Three points sit in the simplex for each context: the forecast $F$, its recalibration $C$, and the truth $P$. Conditional on $F$, the outcome $e_Y$ averages to $C$; conditional on $X$, it averages to $P$. So the squared distance from $F$ to the outcome splits by Pythagoras, twice.
+
+<TheoremBlock type="theorem" number={1} title="Three-term decomposition">
+
+$$
+\mathbb{E}[-\log F_Y] \;=\; \underbrace{\mathbb{E}\,H(P)}_{\text{irreducible}} \;+\; \underbrace{\mathbb{E}\,\mathrm{KL}(P \,\|\, C)}_{\text{refinement gap}} \;+\; \underbrace{\mathbb{E}\,\mathrm{KL}(C \,\|\, F)}_{\text{reliability}},
+$$
+
+$$
+\mathbb{E}\lVert F - e_Y \rVert^2 \;=\; \mathbb{E}\big(1 - \lVert P \rVert^2\big) \;+\; \mathbb{E}\lVert C - P \rVert^2 \;+\; \mathbb{E}\lVert F - C \rVert^2.
+$$
+
+Every term is nonnegative. The recalibrated forecaster $C$ keeps the first two terms and loses the third, and the reliability term is zero exactly when $f$ is canonically calibrated.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**Brier.** Expand $\lVert F - e_Y \rVert^2 = \lVert F - C \rVert^2 + \lVert C - e_Y \rVert^2 + 2\langle F - C, C - e_Y \rangle$. Given $F$, the vectors $F$ and $C$ are fixed and $\mathbb{E}[e_Y \mid F] = C$, so the cross term has conditional mean $\langle F - C, C - C\rangle = 0$. Repeat with $C$, $P$, and conditioning on $X$: $C$ is a function of $X$ and $\mathbb{E}[e_Y \mid X] = P$, so $\mathbb{E}\lVert C - e_Y \rVert^2 = \mathbb{E}\lVert C - P \rVert^2 + \mathbb{E}\lVert P - e_Y \rVert^2$. Finally $\mathbb{E}[\lVert P - e_Y \rVert^2 \mid X] = \lVert P \rVert^2 - 2\lVert P \rVert^2 + 1$.
+
+**Log loss.** Given $F$, the next token has law $C$, so $\mathbb{E}[-\log F_Y \mid F] = \sum_v C_v (-\log F_v) = H(C) + \mathrm{KL}(C \,\|\, F)$. Next, $-\log C_v$ is a function of $F$ and $\mathbb{E}[P \mid F] = C$, so $\mathbb{E}\,H(C) = \mathbb{E}\sum_v P_v(-\log C_v) = \mathbb{E}\big[H(P) + \mathrm{KL}(P \,\|\, C)\big]$. Nonnegativity is Gibbs's inequality, and $\mathrm{KL}(C \,\|\, F) = 0$ exactly when $C = F$.
+
+</TheoremBlock>
+
+The three terms answer three questions. The **irreducible** term is what the text cannot tell any forecaster that sees the same context, the floor that only a longer context lowers. The **refinement gap** is what $f$ throws away by sending different contexts to the same forecast. The **reliability** term is what a recalibration of the forecast, a function applied to $F$ alone, could recover. Bröcker (2009, Eq. 10) gives the split into $\mathbb{E}\,H(C)$ and the reliability term for any proper score, and his §3 on sufficiency gives the second split; for binned binary forecasts under the Brier score it is Murphy's (1973) partition, which the [formalML topic proves as its Theorem 3](https://www.formalml.com/topics/uncertainty-quantification). DeGroot and Fienberg (1983) named the two halves calibration and refinement.
+
+<TheoremBlock type="corollary" number={1} title="No recalibration recovers more than the reliability term">
+
+For any map $g$ of the forecast, $\mathbb{E}[-\log g(F)_Y] \ge \mathbb{E}[-\log F_Y] - \mathbb{E}\,\mathrm{KL}(C \,\|\, F)$. In particular, no temperature lowers the log loss of a canonically calibrated forecaster.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $C_g = \mathbb{E}[P \mid g(F)]$. Theorem 1 applied to $g \circ f$ gives $\mathbb{E}[-\log g(F)_Y] \ge \mathbb{E}\,H(P) + \mathbb{E}\,\mathrm{KL}(P \,\|\, C_g)$. Since $\log(C_v / C_{g,v})$ is a function of $F$ and $\mathbb{E}[P \mid F] = C$,
+
+$$
+\mathbb{E}\,\mathrm{KL}(P \,\|\, C_g) - \mathbb{E}\,\mathrm{KL}(P \,\|\, C) \;=\; \mathbb{E}\sum_v C_v \log\frac{C_v}{C_{g,v}} \;=\; \mathbb{E}\,\mathrm{KL}(C \,\|\, C_g) \;\ge\; 0,
+$$
+
+and $\mathbb{E}\,H(P) + \mathbb{E}\,\mathrm{KL}(P \,\|\, C)$ is the loss minus the reliability term.
+
+</TheoremBlock>
+
+So the drop in held-out log loss that a fitted temperature achieves is a lower bound on how miscalibrated the model is. That bound needs an honest estimate, since a temperature fit and scored on the same tokens flatters itself. We **cross-fit**: fit $\tau$ on the even sentences and score the odd ones, then swap, and average. The harness checks Theorem 1 and Corollary 1 to $10^{-12}$ on $50$ random finite worlds, against $41$ temperatures each.
+
+---
+
+## Measuring calibration honestly
+
+On a corpus we see tokens, not conditional distributions, and the standard estimator bins them.
+
+<TheoremBlock type="definition" number={2} title="The binned calibration error">
+
+Partition $[0, 1]$ into $B$ equal-width bins and put each token in the bin of its confidence. With $n_b$ tokens in bin $b$, mean confidence $\bar c_b$, and fraction of hits $\bar a_b$, the **plug-in ECE** is $\widehat{\mathrm{ECE}}_B = \sum_b (n_b / n)\,\lvert \bar a_b - \bar c_b \rvert$. Its population counterpart is $\mathrm{ECE}_B = \sum_b P(b)\,\lvert \mathbb{E}[\rho(\mathrm{conf}) - \mathrm{conf} \mid b] \rvert$, where $\rho(c) = P(Y = \hat a \mid \mathrm{conf} = c)$.
+
+</TheoremBlock>
+
+The formalML topic notes that ECE depends on the bin count, biased toward zero with too few bins and upward with too many. Both directions can be made exact, and the second can be measured.
+
+<TheoremBlock type="theorem" number={2} title="Two biases of the binned estimator">
+
+**(a) Binning hides.** If the bins $\mathfrak{B}'$ refine the bins $\mathfrak{B}$, then $\mathrm{ECE}_{\mathfrak{B}} \le \mathrm{ECE}_{\mathfrak{B}'} \le$ the top-label calibration error. In particular $\mathrm{ECE}_1 \le \mathrm{ECE}_2 \le \mathrm{ECE}_4 \le \cdots$.
+
+**(b) Sampling inflates.** Suppose that, given their confidences, the tokens' hits are independent with probabilities $\rho_i$. Then $\mathbb{E}\big[\widehat{\mathrm{ECE}}_B\big] \ge \sum_b (n_b/n)\,\lvert \bar\rho_b - \bar c_b \rvert$, the sample's own binned error, strictly in every bin where $\bar a_b - \bar c_b$ can take both signs. A perfectly calibrated model therefore shows a positive estimated error.
+
+**(c) The square can be corrected.** In each bin,
+
+$$
+\mathbb{E}\Big[(\bar a_b - \bar c_b)^2 - \frac{\bar a_b(1 - \bar a_b)}{n_b - 1}\Big] \;=\; (\bar\rho_b - \bar c_b)^2 - \frac{\sum_{i \in b} (\rho_i - \bar\rho_b)^2}{n_b(n_b - 1)}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** A bin is a function of the confidence, so $\mathbb{E}[\rho - \mathrm{conf} \mid b] = \mathbb{E}\big[\mathbb{E}[\rho - \mathrm{conf} \mid \mathrm{conf}] \mid b\big]$, and Jensen's inequality gives $\lvert \mathbb{E}[\rho - \mathrm{conf} \mid b] \rvert \le \mathbb{E}\big[\lvert \rho - \mathrm{conf} \rvert \mid b\big]$. Summing over bins compares a partition with the finest one, and the same argument inside each cell of $\mathfrak{B}$ compares $\mathfrak{B}$ with $\mathfrak{B}'$.
+
+**(b)** Jensen again, inside a bin: $\mathbb{E}\lvert \bar a_b - \bar c_b \rvert \ge \lvert \mathbb{E}\bar a_b - \bar c_b \rvert = \lvert \bar\rho_b - \bar c_b \rvert$, with equality only if $\bar a_b - \bar c_b$ has one sign almost surely.
+
+**(c)** Let $S = \sum_{i \in b} y_i$ count the hits, so $\bar a_b = S / n_b$, $\mathbb{E}S = n_b\bar\rho_b$, and, with $D = \sum_{i \in b}(\rho_i - \bar\rho_b)^2$, $\operatorname{Var} S = \sum_i \rho_i(1 - \rho_i) = n_b\bar\rho_b(1 - \bar\rho_b) - D$. Then $\mathbb{E}(\bar a_b - \bar c_b)^2 = (\bar\rho_b - \bar c_b)^2 + [n_b\bar\rho_b(1 - \bar\rho_b) - D]/n_b^2$. The hits are $0$ or $1$, so $s^2 = n_b\bar a_b(1 - \bar a_b)/(n_b - 1)$ is their sample variance, and $\mathbb{E}s^2 = \bar\rho_b(1 - \bar\rho_b) + D/(n_b(n_b - 1))$. Subtracting $\mathbb{E}s^2 / n_b$ leaves the stated right side.
+
+</TheoremBlock>
+
+Part (c) is the correction Bröcker (2012) and Ferro and Fricker (2012) derived for the Brier score's reliability term; Kumar, Liang, and Ma (2019) state it for binned models (their Definition 5.2), where every token in a bin shares one $\rho$, $D = 0$, and the estimator is exactly unbiased, and they prove it needs far fewer samples than the plug-in. For a model whose confidences vary inside a bin, the remaining bias is the small negative heterogeneity term. Roelofs and colleagues (2022) find the binned estimator's bias most severe for perfectly calibrated models, which is part (b).
+
+Part (b) also suggests a measurement. Keep the model's confidences and redraw every token's hit as a coin with that confidence: this **calibrated twin** is calibrated by construction, so its estimated ECE is pure estimator noise. On the trigram's in-distribution tokens, at $15$ bins, $100$ twins average $0.006$ with a standard deviation of $0.001$, while the trigram itself scores $0.018$, about ten standard deviations above the floor. The miscalibration is real, and small. The twin's floor rises with the bin count, from $0.002$ at one bin to $0.012$ at $60$, about as $\sqrt{B/n}$; the trigram's own ECE rises too, from $0.005$ to $0.024$, as part (a) predicts. The harness checks part (a) along $B = 1, 2, 4, \dots, 64$ on $50$ worlds, and parts (b) and (c) by exact Poisson-binomial expectations on $200$ random bins.
+
+---
+
+## One dial: temperature scaling
+
+A recalibration map has to be fit, and the simplest has one parameter. With $z$ the log-probabilities of a row and $\beta = 1/\tau$, temperature scaling replaces the row by $\operatorname{softmax}(\beta z)$, exactly the operation of the [sampling topic](/topics/sampling-temperature-nucleus), now chosen to minimize the held-out log loss
+
+$$
+L(\beta) \;=\; \frac{1}{N} \sum_{\text{tokens}} \Big[\log \sum_v e^{\beta z_v} \;-\; \beta z_y\Big].
+$$
+
+<TheoremBlock type="proposition" number={2} title="Temperature scaling is a convex moment match">
+
+**(a)** $L'(\beta) = \frac{1}{N}\sum \big(\mathbb{E}_{p_\beta} z - z_y\big)$ and $L''(\beta) = \frac{1}{N}\sum \operatorname{Var}_{p_\beta}(z) \ge 0$, where $p_\beta = \operatorname{softmax}(\beta z)$. So $L$ is convex, and strictly convex unless every row is constant on its support.
+
+**(b)** A minimizer, if one exists, is unique, and it is the $\beta$ at which the expected logit equals the observed one: $\sum \mathbb{E}_{p_\beta} z = \sum z_y$.
+
+**(c)** Every row keeps its argmax, so accuracy does not change. But for $\tau \ne 1$ the order of confidences across rows can: the rows $(0.5, 0.5, 0)$ and $(0.6, 0.2, 0.2)$ have confidences $0.5 \lt 0.6$, and at $\tau = 2$ they have $0.5 \gt 0.464$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+**(a)** The derivative of $\log\sum_v e^{\beta z_v}$ in $\beta$ is $\mathbb{E}_{p_\beta} z$, and its second derivative is $\operatorname{Var}_{p_\beta}(z)$.
+
+**(b)** A strictly convex function has at most one minimizer, and it is where $L' = 0$.
+
+**(c)** $\operatorname{softmax}(\beta z)$ is increasing in each coordinate of $z$, so it keeps the order within a row. At $\tau = 2$ the first row stays $(0.5, 0.5, 0)$, and the second becomes proportional to $(\sqrt{0.6}, \sqrt{0.2}, \sqrt{0.2})$, with top probability $\sqrt{0.6}/(\sqrt{0.6} + 2\sqrt{0.2}) = 0.464$.
+
+</TheoremBlock>
+
+Part (a) is the [formalStatistics exponential-families topic](https://www.formalstatistics.com/topics/exponential-families)'s Theorem 7.1 for a one-parameter family whose natural parameter is $\beta$, and part (b) is its Theorem 7.4: the maximum-likelihood fit matches the sufficient statistic's mean. Guo and colleagues (2017, Supplement S2) characterize temperature scaling the same way, as the maximum-entropy distribution subject to that one moment. The harness fits $\beta$ by Newton's method from $\beta = 1$, checks that $\lvert L'\rvert \lt 10^{-10}$ at the result (by convexity, the global optimum), and agrees with a bounded scalar search to $10^{-6}$.
+
+Part (c) separates temperature scaling from the recalibrations of the [formalRAG significance-testing topic](https://www.formalrag.com/topics/significance-testing-calibration), whose Theorem 2 shows that a monotone map of a score preserves every ranking. Temperature is not a function of the confidence: two rows with the same top probability can land on different ones. On the trigram's in-distribution rows, Kendall's $\tau_b$ between the confidences at $\tau = 1$ and at $\tau = 2$ is $0.860$. A selective-prediction rule that ranks contexts by confidence changes when the temperature does.
+
+<CalibrationLab client:visible />
+
+---
+
+## Why τ = 1 at all
+
+In distribution, the trigram's NLL-optimal temperature is $1.003$: the model as trained is almost exactly where temperature scaling would put it. There is a reason that holds exactly for some models and fails for others.
+
+<TheoremBlock type="theorem" number={3} title="Where maximum likelihood leaves the temperature">
+
+Suppose a model family has a reparametrization $\theta \mapsto s_\beta(\theta)$, differentiable at $\beta = 1$ with $s_1(\theta) = \theta$, that scales its logits, $z_{s_\beta(\theta)} = \beta\, z_\theta$, and a penalty that scales as $\Omega(s_\beta(\theta)) = \beta^2\,\Omega(\theta)$. If $\hat\theta$ is a stationary point of $L_{\text{train}}(\theta) + \lambda\Omega(\theta)$, then
+
+$$
+\frac{d}{d\beta}\, L_{\text{train}}\big(\beta\, z_{\hat\theta}\big)\Big|_{\beta = 1} \;=\; -2\lambda\,\Omega(\hat\theta).
+$$
+
+So an unpenalized stationary point has training-data temperature exactly $1$. With $\lambda\Omega(\hat\theta) \gt 0$, the training-data optimum has $\tau \lt 1$: the model is underconfident on its own training data.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $\varphi(\beta) = L_{\text{train}}(s_\beta(\hat\theta)) + \lambda\Omega(s_\beta(\hat\theta)) = L_{\text{train}}(\beta z_{\hat\theta}) + \lambda\beta^2\Omega(\hat\theta)$. By the chain rule $\varphi'(1)$ is the gradient of the penalized loss at $\hat\theta$ applied to $\partial_\beta s_\beta(\hat\theta)$, which is $0$ at a stationary point. The penalty contributes $2\lambda\Omega(\hat\theta)$ to $\varphi'(1)$, so the training loss contributes its negative. When that is negative, the training loss decreases as $\beta$ passes $1$, and by Proposition 2's convexity its minimizer has $\beta \gt 1$.
+
+</TheoremBlock>
+
+This is the [score equation of the formalStatistics maximum-likelihood topic](https://www.formalstatistics.com/topics/maximum-likelihood) (its Theorem 1) read along one direction of parameter space. A log-linear bigram, whose logits are a matrix $W$ indexed by the previous token, has the direction exactly: $s_\beta(W) = \beta W$, and the L2 penalty $\Omega = \tfrac12\lVert W \rVert^2$ scales as required. Fit on the shared filings over the decoder's $512$ tokens, with the penalty $\lambda$ at $10^{-5}$, $10^{-4}$, and $10^{-3}$, the derivative at $\beta = 1$ is $-0.581107$, $-1.456424$, and $-1.091581$, and $-\lambda\lVert W \rVert^2$ is the same to six decimals. The training-data temperatures are $0.871$, $0.744$, and $0.520$: the more penalty, the more underconfident. Without the penalty there is no finite optimum to be stationary at: the logits of word pairs never seen in training run off to $-\infty$, and with them the held-out likelihood of any text that contains one. The penalty that keeps the model usable is exactly what makes it underconfident.
+
+Topic 14's decoder has no such direction. Its final layer normalization has no learned gain, its output matrix is its input embedding scaled by a fixed $1/\sqrt{d}$, and scaling the embedding moves the inputs as well as the outputs. Nothing pins its temperature, and on its training sentences the NLL-optimal $\tau$ is $0.943$.
+
+The same dial appeared in the sampling topic for the opposite reason. There, temperature reshaped a model deliberately, to trade predictability for diversity.
+
+<TheoremBlock type="corollary" number={2} title="Sampling temperature miscalibrates">
+
+If $f$ is canonically calibrated and $\tau \ne 1$, the sampler $F_\tau = \operatorname{softmax}(\log F / \tau)$ has reliability term $\mathbb{E}\,\mathrm{KL}(F \,\|\, F_\tau) \gt 0$ unless every forecast is uniform on its support.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The map $F \mapsto F_\tau$ is one-to-one, so conditioning on $F_\tau$ is conditioning on $F$, and the recalibration of $F_\tau$ is $C = F$. Theorem 1 gives its reliability term as $\mathbb{E}\,\mathrm{KL}(F \,\|\, F_\tau)$, which is zero only where $F_\tau = F$.
+
+</TheoremBlock>
+
+---
+
+## Calibrated sets
+
+The sampling topic's nucleus keeps the shortest list of likeliest tokens whose mass reaches $p$. It is also a prediction set: a claim that the next token is in the list. Calibration is what makes the claim honest.
+
+<TheoremBlock type="proposition" number={3} title="Calibrated sets cover their kept mass">
+
+If $f$ is canonically calibrated, then every set $S(F)$ chosen from the forecast alone covers the next token with probability equal to its expected kept mass: $P(Y \in S(F)) = \mathbb{E}\,F(S(F))$. A nucleus of mass $p$ therefore covers at least $p$, and a coverage that differs from the kept mass certifies miscalibration.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$P(Y \in S(F) \mid F) = C(S(F)) = F(S(F))$, and the tower property averages both sides.
+
+</TheoremBlock>
+
+In distribution the trigram's nucleus of mass $0.9$ keeps $0.939$ of the mass on average and covers $0.926$ of the tokens; the decoder's keeps $0.945$ and covers $0.951$. Both are close, in opposite directions. The harness checks the proposition exactly on $30$ calibrated worlds, and on the trigram's own rows with outcomes drawn from the model, where coverage matches kept mass within four standard errors. A guarantee of coverage that does not need calibration at all comes from choosing the threshold on held-out data, which is [split conformal prediction](https://www.formalml.com/topics/conformal-prediction).
+
+---
+
+## On the corpus
+
+Both engines are the sampling topic's: Topic 3's interpolated Kneser–Ney trigram over $3{,}427$ words and Topic 14's two-block decoder over $512$ tokens. Here both score every token of a text, so the unknown-word token `<unk>` is an outcome like any other; the decoder sees only the first $32$ positions of each sentence. Three test sets:
+
+- **continuation:** the generator that wrote the training corpus, run on for $100$ more documents. The same source: a best case.
+- **held:** Topic 3's held-out split, a fresh run of the generator whose word frequencies differ from the training text's.
+- **EDGAR:** the public MD&A excerpts, real filings, $830$ trigram tokens.
+
+The table gives mean confidence and accuracy, the ECE at $15$ bins beside the calibrated twin's floor, the NLL-optimal temperature $\tau^*$, and the coverage and kept mass of the nucleus of mass $0.9$.
+
+| engine, test set | conf. / acc. | ECE / twin | $\tau^*$ | nucleus cover / kept |
+|---|---|---|---|---|
+| trigram, continuation | $0.522$ / $0.527$ | $0.018$ / $0.006$ | $1.003$ | $0.926$ / $0.939$ |
+| trigram, held | $0.512$ / $0.500$ | $0.023$ / $0.006$ | $1.055$ | $0.876$ / $0.938$ |
+| decoder, continuation | $0.653$ / $0.661$ | $0.016$ / $0.006$ | $0.957$ | $0.951$ / $0.945$ |
+| decoder, held | $0.649$ / $0.707$ | $0.064$ / $0.006$ | $0.824$ | $0.967$ / $0.944$ |
+
+In distribution, both engines are close to calibrated, and a cross-fitted temperature recovers almost nothing: under $0.0001$ nats for the trigram, $0.002$ for the decoder. The trigram's reliability diagram has a shape, though. Bins with confidence between $1/3$ and $0.6$ are overconfident and every bin above $2/3$ is underconfident, the signature of Kneser–Ney's discounts, which take mass from what was seen and give it to what was not. The top bin holds $7{,}652$ of the tokens: the templated openers of MD&A sentences, which the model predicts almost perfectly. Under the held-out split's mild shift the two engines move in opposite directions: the trigram becomes slightly overconfident, the decoder clearly underconfident. Shift does not have a sign.
+
+---
+
+<FinanceCaseStudy title="Finance case study: from synthetic filings to real ones">
+
+**Real MD&A text.** On the EDGAR excerpts, the trigram's mean confidence is $0.144$ and its accuracy $0.059$; the decoder's are $0.430$ and $0.195$. Their ECEs, $0.085$ and $0.246$, sit far above the twin floors at this sample size, $0.023$ and $0.044$. Most of this text is new to both engines: $58\%$ of the trigram's tokens and $60\%$ of the decoder's are `<unk>`.
+
+The cross-fitted temperature recovers $0.886$ nats per token for the trigram and $0.696$ for the decoder, so by Corollary 1 at least that much of their loss is miscalibration. But the fix is blunt. The trigram's NLL-optimal temperature, $2.366$, lowers its log loss from $8.796$ to $7.911$ by flattening every row, and its confidence falls to $0.008$, far below its accuracy: the one parameter that minimizes the log loss overshoots the top-label calibration. The nucleus is worse. At $\tau = 1$ the trigram's nucleus of mass $0.9$ keeps $0.904$ of its mass and covers $0.357$ of the tokens, a violation of Proposition 3 by a factor of two and a half, and at the optimal temperature it covers only $0.416$. A temperature rescales confidence; it cannot move mass to words the model never learned to expect.
+
+**What the model knows about companies.** The sampling topic's fact model, an order-5 Kneser–Ney model, is asked "*company* operates in the" and two similar frames, and its probabilities are restricted to the relation's possible answers (six sectors, or thirteen headquarters cities) and scored against the synthetic knowledge base. Split the $111$ probes by how often the model saw the context in training:
+
+- **Seen twice or more ($30$ probes):** its top answer is always right, and it says so with confidence $0.785$. It is underconfident, and its best temperature is the smallest on the grid, $0.04$.
+- **Seen once ($33$):** confidence $0.332$, accuracy $0.697$, best temperature $0.260$.
+- **Never seen ($48$):** confidence $0.303$, right on $3$ of $48$. It is overconfident, and its best temperature is the largest on the grid, $10$, where its loss approaches the uniform forecast's.
+
+One temperature for all $111$ probes, $1.179$, lowers the mean log loss of the right answer only from $1.623$ to $1.613$. A temperature per regime lowers it to $1.119$. The model's confidence carries no record of how often it saw a fact, so the information that calibrates it has to come from outside the forecast: here, the training count. In the terms of Theorem 1, that count is part of what the forecast's refinement gap throws away.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this sits
+
+Everything on this page is the calibration of one next-token distribution at a time. The calibration of whole generations is a different property: Braverman and colleagues (2020) show that the entropy rate of a model's samples drifts upward with length, the long-horizon face of Corollary 2, and correct it with a one-parameter fit of their own. Desai and Durrett (2020) find pre-trained transformers calibrated in domain and less so out of domain, the pattern of the table above, and Ovadia and colleagues (2019) show that calibration measured on in-distribution data does not survive dataset shift. For large models the question moves to the confidence of a chosen answer: Kadavath and colleagues (2022) measure it on multiple-choice questions and on the model's own judgments of its answers, and the GPT-4 report (OpenAI 2023, Figure 8) finds the pre-trained model well calibrated and the post-trained one much less so. Post-training does not maximize likelihood, so Theorem 3 no longer applies. What to do with a calibrated confidence, answering or abstaining, is the [formalRAG selective-generation topic](https://www.formalrag.com/topics/selective-generation-abstention).
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and cited.** Theorems 1–3, Propositions 1–3, and Corollaries 1–2 are proved here. The sample-complexity results for the debiased estimator are Kumar and colleagues'.
+2. **Top-label only, by binning.** Every corpus number is top-label calibration estimated with equal-width bins, an estimator Theorem 2 shows is biased in both directions. Canonical calibration is shown only on finite worlds.
+3. **Independence is assumed.** Theorem 2(b) and the calibrated twin treat a test set's tokens as independent given their confidences; consecutive tokens of real text are not.
+4. **A synthetic best case.** The in-distribution test set comes from the training generator itself, and Kneser–Ney's near-calibration there is an empirical finding, not a theorem about its discounts.
+5. **A small real test.** EDGAR is $830$ tokens, most of them unknown words to both engines.
+6. **Two event spaces.** The decoder is scored over its own $512$ tokens through $32$ positions, so its accuracy is not comparable to the trigram's.
+7. **A training-data statement.** Theorem 3 says where maximum likelihood leaves the temperature on the training data; nothing here explains where held-out temperatures land.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `language_model_calibration.py`, which owns every number on this page. That module imports the sampling topic's module for temperature, the nucleus, and the fact model, and through it the beam-search topic's trigram and trained decoder. It implements finite worlds with exact recalibration, the plug-in and debiased estimators and the calibrated twin, a Newton temperature fit on deduplicated rows, the log-linear bigram fit by L-BFGS, and per-temperature statistics for both engines on all three test sets. A harness of $22$ assertion-based tests runs in under fifty seconds on a laptop CPU. The tests cover:
+
+- Proposition 1, Theorem 1, and Corollary 1 exactly on random finite worlds, and Proposition 1's counterexample.
+- Theorem 2(a) on nested bins, (b) and (c) by exact Poisson-binomial expectations, and the calibrated twin's floor on the corpus.
+- Proposition 2's derivatives against finite differences, the Newton fit against a scalar search, the invariance of accuracy, and the reordering of confidences.
+- Theorem 3's identity on the log-linear bigram at three penalties, and the decoder's temperature.
+- Proposition 3 exactly on calibrated worlds and on the trigram's rows, Corollary 2, and the fast nucleus against the sampling topic's own.
+- The in-distribution, held-out, and EDGAR findings, the Kneser–Ney reliability shape, and the three fact regimes.
+
+The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
