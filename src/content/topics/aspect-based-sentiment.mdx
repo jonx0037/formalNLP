@@ -1,0 +1,346 @@
+---
+title: "Aspect-Based Sentiment Analysis"
+subtitle: "\"Revenue rose, but costs climbed\" holds two opinions, and no reader of the sentence alone gets both. One attention layer whose query is the aspect is a signed vote over the words: it can stretch a word's vote but never flip it, which decides what it can read and what it cannot. Its attention weights are not an explanation, and read aspect by aspect the corpus gives back the document tone that every document-level reader missed"
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "lexicon-sentiment-loughran-mcdonald"
+  - "attention-as-kernel-smoothing"
+tags:
+  - "aspect-based-sentiment"
+  - "targeted-sentiment"
+  - "attention"
+  - "valence"
+  - "negation"
+  - "expressivity"
+  - "contrast-sets"
+  - "attention-as-explanation"
+  - "financial-text"
+domain: "classification-sentiment"
+financeCaseStudy: true
+rigorFlag: "On the synthetic corpus an aspect's polarity is a deterministic function of its clause and its category, so every result on this page is about representation, not estimation, and the near-perfect bigram reader reflects a templated corpus: on five aspect mentions in real 10-K excerpts the same reader calls descriptive, neutral sentences positive or negative at about even odds. Aspect spans and categories are gold; finding them is span labeling, left to the extraction topics. Theorem 1 covers one attention layer with separable content and position scores and values that depend on a single item; a second layer, a nonlinear readout, or bigram items escape it. Theorem 2 preserves decisions, not probabilities. The tone-bearing sentences of Proposition 2 are found by the generator's templates (they open on an aspect and name no amount or company), a marker real text lacks. The readers' training schedules were fixed in advance rather than tuned, and the contrast sets edit test sentences in ways the generator never writes."
+videoId: null
+notebookPath: "notebooks/aspect-based-sentiment/01_aspect_based_sentiment.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/aspect-based-sentiment.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 30
+abstract: "A sentence can praise one thing and fault another. Aspect-based sentiment reads the polarity of each aspect a sentence evaluates, relative to that aspect's valence: a rise is good news for revenue and bad news for costs. On the synthetic financial filings of the previous two topics, every two-aspect sentence pairs opposite polarities, so any reader that sees only the sentence gets at most one aspect of each pair right, which caps it at 0.911. The standard fix lets the aspect query an attention layer. We show that such a layer is a signed vote: the sign of every logit difference is the sign of a sum of word votes, each rescaled by a positive attention factor. Three consequences follow. When the aspect enters only through the query, a word's vote has the same sign for every aspect, so the layer can read valence only if rise and fall words vote the same way, and the trained model does exactly that for one family of direction words and fails the rest. Replacing one word by another moves the vote in a direction no context can reverse, so no such layer reads negation at all, on any data; pairs of words as items repair it. And attention weights are not identified by decisions: shifting scores and rescaling values keeps every decision while moving 0.998 of the attention onto the aspect word, which the trained model barely looks at. Read aspect by aspect, the tone-bearing sentences give back document tone at 0.883, against a Bayes ceiling of 0.890 that the document-level readers of the previous topics, at 0.637 to 0.739, never approached."
+connections: []
+references:
+  - type: "paper"
+    title: "Mining and Summarizing Customer Reviews"
+    authors: "Minqing Hu and Bing Liu"
+    year: 2004
+    url: "https://doi.org/10.1145/1014052.1014073"
+    note: "Proceedings of the 10th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 168–77. Opinions attached to product features, the origin of feature-based (aspect) sentiment"
+  - type: "paper"
+    title: "SemEval-2014 Task 4: Aspect Based Sentiment Analysis"
+    authors: "Maria Pontiki, Dimitrios Galanis, John Pavlopoulos, Harris Papageorgiou, Ion Androutsopoulos, and Suresh Manandhar"
+    year: 2014
+    url: "https://aclanthology.org/S14-2004/"
+    note: "Proceedings of the 8th International Workshop on Semantic Evaluation, 27–35. The benchmark that split the field into term extraction, term polarity, category detection, and category polarity"
+  - type: "paper"
+    title: "Attention-based LSTM for Aspect-level Sentiment Classification"
+    authors: "Yequan Wang, Minlie Huang, Xiaoyan Zhu, and Li Zhao"
+    year: 2016
+    url: "https://aclanthology.org/D16-1058/"
+    note: "Proceedings of EMNLP 2016, 606–15. ATAE-LSTM: the aspect embedding steers the attention and is appended to every input, the move this page's aspect-conditioned values make"
+  - type: "paper"
+    title: "Aspect Level Sentiment Classification with Deep Memory Network"
+    authors: "Duyu Tang, Bing Qin, and Ting Liu"
+    year: 2016
+    url: "https://aclanthology.org/D16-1021/"
+    note: "Proceedings of EMNLP 2016, 214–24. Attention hops over the context with the aspect as the query, and location weighting by distance to the aspect"
+  - type: "paper"
+    title: "Interactive Attention Networks for Aspect-Level Sentiment Classification"
+    authors: "Dehong Ma, Sujian Li, Xiaodong Zhang, and Houfeng Wang"
+    year: 2017
+    url: "https://doi.org/10.24963/ijcai.2017/568"
+    note: "Proceedings of the 26th International Joint Conference on Artificial Intelligence, 4068–74. The aspect attends to the context and the context to the aspect"
+  - type: "paper"
+    title: "A Challenge Dataset and Effective Models for Aspect-Based Sentiment Analysis"
+    authors: "Qingnan Jiang, Lei Chen, Ruifeng Xu, Xiang Ao, and Min Yang"
+    year: 2019
+    url: "https://aclanthology.org/D19-1654/"
+    note: "Proceedings of EMNLP-IJCNLP 2019, 6280–85. MAMS, whose every sentence holds at least two aspects with different polarities: this page's contrast sentences, as a benchmark"
+  - type: "paper"
+    title: "Utilizing BERT for Aspect-Based Sentiment Analysis via Constructing Auxiliary Sentence"
+    authors: "Chi Sun, Luyao Huang, and Xipeng Qiu"
+    year: 2019
+    url: "https://aclanthology.org/N19-1035/"
+    note: "Proceedings of NAACL-HLT 2019, 380–85. The aspect as a second sentence for a pretrained encoder, the deep escape from Theorem 1"
+  - type: "paper"
+    title: "Attention is not Explanation"
+    authors: "Sarthak Jain and Byron C. Wallace"
+    year: 2019
+    url: "https://aclanthology.org/N19-1357/"
+    note: "Proceedings of NAACL-HLT 2019, 3543–56. Adversarial attention distributions that leave predictions nearly unchanged"
+  - type: "paper"
+    title: "Attention is not not Explanation"
+    authors: "Sarah Wiegreffe and Yuval Pinter"
+    year: 2019
+    url: "https://aclanthology.org/D19-1002/"
+    note: "Proceedings of EMNLP-IJCNLP 2019, 11–20. When an alternative attention distribution counts as an explanation, and tests for it"
+  - type: "paper"
+    title: "Attention is Not Only a Weight: Analyzing Transformers with Vector Norms"
+    authors: "Goro Kobayashi, Tatsuki Kuribayashi, Sho Yokoi, and Kentaro Inui"
+    year: 2020
+    url: "https://aclanthology.org/2020.emnlp-main.574/"
+    note: "Proceedings of EMNLP 2020, 7057–75. Measure the weighted transformed vector, attention times the transformed input, rather than attention alone: Theorem 2's invariant"
+  - type: "paper"
+    title: "Evaluating Models' Local Decision Boundaries via Contrast Sets"
+    authors: "Matt Gardner, Yoav Artzi, Victoria Basmov, Jonathan Berant, Ben Bogin, Sihao Chen, Pradeep Dasigi, et al."
+    year: 2020
+    url: "https://aclanthology.org/2020.findings-emnlp.117/"
+    note: "Findings of EMNLP 2020, 1307–23. Small, label-changing edits of test examples, the method of this page's quadruples"
+  - type: "paper"
+    title: "WWW'18 Open Challenge: Financial Opinion Mining and Question Answering"
+    authors: "Macedo Maia, Siegfried Handschuh, André Freitas, Brian Davis, Ross McDermott, Manel Zarrouk, and Alexandra Balahur"
+    year: 2018
+    url: "https://doi.org/10.1145/3184558.3192301"
+    note: "Companion Proceedings of The Web Conference 2018, 1941–42. FiQA, whose Task 1 is aspect-based sentiment on financial microblogs and headlines"
+  - type: "paper"
+    title: "Neural Machine Translation by Jointly Learning to Align and Translate"
+    authors: "Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio"
+    year: 2015
+    url: "https://arxiv.org/abs/1409.0473"
+    note: "ICLR 2015. Soft attention as a learned alignment, the mechanism the aspect-level models adopted"
+formalmlPrereqs:
+  - topic: "kernel-regression"
+    site: "formalml"
+    relationship: "Its Nadaraya–Watson estimator is what one aspect-query attention layer computes: a kernel-weighted average of the words' values whose kernel factors into a content part and a distance-to-the-aspect part, the position kernel of Definition 2."
+formalmlConnections:
+  - topic: "naive-bayes"
+    site: "formalml"
+    relationship: "Proposition 2's tone rule is multinomial naive Bayes on the counts of positive, neutral, and negative sentences with known parameters, which is why its accuracy is the corpus's Bayes ceiling."
+formalragConnections:
+  - topic: "cross-encoders-reranking"
+    site: "formalrag"
+    relationship: "An aspect-blind reader encodes the sentence without the aspect, as a dual encoder scores a document without the query; letting the aspect query the words is the cross-encoder's move, and Proposition 1 is the price of not making it."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import AspectSentimentLab from '../../components/viz/AspectSentimentLab.tsx';
+
+## Overview & Motivation
+
+The [lexicon topic](/topics/lexicon-sentiment-loughran-mcdonald) ended on sentences no word list can read. "Costs rose 5 percent" has no polar word, so a lexicon abstains; "costs exceeded expectations" is bad news written with a good word; and a sentence that praises one thing and faults another has no single polarity to give. Each of these has a *target*. Here is a test sentence from the synthetic filings of the last two topics:
+
+> Liquidity declined 11 percent in rebateware, a trend executives characterized as disappointing, but net sales in clinicing midroutes were healthy.
+
+The corpus annotates two **aspects** in it: *liquidity*, negative, and *net sales*, positive. Aspect-based sentiment reads one polarity per aspect, and that changes the question a classifier answers. This page asks which models can represent the answer, using the aspect annotations as gold. In order:
+
+1. **The aspect-blind ceiling.** What any reader that ignores the aspect must get wrong.
+2. **One layer, one vote.** An attention layer whose query is the aspect is a signed vote over the words.
+3. **Valence.** Why "rose" and "fell" must vote the same way in such a layer, and what lifts that.
+4. **Negation.** What no such layer can read, on any data.
+5. **Attention is not the explanation.** Decisions do not pin down attention weights.
+6. **From aspects to tone.** Reading aspect by aspect gives back the document tone that the earlier topics missed.
+
+On this corpus an aspect's polarity is a deterministic function of its clause and its category, so the aspect-level Bayes accuracy is $1$. Every limit on this page is a limit of representation, not of data.
+
+---
+
+## An opinion has a target
+
+<TheoremBlock type="definition" number={1} title="Aspect-level sentiment">
+
+A sentence $x = (x_1, \dots, x_n)$ and an **aspect** $a$: a span of $x$ with a **category** $c(a)$ and a **valence** $v(c) \in \lbrace -1, +1 \rbrace$. Valence $+1$ means a rise is good for the company (revenue, margin, demand, liquidity) and $-1$ means a rise is bad (costs, tax, liabilities). The aspect's **polarity** is $y \in \lbrace -, 0, + \rbrace$. **Aspect sentiment classification** predicts $y$ from $(x, a)$.
+
+</TheoremBlock>
+
+On the corpus the polarity is written in a few ways. A direction clause ("costs rose 5 percent") has $y = v(c)\,\delta$ for the move $\delta = \pm 1$. An evaluative adjective or noun ("margins were solid") carries $y$ itself. "Not" before an adjective reverses it. A verb of expectation carries $v(c)$ times its own sign, so "costs exceeded expectations" is negative. Finding the aspect spans in the first place is span labeling, which the extraction topics take up; here the spans and categories come from the gold annotation. Hu and Liu (2004) attached opinions to product features in this way, and SemEval-2014 Task 4 (Pontiki and colleagues 2014) fixed the split into finding terms and classifying their polarity.
+
+The test filings hold $14{,}179$ aspects, $9.45$ per filing: $3{,}890$ negative, $6{,}492$ neutral, $3{,}797$ positive. Of them, $2{,}516$ sit two to a sentence, joined by "but", and in every such sentence the two polarities are opposite. That alone limits any reader that ignores which aspect it was asked about.
+
+<TheoremBlock type="proposition" number={1} title="The aspect-blind ceiling">
+
+Let a test set of $N$ aspects contain $m$ aspects that sit two to a sentence with opposite polarities. Every classifier $f(x)$ of the sentence alone has accuracy at most $1 - m/2N$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Both aspects of such a sentence present $f$ with the same input $x$ and different labels, so $f(x)$ equals at most one of them. At least $m/2$ aspects are misread.
+
+</TheoremBlock>
+
+Here $m/2N = 2{,}516/28{,}358$, so the ceiling is $0.911$. Two aspect-blind readers sit under it. Topic 18's lexicon with its one-token negation scope, read on the whole sentence, scores $0.785$ and gets $0.163$ of the contrast aspects right. A logistic regression on the sentence's words and word pairs, trained on the $14{,}267$ training aspects with the previous topics' Newton solver, scores $0.888$ and gets *exactly* $0.500$ of the contrast aspects: on each pair it reads the side whose words dominate. It also fails "costs in freightworks exceeded expectations" ($0.177$), because the cost word and the verb are not adjacent, so no word pair carries their interaction. That is Proposition 4 of the [linear classifiers topic](/topics/linear-text-classifiers), the exclusive-or of valence and direction, back again.
+
+---
+
+## One layer, one vote
+
+The standard repair, since Tang, Qin, and Liu (2016) and Wang and colleagues (2016), is to let the aspect choose which words to read: an attention layer whose query is the aspect. Proposition 1 of the [attention topic](/topics/attention-as-kernel-smoothing) says such a layer is a Nadaraya–Watson smoother, a kernel-weighted average of the words' values. Picture each word of the sentence as a bar, its vote for "positive over negative", pointing up or down. The aspect's attention stretches every bar by a positive factor, and the layer's decision is the sign of the total. The factor can be tiny or huge. It is never negative.
+
+<TheoremBlock type="definition" number={2} title="An aspect-query attention layer">
+
+The **items** of $x$ are its tokens and, with **bigram items**, each pair of adjacent tokens, placed at its right token. Item $i$ has a type $t_i$ and an offset $d_i$ from the aspect span ($0$ inside it). The layer scores each item by a content part and a position part, $s_i = \kappa(c, t_i) + \pi(c, d_i)$, and sets $\alpha = \operatorname{softmax}(s)$. Values live in logit space, $z_i \in \mathbb R^3$, and the logits are $\ell = \sum_i \alpha_i z_i + b_c$. With **shared votes**, $z_i = z(t_i)$ and $b_c = b$ do not depend on the aspect, so the aspect enters only through the scores; with **aspect-conditioned values**, $z_i = z(c, t_i)$.
+
+</TheoremBlock>
+
+The content score $\kappa(c, t) = \langle q(c), k(t) \rangle$ is a query against a key, and $e^{\pi(c, d)}$ is a kernel in the distance to the aspect, the location weighting of Tang, Qin, and Liu. A value $z$ in logit space is the usual value vector after the output layer. For classes $k$ and $l$, write
+
+$$u_i^{kl} = (z_i + b_c)_k - (z_i + b_c)_l$$
+
+for the **vote** of item $i$ for $k$ over $l$.
+
+<TheoremBlock type="theorem" number={1} title="One layer is a signed vote">
+
+**(a)** For every pair of classes, $\ell_k - \ell_l = \sum_i \alpha_i u_i^{kl}$, so $\operatorname{sign}(\ell_k - \ell_l) = \operatorname{sign} \sum_i e^{s_i} u_i^{kl}$. For a fixed aspect, every decision is a linear threshold function of the bag of items, whose weights $e^{\kappa(c,t) + \pi(c,d)}\, u^{kl}(c, t)$ are positive rescalings of signed votes.
+
+**(b)** *Valence needs votes that depend on the aspect.* Let $A$ and $B$ be aspects of valence $+1$ and $-1$, let $w_\uparrow$ and $w_\downarrow$ be a rise word and a fall word, and consider four sentences that differ only in the aspect and in the direction word, which sits at the same offset: $A\,w_\uparrow$, $A\,w_\downarrow$, $B\,w_\uparrow$, $B\,w_\downarrow$, labeled $+, -, -, +$. With shared votes, a layer reads all four only if $u(w_\uparrow)$ and $u(w_\downarrow)$, the positive-over-negative votes, are nonzero **with the same sign**; then each aspect's other words vote the opposite way, and the layer weights $w_\uparrow$ above $w_\downarrow$ for $A$ and below it for $B$. Every such configuration does read all four. With aspect-conditioned values, the votes $(u_A(w_\uparrow), u_A(w_\downarrow)) = (+, -)$ are allowed as well.
+
+**(c)** *Substitution is monotone.* For a fixed aspect, replacing the item type $t$ by $t'$ at offset $d$ changes $\sum_i e^{s_i} u_i^{kl}$ by $e^{\pi(c,d)} \big(\beta(t') - \beta(t)\big)$, where $\beta(t) = e^{\kappa(c,t)} u^{kl}(c, t)$, and the sign of that change depends neither on the rest of the sentence nor on $d$. Hence no layer reads all four of "T was ADJ₊" ($+$), "T was ADJ₋" ($-$), "T was not ADJ₊" ($-$), and "T was not ADJ₋" ($+$).
+
+**(d)** With bigram items, some layer reads all four.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) Since $\sum_i \alpha_i = 1$, $\ell_k - \ell_l = \sum_i \alpha_i (z_{i,k} - z_{i,l}) + (b_{c,k} - b_{c,l}) = \sum_i \alpha_i u_i^{kl}$. Multiplying by $\sum_j e^{s_j} \gt 0$ gives the sign identity. For a fixed aspect, $\kappa$, $\pi$, and $u$ depend only on each item's type and offset, so the sum is linear in the counts of (type, offset) pairs.
+
+(b) Take the positive-over-negative votes. For aspect $A$, let $F_A$ be the summed vote $\sum e^{s} u$ of the words shared by the two $A$ sentences, and $\omega_A(w) \gt 0$ the factor $e^{s}$ of direction word $w$. Reading both $A$ sentences means $F_A + \omega_A(w_\uparrow)\, u(w_\uparrow) \gt 0 \gt F_A + \omega_A(w_\downarrow)\, u(w_\downarrow)$, so $\omega_A(w_\uparrow) u(w_\uparrow) \gt \omega_A(w_\downarrow) u(w_\downarrow)$. Reading both $B$ sentences means $\omega_B(w_\uparrow) u(w_\uparrow) \lt \omega_B(w_\downarrow) u(w_\downarrow)$. If $u(w_\uparrow) \ge 0 \ge u(w_\downarrow)$, the second inequality fails, since its left side is at least $0$ and its right side at most $0$; if $u(w_\uparrow) \le 0 \le u(w_\downarrow)$, the first fails. So the two votes are nonzero with one sign. If it is positive, the first conditions give $F_A \lt -\omega_A(w_\downarrow) u(w_\downarrow) \lt 0$ and the second $F_B \lt -\omega_B(w_\uparrow) u(w_\uparrow) \lt 0$, and the two order conditions are the stated weighting; the negative case is the mirror image. Conversely, factors and votes satisfying these strict inequalities read all four sentences. With aspect-conditioned values, $u_A$ and $u_B$ are separate unknowns, and the votes under $A$ can carry their meaning.
+
+(c) The sum is additive over items, and only the replaced item's term changes, from $e^{\pi(c,d)} \beta(t)$ to $e^{\pi(c,d)} \beta(t')$; the factor $e^{\pi(c,d)}$ is positive. Write $D$ for the positive-over-negative sum. Reading "T was ADJ₊" and "T was ADJ₋" needs $D$ to fall when ADJ₊ becomes ADJ₋, so $\beta(\text{ADJ}_-) \lt \beta(\text{ADJ}_+)$. Reading the two negated sentences needs $D$ to rise under the same replacement, so $\beta(\text{ADJ}_-) \gt \beta(\text{ADJ}_+)$. The adjective sits at offset $2$ in the first pair and $3$ in the second, which changes only the positive factor.
+
+(d) Give every item score $0$, the adjectives votes $+1$ and $-1$, the bigram items "not ADJ₊" and "not ADJ₋" votes $-2$ and $+2$, and every other item vote $0$. With $n$ items the four sums are $\tfrac1n$, $-\tfrac1n$, $-\tfrac1n$, and $\tfrac1n$.
+
+</TheoremBlock>
+
+Part (a) is Topic 9's kernel reading made sharp for a classifier. The attention decides *how much* each word counts, the value decides *which way*, and only the value can change the way. Parts (b) and (c) are what follows from that.
+
+We trained three such layers on the training aspects, with nothing tuned: shared votes over single tokens, aspect-conditioned values over single tokens, and aspect-conditioned values over tokens and bigrams. Each takes $300$ full-batch steps of Adam and a few seconds, and every gradient was checked against complex-step derivatives. The **Read a sentence** tab shows each one's attention and votes, word by word, on seven test aspects. The two aspects of the opening sentence read the same words: *declined* carries a large negative vote for *liquidity*, and *healthy* a positive one for *net sales*.
+
+<AspectSentimentLab client:visible />
+
+---
+
+## Valence: the words that cannot mean what they say
+
+With shared votes, "rose" votes the same way whichever aspect asks. Part (b) says what that forces: to read "revenue rose" as good news and "costs rose" as bad, the layer cannot let *rose* vote for "positive". Both direction words must vote the same way, and the query must turn the volume of one of them up for revenue and of the other up for costs, against a backdrop of other words that vote the opposite way. A linear program over the nine sign patterns of $(u(w_\uparrow), u(w_\downarrow))$ finds exactly the two same-sign patterns feasible.
+
+The trained shared layer found that configuration for one family of words only. Its positive-over-negative votes are $-7.223$ for *rose*, $-7.655$ for *fell*, $-7.714$ for *declined*, and $-7.621$ for *decreased*, but $+5.884$ for *increased* and $+5.796$ for *climbed*. On the test sentences it reads $0.763$ of the bare-direction aspects. To see the theorem rather than an accuracy, take every one of the $245$ test sentences of the form "T rose 4 percent in …", set its aspect to *revenue* or *costs* and its direction word to each of the $9$ (rise, fall) pairs, and ask for all four sentences of each quadruple right, following Gardner and colleagues (2020) on contrast sets. The shared layer reads $0.309$ of the $2{,}205$ quadruples, which is the $3$ pairs out of $9$ whose words vote the same way, and part (b) guarantees it cannot read the others.
+
+Aspect-conditioned values let a word's vote depend on the aspect, which is what ATAE-LSTM (Wang and colleagues 2016) does by appending the aspect's embedding to every input. That layer reads all $2{,}205$ quadruples, $1.000$ of the bare directions and of the cost-like verbs, and $0.969$ of the contrast aspects, against the blind regression's $0.500$.
+
+---
+
+## Negation: what a vote cannot do
+
+Part (c) is the sharper limit, because it holds for any values whatsoever. Replacing one word by another at a fixed place moves the vote in a direction that no surrounding words can reverse. Negation is precisely a surrounding word that reverses an adjective's effect, so it is out of reach: this is the exclusive-or of Topic 17's Proposition 4 again, now between two words of the same sentence rather than between the aspect and a word.
+
+The aspect-conditioned layer reads every other construction at $0.997$ or better, and $0.507$ of the negated adjectives, a coin flip. For a contrast set, take each of the $302$ test sentences of the form "T was not ADJ this period", set the adjective to each of the $60$ pairs of a positive and a negative adjective, and keep or delete "not". Both single-token layers read none of the $18{,}120$ quadruples, as part (c) requires of every layer in their class. The layer with bigram items reads all of them, and $0.996$ of the negated test aspects.
+
+Both aspect-blind readers read every negation quadruple too. Topic 18's scope rule, "a negator within one token flips the sign", is a bigram feature written by hand, and the blind regression has "not strong" and "not weak" among its word pairs. Neither reads a single valence quadruple: the lexicon has no direction words and the regression has no aspect. Each family repairs a different exclusive-or. The bigram layer has both repairs and misreads $2$ of the $14{,}179$ test aspects. The **What one layer can read** tab lays out every reader against every construction and both contrast sets.
+
+---
+
+## Attention is not the explanation
+
+Aspect-level models are often presented with a heat map of their attention, as if it showed what the model read. Theorem 1 says a decision depends on the products $e^{s_i} u_i$, attention times vote, and not on either factor alone. That freedom is exact.
+
+<TheoremBlock type="theorem" number={2} title="Decisions do not determine attention">
+
+Take a layer as in Definition 2 and a positive weight $r_t$ for each item type. Define a second layer by $\kappa'(c, t) = \kappa(c, t) + \log r_t$ and $z'(c, t) = (z(c, t) + b_c)/r_t - b_c$, with everything else unchanged. For every input, $\ell'(x) = \lambda(x)\, \ell(x)$ with $\lambda(x) = \sum_i e^{s_i} \big/ \sum_i e^{s_i} r_{t_i} \gt 0$. Therefore:
+
+**(a)** every decision, the argmax and every pairwise comparison, is unchanged;
+
+**(b)** every item's contribution $\alpha_i (z_i + b_c)$ is multiplied by the same $\lambda(x)$, so the profile of contributions is unchanged;
+
+**(c)** for a set of types present in every sentence, setting $r_t = \rho$ on that set moves the attention on it to $1$ as $\rho \to \infty$;
+
+**(d)** the probabilities are $\operatorname{softmax}(\lambda(x)\, \ell(x))$, a temperature that depends on the input, so they are not preserved.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The new scores are $s_i + \log r_{t_i}$, so the new attention is $e^{s_i} r_{t_i} / \sum_j e^{s_j} r_{t_j}$, and
+
+$$\ell'(x) = \sum_i \alpha'_i (z'_i + b_c) = \frac{\sum_i e^{s_i} r_{t_i} (z_i + b_c)/r_{t_i}}{\sum_j e^{s_j} r_{t_j}} = \lambda(x) \sum_i \alpha_i (z_i + b_c) = \lambda(x)\, \ell(x).$$
+
+Since $\lambda(x) \gt 0$, (a) follows, and (b) is the same computation term by term. For (c), the attention on the set is $\rho\, \Sigma_{\text{in}} / (\rho\, \Sigma_{\text{in}} + \Sigma_{\text{out}})$, where $\Sigma_{\text{in}}$ and $\Sigma_{\text{out}}$ sum $e^{s}$ over the items in and out of the set, and this tends to $1$. Part (d) is immediate.
+
+</TheoremBlock>
+
+If the values are $W v$ for an output matrix $W$ of full row rank, the same map is realized by solving $W v' = (Wv + b)/r - b$. On the trained bigram layer, the attention on the words of aspect terms averages $0.005$ over the test aspects: the layer reads the words around the aspect, not the aspect itself. Setting $r = 10^6$ on those words gives a layer that puts $0.998$ of its attention on them, and at least $0.990$ in every sentence, and makes the same decision on all $14{,}179$ test aspects. A heat map of the first layer and a heat map of the second tell opposite stories about one function.
+
+Part (d) is the honest limit. The rescaling shrinks the logits, by factors between about $10^{-5}$ and $10^{-2}$ at $r = 10^6$, so the probabilities flatten toward $1/3$: the temperature of the [calibration topic](/topics/language-model-calibration), here varying with the input. The decisions are identified, the attention is not, and the contribution profile $\alpha_i (z_i + b_c)$ is the invariant, the logit-space version of what Kobayashi and colleagues (2020) propose measuring, the norm of the weighted, transformed vector. Jain and Wallace (2019) found alternative attention distributions with nearly unchanged predictions in trained models, and Wiegreffe and Pinter (2019) asked when such alternatives undercut an explanation; Theorem 2 is the exact version of the first observation for one layer. The **Attention isn't the explanation** tab moves $r$ from $1$ to $10^6$ on the second aspect of the opening sentence.
+
+---
+
+## From aspects to tone
+
+<FinanceCaseStudy title="Finance case study: reading a filing aspect by aspect">
+
+The previous two topics read the tone of whole filings: net tone scored $0.637$, the lexicon's two counts $0.724$, and logistic regression on every word $0.739$, all well below the corpus's full-text Bayes accuracy of $0.890$, which the [linear classifiers topic](/topics/linear-text-classifiers) computed exactly. The reason is the corpus's construction. A filing of tone $t$ contains $k$ tone-bearing sentences, between $5$ and $8$, whose polarities are drawn independently from a mixture that depends on $t$, and nothing else in the text depends on $t$.
+
+<TheoremBlock type="proposition" number={2} title="From aspects to tone">
+
+Let a document of tone $t$ have $k$ tone-bearing sentences with polarities $g_1, \dots, g_k$, drawn independently given $t$, and let nothing else in the text depend on $t$. **(a)** The Bayes rule given the text is the Bayes rule $\delta^\ast$ given the counts $n = (n_+, n_0, n_-)$, and its accuracy is the full-text ceiling. **(b)** If a reader replaces each $g_i$ by $\hat g_i$, then $\lvert P(\delta^\ast(\hat n) = t) - P(\delta^\ast(n) = t) \rvert \le P(\hat n \ne n) \le E[k]\,\varepsilon$, where $\varepsilon = E\big[\#\lbrace i : \hat g_i \ne g_i \rbrace\big] / E[k]$ is the reader's error rate per sentence.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The likelihood factors into $P(g \mid t)$ times a term free of $t$, and $P(g \mid t)$ depends on $g$ only through $n$, a multinomial count. (b) The two decisions can differ only when $\hat n \ne n$, which needs at least one misread sentence, and by the union bound the probability of that is at most the expected number of misread sentences, $E[k]\,\varepsilon$.
+
+</TheoremBlock>
+
+The rule $\delta^\ast$ is multinomial naive Bayes with known parameters, and it cuts the plane of sentence-polarity rates with lines, as the category world of Topic 18's Proposition 1 does. Each tone-bearing sentence takes the polarity of its first aspect (a contrast sentence's second aspect is its mirror). On the test filings, which have $6.463$ tone-bearing sentences on average, the gold polarities give a tone accuracy of $0.883$, within one standard error ($0.008$) of the ceiling's $0.890$. The bigram layer misreads $2$ of the $9{,}695$ tone-bearing sentences, which changes no decision, so it scores $0.883$ as well. The whole gap between the document-level readers and the ceiling was the aspect structure. The **From aspects to tone** tab sets the readers side by side.
+
+Real filings are another matter. The three short MD&A excerpts that ship with the corpus mention an aspect term five times. They carry no gold, so these are readings, not scores:
+
+| filing | aspect | bigram layer | lexicon |
+|---|---|---|---|
+| Apple | gross margin | negative, $0.743$ | negative |
+| ExxonMobil | liabilities | positive, $0.495$ | neutral |
+| Microsoft | revenue | positive, $0.559$ | neutral |
+| Microsoft | income taxes | negative, $0.484$ | neutral |
+| Microsoft | revenue | positive, $0.497$ | neutral |
+
+Apple's sentence warns that tariffs "can have a material adverse impact on" its business, including its gross margin, and both readers call that negative. The other four are descriptions, "We generate revenue by offering a wide range of cloud-based solutions", and the lexicon, finding no polar word, calls them neutral. The bigram layer calls each of them positive or negative at about even odds. On the corpus, "neutral" was a handful of templates ("in line with the prior period"); outside them the layer has no notion of it. FiQA's Task 1 (Maia and colleagues 2018) is the real benchmark for aspect sentiment in financial text, and it is where a reader like this one would have to be retrained.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this sits
+
+The aspect-level models of 2016–2017 (Wang and colleagues; Tang, Qin, and Liu; Ma and colleagues 2017) were one or two attention layers over recurrent states, with the aspect in the query. Jiang and colleagues (2019) built MAMS from sentences like this page's contrast sentences, every one with two aspects of different polarity, because those were the ones that separated the models. Sun, Huang, and Qiu (2019) fed the aspect to a pretrained encoder as a second sentence, which escapes Theorem 1 the deep way: every word's value is already a function of its neighbors and of the aspect. The next topic, fine-tuning, trains such an encoder. The extraction topics find the aspect spans that this page took as given, and the capstone reads earnings calls aspect by aspect.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Propositions 1–2 and Theorems 1–2 are proved here in full. Theorem 1(b) and (c) are also checked as linear-programming feasibility problems over every sign pattern.
+2. **A templated corpus.** Polarity is a deterministic function of the clause and the category, so the results are about representation, not estimation. The near-perfect bigram layer reflects the templates: on real 10-K sentences it calls descriptive, neutral mentions polar at about even odds.
+3. **Gold spans.** Aspect spans and categories are given. Finding them is span labeling, left to the extraction topics.
+4. **One layer.** Theorem 1 covers one attention layer with separable content and position scores and values that depend on a single item. A second layer, a nonlinear readout, or bigram items escape it.
+5. **Decisions, not probabilities.** Theorem 2 preserves every decision and changes the confidence.
+6. **A marker real text lacks.** Proposition 2's tone-bearing sentences are found by the generator's templates: they open on an aspect and name no amount, product, or company.
+7. **Untuned readers, edited sentences.** The layers' training schedules were fixed in advance, and the contrast sets edit test sentences in ways the generator never writes, such as *revenue* in a costs clause or a deleted "not".
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `aspect_based_sentiment.py`, which owns every number on this page. That module imports the lexicon topic's module for the stand-in lexicon, its negation scope, its construction labels, and, through it, the linear classifiers topic's split, features, Newton solver, and Bayes ceiling; and it imports the attention topic's module for its attention function and Topic 5's complex-step checker. Its harness checks:
+
+- that every gold aspect is a row, with its span on an aspect term, and that two-aspect sentences have opposite polarities;
+- Proposition 1's bound, at most one aspect per contrast pair for both aspect-blind readers, and the regression's $0.500$;
+- the layer against the attention topic's attention function, and every gradient against complex-step derivatives;
+- Theorem 1(a) on random layers to $10^{-12}$, (b) and (c) as linear programs, and both on the trained layers through the contrast sets;
+- Theorem 2 on random layers with random weights, and on the trained bigram layer over the whole test split;
+- the tone-bearing sentences against the generator, Proposition 2's bound, and the aggregation within two standard errors of the ceiling;
+- the EDGAR readings.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
