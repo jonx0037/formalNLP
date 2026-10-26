@@ -135,7 +135,7 @@
     {
       "id": "relation-extraction-distant-supervision",
       "label": "Relation Extraction and Distant Supervision",
-      "status": "planned",
+      "status": "published",
       "domain": "extraction-knowledge-graphs"
     },
     {
