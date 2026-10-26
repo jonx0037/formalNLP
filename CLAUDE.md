@@ -331,6 +331,30 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   miscalibration. A softmax head by Topic 17's `lr_fit` (trust-ncg, gtol 10⁻¹⁰) on 6k dense rows took 37 s; L-BFGS
   on `ltc.lr_objective` with dense X takes ~1 s. Topic 22's harness runs ≈ 82 s: the 60 s rule was waived for it by
   Jonathan, as for Topic 20. In a TSX block comment, "F*/2" closes the comment (`*/`) and tsc reports a parse error.
+- Relation extraction on corpus models (Topic 23). Candidates are ordered pairs of linked mentions (kb_id set) in one
+  sentence; REPORTED/GUIDED (MONEY/PERCENT tails) are document events, not KB facts. Gold is single-label per ordered
+  pair and always a KB fact, so distant supervision (KB(h, t)) never misses a stated relation; its precision is
+  `fc.distant_supervision_precision` (0.690608 on `generate_corpus(300, 0, roster=train)`), split into co-mention 338,
+  entailed 137 (BASED_IN from "headquartered in Toronto, Canada", ACQUIRED ⇒ PARENT_OF: close the sentence's stated
+  facts under the KB's rules), and overlap 29. Conjoin the between string with the argument order: unconjoined, gold
+  F1 is 0.952 (which argument is the subsidiary is a template × order XOR); conjoined, gold-trained entity-blind LR is
+  perfect (1.000 on both tests), so RE results on this corpus measure supervision, not reading. DS learns each
+  co-mention template's KB-related rate (0.529–0.685; the generator's 0.6 is split by template, and the reversed order
+  of a stating template has ρ = 0, so keep templates whose candidates are all related/unrelated co-mentions with ρ > 0)
+  and labels a relation only where ρπ > 1 − ρ (2 of 11). Noisy-OR MIL: compute log(1 − p_i(r)) as a log-sum-exp over
+  the other labels minus the full one (complex-step safe; never form 1 − p) and sum per bag with `np.add.reduceat` on
+  instances sorted by (h, t); L-BFGS from zero converges in ~80 iterations (2 s). It zeroes co-mention FPs but recall
+  falls (0.711) on templates no bag forces (context class = types, order, between string, right word). Aggregate
+  facts by max for sentence-trained models: noisy-OR overcounts a pair's repeated co-mentions (DS fact P 0.719 vs
+  0.892; held-out 0.331 vs 0.701). Hide KB facts by unordered entity pair (all of a pair's facts together), or the
+  c-scaling of the DS target fails on multi-relation pairs (PARENT_OF + ACQUIRED); the fitted mass lands just below c
+  (L2), raw F1 *rises* at c = 0.8 (co-mention templates cross the threshold first), and Elkan–Noto's e1 runs low
+  (0.910 at c = 1). Topic 22's `split(test)` sentences align token for token with `fc` sentences in `sl.bio_sentences`
+  order, and exact string linking (`fc._tokens` of names and aliases, type checked) reproduces every gold link; with
+  the headline tagger's spans the triple-recall bound is 0.730 seen (rarely covered training-roster names) vs 0.920
+  held out. Argument words or encoder entity-start states let DS memorize the KB (related co-mentions 0.813 seen vs
+  0.304 unseen). An unbreakable inline-code module name in Implementation widened the mobile page to 395 px: name long
+  modules in prose.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -379,7 +403,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `is_valid` (BIO and BIOES), `constrain` (Thm 1's −∞ masks), `span_marginals`, `interval_dp`, `f1_decode`
   (Dinkelbach), `prf` (four match schemes)/`micro_mixture`, `build` (Topic 21's `Data` from dense or sparse rows),
   `states` (encoder states per sentence), `ner_sentences` (BIO plus case), and `word_features` (substitute or delete
-  dropout) are reusable.
+  dropout) are reusable. Topic 23's harness takes ≈ 33 s (Topic 22's headline tagger, pretraining included, is 27 s of
+  it, inside `predicted_corpus`); `re_sentences`/`corpus`/`candidates`, `ds_labels`, `closure`, `ds_error_sources`,
+  `lexical_features`, `soft_objective`/`fit_soft` (soft-label softmax LR), `mil_objective`/`mil_fit` (noisy-OR,
+  complex-step safe), `witness_weights`, `identifiability`, `facts` (max or noisy-OR)/`fact_scores`, `kept_kb`
+  (pair-level SCAR), `link`, `predicted_corpus`, `pipeline`, and `extracted_kb` (Topic 24's input) are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -455,6 +483,19 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
     partial credit (it defers to MUC, Chinchor and Sundheim 1993).
   - **Augenstein et al. (2017).** The seen/unseen F1 gap is in the body (arXiv 1701.02877, §3.3, Table 13), not the
     abstract. BERT's NER setup (no CRF, first sub-token) is §5.3; Collobert et al.'s sentence-level likelihood §3.4.2.
+  Topic 23 citation facts:
+  - **Mintz et al. (2009), P09-1113.** §5.1's lexical feature is one conjunction (between words, order, window, types);
+    features are aggregated per entity pair (a pair-level classifier); §6 negatives are a random 1% of unrelated pairs;
+    §7.1 says held-out evaluation "suffers from false negatives", not that it underestimates precision.
+  - **Riedel, Yao, and McCallum (2010).** §1 says DS is violated ~13% (Wikipedia) and 31% (NYT), but Table 1's Wikipedia
+    rows average 16.7%: quote the 31% and the table. Author copy at riedelcastro.github.io.
+  - **Elkan and Noto (2008).** Lemma 1 is p(y = 1 | x) = p(s = 1 | x)/c; e1 is recommended and called exact "if
+    g(x) = p(s = 1|x)"; the proof that g = c on P quietly sets p(y = 1 | x) = 1 there (never says "separable").
+  - **Fisher's identity.** Cite Dempster, Laird, and Rubin (1977, pp. 1–22, §3, Lemma 2 with Eq. 3.2; unnamed there);
+    Louis (1982) is unreadable (OUP 403, JSTOR gated). Dietterich et al. (1997) say examples and instances, never bags.
+  - **Hoffmann et al. (2011), P11-1055.** 18.3% of matched Freebase facts overlap (§1); Φ_join is a deterministic OR
+    (§3.2). Zeng et al. (2015, D15-1203, §3.5) train each bag on its most probable instance. Baldini Soares et al.'s
+    entity-start state (P19-1279, §3.3) needs entity markers; the Anthology spells "Fitzgerald", the PDF "FitzGerald".
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -488,7 +529,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   (published 2026-10-25) proves the forward recursion, forward–backward, Viterbi, and Baum–Welch (Thms 5–10) and names
   CRFs only in Rem 23; no sibling covers CRFs, MEMMs, or the structured perceptron (2026-10-26). No sibling covers NER, BIO/BIOES, span F1, or F1-optimal
   thresholding either; formalRAG `set-metrics-precision-recall-map-mrr` (set precision and recall, Def 1) and formalML
-  `uncertainty-quantification` (perfect calibration, Def 3) are the nearest (2026-10-26). The design's
+  `uncertainty-quantification` (perfect calibration, Def 3) are the nearest (2026-10-26). No sibling covers distant
+  supervision, multiple-instance learning, positive-unlabeled learning, noisy-OR, or relation extraction (2026-10-26):
+  formalML `kl-divergence` Prop 2 is Gibbs' inequality, formalStatistics `hidden-markov-models` Rem 16 states Fisher's
+  identity (its `maximum-likelihood` only previews EM, Rem 10, and `model-selection-and-information-criteria`'s
+  "Fisher identity" is J = K), formalML `convex-analysis` has no unique-minimizer theorem, and formalRAG
+  `graphrag-community-detection` builds its graph from co-occurrence and cosine, not extracted relations. The design's
   watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
