@@ -109,6 +109,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `scrollIntoView` may never trigger `client:visible`; a real `computer` scroll does. On a long page
   (Topic 16: 336 KaTeX spans) a scripted `scrollIntoView` can leave the page where it was, even at
   desktop width: `find` the lab's caption and `computer` `scroll_to` its ref, then check `ssr` is gone.
+  At the mobile preset a stale `find` ref can `scroll_to` thousands of pixels off (Topic 20: the lab ended at
+  top = −7,119): `window.scrollBy(0, lab.getBoundingClientRect().top − 300)` by script, then one real `computer`
+  scroll fires `client:visible`.
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
   stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
   two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
@@ -116,7 +119,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   (`round(0.2865, 3)` is `0.286`). When the page narrates a lab example, assert it in
   `test_viz_payload` and pick the lab's default by a rule that finds it, not a hard-coded index.
   `ak._sig(x, 3)` keeps significant figures (10.169 → 10.2): use `ak._r(x, 3)` for anything the page
-  quotes to 3 decimals. Key payload dicts by `f"{beta:g}"`: `f"{1.0}"` is `"1.0"`, but JS's
+  quotes to 3 decimals. Values spanning decades go through `_sig`: `_r(1.26e-4, 4)` is `0.0001`, which a lab's
+  `toFixed(3)` shows as `0.000` (Topic 20's SGD first steps, Adam's 5.2·10⁻⁵ NTK loss). `ltc._r` recurses into lists
+  but raises on a dict: round nested payload dicts field by field. Key payload dicts by `f"{beta:g}"`: `f"{1.0}"` is `"1.0"`, but JS's
   `` `${1}` `` is `"1"`. Whatever a lab plots that the `.py` computes goes in the payload too (Topic 13's
   IsoFLOP valleys and parabola coefficients): a lab may draw a curve from payload parameters, but every
   number it prints is a payload value.
@@ -258,6 +263,26 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   sentences are those opening on an aspect (or "Management pointed to") that name no MONEY, PRODUCT, or ORG entity:
   exactly the generator's k ∈ 5..8, and their first-aspect polarities through the Bayes rule give 0.883 against the
   0.890 ceiling. The EDGAR excerpts hold five aspect-term mentions; split them at "." only (";" leaves fragments).
+- Fine-tuning on corpus models (Topic 20). Topic 12's filing encoder has V = 879 (`[MASK]` = 879 is input-only, so E
+  has 880 rows); 512 is Topic 13's `sl.TOY_V`. Topic 12 has no backward pass from dL/d LN(x_L): use Topic 20's
+  `encoder_backward` (lifted from `mlm_loss_grad`, pinned equal), and deep-copy `train_mlm`'s cached P/blocks before
+  training them. At a zero-initialized head every encoder gradient is 0, so first-step analyses and linearizations start
+  from the probe's head (LP-FT). Document tone is a poor fine-tuning testbed: mean-pooled ~7 windows per filing, 1,500
+  labels, and full fine-tuning reaches 0.559 against bag-of-words LR 0.745, with a never-pretrained encoder at 0.536.
+  Topic 19's aspect rows separate the methods (probe 0.761, random-init 0.951, pretrained 0.970–0.989); keep every polar
+  row and 1,500 neutral ones (a 5k random subsample drops negated adjectives to 0.5), and read the mean final state over
+  the aspect span. The fine-tuned encoder reads "not ADJ" but calls Topic 19's deleted-"not" quadruple copies neutral
+  (training shows "T was ADJ this period" only with "not"); 310 counterfactual rows fix every seed. Seed spread is large
+  (full fine-tuning 0.970–0.989), so headline comparisons need 3 seeds. LoRA on Wq/Wv at Adam's 10⁻² forgets more than
+  full fine-tuning (‖sAB‖ ≈ 45 against full's 2.7 on the same matrices); every LP-FT run Pareto-dominates every LoRA
+  run, while the weaker "LoRA forgets more than every full run" fails by 0.03. Full fine-tuning's ΔW is nearly low-rank
+  (rank-4 truncation keeps 0.977 of 0.989) where LoRA trained at r = 4 reaches only 0.95. Under Adam, α/√r holds the
+  first step level in r (sign step, bounded by σ(A₀)); under SGD only the mean is level, and a single draw sits
+  √((k+1)/r) away. No count sketch with D ≤ 4,096 reaches d₉₀. For the NTK, per-example Jacobians come from single-row
+  backward passes; take the training rows at one length, so each full-batch step is one batch. At the stable rate
+  η = n/λ_max, GD barely trains in 300 steps (loss 0.620 → 0.599), while Adam memorizes 120 rows and leaves the
+  kernel (K moves 169%). Topic 20's harness runs ≈ 2¼ min: the README's 60 s rule was waived for that topic only, by
+  Jonathan.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -291,9 +316,17 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `harmonic`, `prior_design`/`prior_fit`, `sign_error` (exact trinomial tail), and `load_lm_dictionary` are reusable.
   Topic 19's harness takes ~27 s (three attention rungs ~12 s); `aspect_rows`, `batch`/`layer_forward`/`layer_loss_grad`
   (complex-step safe), `valence_patterns`/`negation_feasible` (LP certificates), `reweighted`, `tone_sentences`, and
-  `bayes_tone` are reusable.
+  `bayes_tone` are reusable. Topic 11's `mha_forward`'s broadcast `(B, 1, n, d) @ (1, H, d, dh)` products were ~40% of a
+  fine-tuning step: Topic 20's `mha_forward`/`mha_backward`/`encode` do each projection as one flattened matmul, are pinned
+  equal to Topics 11–12 at 10⁻¹¹, and cut a run from 4.2 to 2.4 s. Topic 20's `fine_tune(cfg)` takes ~1.8 s, plus ~0.6 s
+  for `evaluate`; its 31 runs, `ntk_experiment` (~10 s), and `doc_fine_tune` (~5 s each) make up the ≈ 2¼ min harness.
+  `encoder_backward`, `aspect_loss_grad`, `lora_grads`, `first_step`, `balance`/`gd_drift`, `sketch_matrix`,
+  `kernel_gd`, `tone_from`, and `doc_windows` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
-  cache keys and train twice.
+  cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
+  probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
+  tuple with strings: `PYTHONHASHSEED` randomizes it per process, so runs stop being reproducible. Derive streams from
+  fixed integers, and share the batch-order stream across methods per seed (common random numbers).
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
   large sparse block matrices raise spurious FP flags — check such determinants block by block.
 - Test a published bound's stated constant on adversarial instances before citing it (Chen et al.
@@ -324,6 +357,20 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   Kobayashi et al. (2020)'s f(x) is the value transform followed by W^O: say "transformed vectors", not "value
   vectors". MAMS (Jiang et al. 2019) defines its sentences as having at least two aspects of different polarity. FiQA's
   ACM PDF (Maia et al. 2018) returns 403; confirm Task 1 (aspect-based financial sentiment) on sites.google.com/view/fiqa.
+  Topic 20 citation facts:
+  - **Kalajdzievski (2023), rsLoRA.** Thm 3.2 is proved for **SGD** only (App. A), at any fixed step count as r → ∞
+    with d fixed, and singles out no first step. An Adam statement is ours to prove.
+  - **Hu et al. (2022), LoRA.** §4.1 says A is Gaussian, but the loralib code uses Kaiming-uniform A. Malladi et al.
+    (2023) swap the A/B roles; their Thm 7.2 is the w.h.p. LoRA-kernel result.
+  - **Du, Hu, and Lee (2018).** Thm 2.2 is the linear-layer balancedness. Claim B.1 (App. B) is the exact one-step
+    change: η²(VᵀRᵀRV − UᵀRᵀRU).
+  - **Kumar et al. (2022).** Lemma A.3 says features never move on S⊥. Lemma A.4 is balancedness for (v, B). Prop 3.7
+    is LP-FT on perfect features, and Thm 3.3 the OOD bound.
+  - **Aghajanyan et al. (2021).** The ACL Anthology author order is Aghajanyan, Gupta, Zettlemoyer; arXiv's differs.
+  - **Li, Grandvalet, and Davoine (2018), L2-SP.** Eq. 3 also penalizes the new head (β).
+  - **Davidson and Szarek (2001).** The handbook chapter is paywalled, so its theorem number cannot be verified. Cite
+    Vershynin (2012), Thm 5.32 and Cor 5.35, for a Gaussian matrix's √N ± √n singular values.
+  - **Jacot et al. (2018).** The NTK title carries the subtitle "Convergence and Generalization in Neural Networks".
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
