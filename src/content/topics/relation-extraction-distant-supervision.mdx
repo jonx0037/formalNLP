@@ -1,0 +1,476 @@
+---
+title: "Relation Extraction and Distant Supervision"
+subtitle: "Labeling sentences by what a knowledge base already knows teaches a classifier the knowledge base's opinion of each entity pair. Bags, aggregation, and positive-unlabeled corrections recover facts, not sentences."
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "named-entity-recognition"
+tags:
+  - "relation-extraction"
+  - "distant-supervision"
+  - "multiple-instance-learning"
+  - "noisy-or"
+  - "positive-unlabeled-learning"
+  - "knowledge-base-population"
+  - "weak-supervision"
+  - "label-noise"
+  - "information-extraction"
+  - "financial-text"
+domain: "extraction-knowledge-graphs"
+financeCaseStudy: true
+rigorFlag: "The corpus is synthetic and templated: with sentence-level gold labels the extraction is perfect, so every number here measures supervision, not reading. Co-mention sentences relate their pair 60% of the time by the generator's design, which sets every base rate in Corollary 1. Whether a headquarters appositive states BASED_IN is a guideline choice; the corpus says no, so those labels count as distant-supervision errors at the sentence level although they are true facts. Theorem 1 is a population statement, and the fitted classifier is L2-regularized and linear. Noisy-OR treats a pair's mentions as independent, which repeated templates violate. The incomplete knowledge base forgets pairs completely at random, unlike real ones, and the corrected classifier divides by the true keep rate; Elkan and Noto's estimate of it is biased here, and each keep rate is one random draw. Linking is exact string matching against a knowledge base that names every entity. Every classifier is fit once at one prior, untuned."
+videoId: null
+notebookPath: "notebooks/relation-extraction-distant-supervision/01_relation_extraction_distant_supervision.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/relation-extraction-distant-supervision.mdx"
+datePublished: 2026-10-26
+estimatedReadTime: 35
+abstract: "Relation extraction reads which relation, if any, a sentence states between two recognized entities, and aggregates those readings into facts for a knowledge base. Distant supervision labels every sentence that mentions two entities with whatever the knowledge base already holds between them. We prove what a classifier trained that way learns: the expected distant label given its features, which on a sentence that states nothing is the share of such sentences whose pair the knowledge base relates. That bias does not shrink with data, and on the finance corpus the fitted classifier reproduces each co-mention template's rate within 0.05. Multi-instance learning labels bags of mentions instead. We show its noisy-OR gradient is an E-step whose weight on every other mention vanishes once one mention is a confident witness, and we characterize which mentions the bag labels determine at all; that explains where its sentence recall goes, while it wins at the fact level. Noisy-OR aggregation helps a model trained under it and overcounts for one trained sentence by sentence. An incomplete knowledge base turns distant supervision into positive-unlabeled learning: we prove the optimum shrinks by the keep rate c, so argmax keeps a template only while c exceeds one half, and held-out evaluation reports c times the true precision. Finally, on six companies held out from training, the named entity recognition topic's tagger feeds the extractor, which loses exactly the triples whose arguments the tagger missed."
+connections:
+  - topic: "linear-text-classifiers"
+    relationship: "Every classifier here is its softmax logistic regression; the order-conjoined between-string feature is its XOR lesson again, since which argument is the subsidiary depends on the template and the order together."
+  - topic: "language-model-calibration"
+    relationship: "Theorem 1 says a distantly supervised classifier is calibrated, but to the wrong target: its probabilities forecast the knowledge base's label, not whether the sentence states the relation."
+references:
+  - type: "paper"
+    title: "Distant Supervision for Relation Extraction without Labeled Data"
+    authors: "Mike Mintz, Steven Bills, Rion Snow, and Dan Jurafsky"
+    year: 2009
+    url: "https://aclanthology.org/P09-1113/"
+    note: "Proceedings of ACL-IJCNLP 2009, 1003–11. Section 4: any sentence containing both entities might express the relation; Section 5.1: each lexical feature conjoins the words between the entities, their order, and a window, with the entity types; features are aggregated per entity pair; Section 7.1: held-out evaluation suffers from false negatives"
+  - type: "paper"
+    title: "Modeling Relations and Their Mentions without Labeled Text"
+    authors: "Sebastian Riedel, Limin Yao, and Andrew McCallum"
+    year: 2010
+    url: "https://doi.org/10.1007/978-3-642-15939-8_10"
+    note: "ECML PKDD 2010, Lecture Notes in Computer Science 6323, 148–63. The expressed-at-least-once assumption; the distant-supervision assumption fails for 31% of sampled New York Times candidates (Section 1, Table 1)"
+  - type: "paper"
+    title: "Knowledge-Based Weak Supervision for Information Extraction of Overlapping Relations"
+    authors: "Raphael Hoffmann, Congle Zhang, Xiao Ling, Luke Zettlemoyer, and Daniel S. Weld"
+    year: 2011
+    url: "https://aclanthology.org/P11-1055/"
+    note: "Proceedings of ACL-HLT 2011, 541–50. 18.3% of the Freebase facts matched to New York Times sentences have overlapping relations (Section 1); sentence-level labels join into facts through a deterministic OR (Section 3.2)"
+  - type: "paper"
+    title: "Multi-instance Multi-label Learning for Relation Extraction"
+    authors: "Mihai Surdeanu, Julie Tibshirani, Ramesh Nallapati, and Christopher D. Manning"
+    year: 2012
+    url: "https://aclanthology.org/D12-1042/"
+    note: "Proceedings of EMNLP-CoNLL 2012, 455–65. Latent sentence labels and pair labels modeled jointly"
+  - type: "paper"
+    title: "Solving the Multiple Instance Problem with Axis-Parallel Rectangles"
+    authors: "Thomas G. Dietterich, Richard H. Lathrop, and Tomás Lozano-Pérez"
+    year: 1997
+    url: "https://doi.org/10.1016/S0004-3702(96)00034-3"
+    note: "Artificial Intelligence 89, no. 1–2: 31–71. Section 1: an example is positive if and only if at least one of its instances is (they say examples and instances, not bags)"
+  - type: "paper"
+    title: "Learning Classifiers from Only Positive and Unlabeled Data"
+    authors: "Charles Elkan and Keith Noto"
+    year: 2008
+    url: "https://doi.org/10.1145/1401890.1401920"
+    note: "Proceedings of KDD 2008, 213–20. Section 2: labeled positives selected completely at random; Lemma 1, p(y = 1 | x) = p(s = 1 | x)/c; the estimators e1, e2, e3, with e1 recommended"
+  - type: "paper"
+    title: "Maximum Likelihood from Incomplete Data via the EM Algorithm"
+    authors: "A. P. Dempster, N. M. Laird, and D. B. Rubin"
+    year: 1977
+    url: "https://doi.org/10.1111/j.2517-6161.1977.tb01600.x"
+    note: "Journal of the Royal Statistical Society, Series B 39, no. 1: 1–22. Section 3, Lemma 2 with Equation 3.2: the observed-data score equals the conditional expectation of the complete-data score (Fisher's identity, which they do not name)"
+  - type: "paper"
+    title: "Distant Supervision for Relation Extraction via Piecewise Convolutional Neural Networks"
+    authors: "Daojian Zeng, Kang Liu, Yubo Chen, and Jun Zhao"
+    year: 2015
+    url: "https://doi.org/10.18653/v1/D15-1203"
+    note: "Proceedings of EMNLP 2015, 1753–62. Section 3.5, Equations 8–9: each bag trains on its single most probable instance"
+  - type: "paper"
+    title: "Neural Relation Extraction with Selective Attention over Instances"
+    authors: "Yankai Lin, Shiqi Shen, Zhiyuan Liu, Huanbo Luan, and Maosong Sun"
+    year: 2016
+    url: "https://doi.org/10.18653/v1/P16-1200"
+    note: "Proceedings of ACL 2016, 2124–33. Attention over a bag's sentences down-weights the ones that do not express the relation"
+  - type: "paper"
+    title: "Reducing Wrong Labels in Distant Supervision for Relation Extraction"
+    authors: "Shingo Takamatsu, Issei Sato, and Hiroshi Nakagawa"
+    year: 2012
+    url: "https://aclanthology.org/P12-1076/"
+    note: "Proceedings of ACL 2012, 721–29. A generative model of the labeling process whose hidden variables flag wrong distant labels before training"
+  - type: "paper"
+    title: "Matching the Blanks: Distributional Similarity for Relation Learning"
+    authors: "Livio Baldini Soares, Nicholas FitzGerald, Jeffrey Ling, and Tom Kwiatkowski"
+    year: 2019
+    url: "https://doi.org/10.18653/v1/P19-1279"
+    note: "Proceedings of ACL 2019, 2895–905. Section 3.3: the entity-start representation, the final hidden states at the two entity-start marker tokens, concatenated"
+  - type: "paper"
+    title: "Constructing Biological Knowledge Bases by Extracting Information from Text Sources"
+    authors: "Mark Craven and Johan Kumlien"
+    year: 1999
+    url: "https://www.aaai.org/Papers/ISMB/1999/ISMB99-010.pdf"
+    note: "Proceedings of ISMB-99, 77–86. Weakly labeled training examples made by pairing a database's facts with the abstracts it cites, the precedent Mintz et al. cite"
+  - type: "paper"
+    title: "Learning from Positive and Unlabeled Data: A Survey"
+    authors: "Jessa Bekker and Jesse Davis"
+    year: 2020
+    url: "https://doi.org/10.1007/s10994-020-05877-5"
+    note: "Machine Learning 109, no. 4: 719–60. Names the selected-completely-at-random assumption SCAR and surveys estimators of the label frequency c"
+formalmlPrereqs:
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "Its Proposition 2, Gibbs' inequality, is the whole proof of Theorem 1: the distant-supervision risk exceeds its minimum by an expected KL divergence from the expected distant label."
+formalstatisticsPrereqs:
+  - topic: "hidden-markov-models"
+    site: "formalstatistics"
+    relationship: "Its Remark 16 states Fisher's identity, the log-likelihood gradient as a posterior expectation of the complete-data gradient; Theorem 2 proves it for the noisy-OR bag likelihood and reads off the witness weights."
+formalragPrereqs:
+  - topic: "set-metrics-precision-recall-map-mrr"
+    site: "formalrag"
+    relationship: "Its Definition 1 is precision and recall of a returned set; this page scores sets of extracted facts and triples the same way, at a threshold on their aggregated scores."
+formalragConnections:
+  - topic: "negative-sampling-hard-negatives"
+    site: "formalrag"
+    relationship: "Its false negatives and unknown class prior in contrastive training are the retrieval cousin of Definition 5 here, where a pair the knowledge base forgot is labeled as unrelated."
+  - topic: "graphrag-community-detection"
+    site: "formalrag"
+    relationship: "Its entity graph is built from co-occurrence and embedding similarity; the facts this page extracts give such a graph typed, directed edges instead."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import RelationExtractionLab from '../../components/viz/RelationExtractionLab.tsx';
+
+## Overview & Motivation
+
+A filing says "Martin Hollis has spoken publicly about Pellucid Software." The [named entity recognition topic](/topics/named-entity-recognition) finds the two names. Relation extraction asks the next question: does this sentence say how they are related? It does not. It mentions a person and a company and states nothing between them. Yet Hollis *is* Pellucid's chief financial officer, and the corpus's knowledge base knows it.
+
+That gap is the subject of this page. Labeling sentences by hand is expensive, so the standard shortcut, **distant supervision**, labels them with the knowledge base instead: any sentence that mentions two entities is taken to express whatever the knowledge base holds between them. Our sentence gets the label CFO_OF. A classifier trained on such labels reads it as CFO_OF with probability $0.380$, ahead of NA at $0.351$. The same classifier trained on what each sentence actually states reads it as NA with probability $0.995$.
+
+On this corpus the second classifier is perfect: with sentence-level gold labels it scores F1 $1.000$ on both test sets, because the corpus is templated and its features read the templates exactly. So everything on this page is about **supervision**: what each way of labeling teaches. In order:
+
+1. **What distant supervision learns.** We prove it learns the expected distant label, which on a sentence that states nothing is a property of the corpus, not of the sentence, and does not shrink with data.
+2. **At least one witness.** Multi-instance learning labels bags of mentions. We prove what its gradient does to each mention and which mentions its labels can determine.
+3. **From mentions to facts.** How to aggregate, and why the right aggregator depends on how the model was trained.
+4. **An incomplete knowledge base.** Missing facts make distant supervision positive-unlabeled learning; we prove how the optimum shrinks and how evaluation against the same knowledge base misreports precision.
+
+Then the finance case study: the named entity recognition topic's tagger on companies held out from training, feeding the extractor, and the knowledge base that the next topic embeds.
+
+---
+
+## Relation mentions and distant supervision
+
+The corpus's knowledge base, `WORLD`, holds $254$ facts over ten relations among companies, subsidiaries, officers, cities, regions, and sectors: CEO_OF, CFO_OF, IN_SECTOR, COMPETES_WITH, SUBSIDIARY_OF, PARENT_OF, ACQUIRED, HQ_IN, LOCATED_IN, and BASED_IN. Its documents are rendered from it. A *fact sentence* states a relation ("Martin Hollis, chief financial officer of Pellucid Software, reviewed …"). A *co-mention* sentence mentions a pair and states nothing; by the generator's design, the knowledge base relates the pair $60\%$ of the time.
+
+<TheoremBlock type="definition" number={1} title="Relation mentions and facts">
+
+A sentence's **mentions** are its entity spans, each linked to a knowledge-base entity when it names one. A **candidate** is an ordered pair $(i, j)$ of distinct linked mentions in one sentence, with entities $h$ and $t$. Its gold label is the relation $r \in R$ that the sentence states from $i$ to $j$, or NA. A **fact** is a triple $(h, r, t)$ of knowledge-base entities. Sentence-level extraction labels candidates; fact-level extraction outputs facts.
+
+</TheoremBlock>
+
+<TheoremBlock type="definition" number={2} title="Distant supervision">
+
+Label each candidate with $L = \mathrm{KB}(h, t)$, the set of relations the knowledge base holds from $h$ to $t$, or with $\{\mathrm{NA}\}$ when it holds none. As a target distribution, $\ell(r) = \mathbf 1[r \in L]/|L|$.
+
+</TheoremBlock>
+
+Mintz, Bills, Snow, and Jurafsky (2009) put the assumption this way: any sentence containing both entities might express the relation. Every relation a sentence states is a knowledge-base fact, so distant supervision never misses one. What it adds is the problem.
+
+<TheoremBlock type="proposition" number={1} title="Three sources of distant-supervision error">
+
+A distant label $r \in L$ that the sentence does not state falls into exactly one of three classes:
+
+- **entailed**: $r(h, t)$ follows from what the sentence states by the knowledge base's own rules (BASED_IN $=$ HQ_IN $\circ$ LOCATED_IN, ACQUIRED $\Rightarrow$ PARENT_OF, PARENT_OF and SUBSIDIARY_OF inverse, COMPETES_WITH symmetric);
+- **overlap**: it is not entailed, and the sentence states a different relation for the same ordered pair;
+- **co-mention**: the sentence states nothing that yields $r$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The three conditions are tested in this order, and the third is the complement of the first two, so each label lands in exactly one class.
+
+</TheoremBlock>
+
+The proposition is bookkeeping, but each class is a different failure. On the training corpus distant supervision makes $1{,}629$ labels, of which $1{,}125$ are stated: precision $0.691$. Of the $504$ errors, $338$ are co-mentions, $137$ entailed, and $29$ overlaps (an acquisition sentence also labeled PARENT_OF, or the reverse). Entailed labels are the debatable ones. "From its head office in Toronto, Canada, Quillon Systems manages …" implies that Quillon is based in Canada, but the corpus's annotation guideline marks it unstated, and we follow the guideline: those labels are errors for the sentence and true facts for the knowledge base. LOCATED_IN is the only relation with precision $1.000$, since cities and regions are never co-mentioned. ACQUIRED has the lowest, $0.493$. The **DS labels** tab of the lab shows the split.
+
+---
+
+## What a distantly supervised classifier learns
+
+The classifiers on this page are softmax logistic regressions over NA and the ten relations, on entity-blind features: the two entities' types, which comes first, the words between them joined into one string *and conjoined with that order*, the between words and bigrams, and one word on each side (Mintz et al.'s lexical features). No feature names an argument's own words. The conjunction matters. Which argument is the subsidiary depends on the template ("X, a subsidiary of Y" against "Y owns X") as well as on the order, an interaction no sum of separate weights can represent: the XOR of the [linear classifiers topic](/topics/linear-text-classifiers) again. Without the conjunction, the gold-trained classifier scores $0.952$ on the seen test and $0.978$ on the held-out one, instead of $1.000$.
+
+Write $\varphi$ for the features and $q(r \mid \varphi)$ for a classifier's output.
+
+<TheoremBlock type="theorem" number={1} title="Distant supervision learns the expected distant label">
+
+Let $\mathcal R(q) = \mathbb E\big[-\sum_r \ell(r) \log q(r \mid \varphi)\big]$ be the distant-supervision risk. Over all conditional distributions, $\mathcal R$ is minimized, uniquely for almost every $\varphi$, by
+
+$$
+q^*(r \mid \varphi) = \mathbb E[\ell(r) \mid \varphi].
+$$
+
+Because every stated relation is in $L$,
+
+$$
+q^*(r \mid \varphi) = \mathbb E\big[\ell(r)\, \mathbf 1[r \text{ stated}] \mid \varphi\big] + \mathbb E\big[\ell(r)\, \mathbf 1[r \text{ not stated}] \mid \varphi\big]:
+$$
+
+the chance that the sentence states $r$, plus the chance that the knowledge base holds $r$ unstated.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Condition on $\varphi$ and write $m_\varphi = \mathbb E[\ell \mid \varphi]$, a distribution over labels. Then $\mathcal R(q) = \mathbb E\big[\sum_r m_\varphi(r)\,(-\log q(r \mid \varphi))\big]$, and for each $\varphi$
+
+$$
+\sum_r m_\varphi(r)\,(-\log q(r \mid \varphi)) = H(m_\varphi) + \mathrm{KL}\big(m_\varphi \,\big\|\, q(\cdot \mid \varphi)\big),
+$$
+
+which by Gibbs' inequality ([formalML: KL divergence](https://formalml.com/topics/kl-divergence)) is minimized exactly at $q(\cdot \mid \varphi) = m_\varphi$. The decomposition splits $\ell(r) = \ell(r)\mathbf 1[r \text{ stated}] + \ell(r)\mathbf 1[r \text{ not stated}]$ and takes conditional expectations.
+
+</TheoremBlock>
+
+<TheoremBlock type="corollary" number={1} title="A co-mention's label is its base rate">
+
+If a context $\varphi$ never states a relation, then $q^*(\mathrm{NA} \mid \varphi) = 1 - \rho(\varphi)$, where $\rho(\varphi)$ is the share of its pairs that the knowledge base relates. With $\hat r$ the top relation and $\pi = q^*(\hat r \mid \varphi)/\rho$ its share of the relation mass, argmax predicts $\hat r$ if and only if
+
+$$
+\rho\, \pi \gt 1 - \rho.
+$$
+
+Neither quantity depends on the sample size.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+With nothing stated, $\ell(\mathrm{NA}) = 1$ exactly when $L = \{\mathrm{NA}\}$, so $q^*(\mathrm{NA} \mid \varphi) = P(L = \{\mathrm{NA}\} \mid \varphi) = 1 - \rho$, and the relations share the rest. Argmax compares the largest, $\rho\pi$, with $1 - \rho$.
+
+</TheoremBlock>
+
+Distant supervision is therefore not noisy in the way a coin flip is noisy. Its errors are a deterministic function of the context: the classifier learns, correctly, how often the knowledge base relates the pairs that appear in each kind of sentence. On the finance corpus there are eleven frequent co-mention templates, with base rates from $0.529$ to $0.685$, and on each one the fitted classifier's probability of some relation is within $0.05$ of the template's training rate. "X commented on conditions across banking" has $\rho = 0.685$ and one candidate relation ($\pi = 1$, IN_SECTOR), so the classifier labels it IN_SECTOR. Our overview sentence, "P has spoken publicly about X", has $\rho = 0.646$ split between CEO_OF and CFO_OF ($\pi = 0.595$): $0.385 \gt 0.354$, a relation. "Analysts who cover X also follow Y" has $\rho = 0.600$ and $\pi = 0.625$: $0.375 \lt 0.400$, so NA, though its base rate is nearly as high.
+
+The distantly supervised classifier scores sentence F1 $0.867$ on the seen-company test (precision $0.780$, recall $0.975$) and $0.887$ on the held-out companies. It labels $0.272$ and $0.439$ of the related co-mentions with a relation, every entailed candidate, and only $0.055$ and $0.039$ of the unrelated ones. The **What DS learns** tab plots each template in the $(\rho, \pi)$ plane against the line $\rho\pi = 1 - \rho$. Its slider removes a share of the related co-mentions from training, which lowers each template's $\rho$: below $\kappa = 0.5$ no template crosses, and sentence F1 rises to $0.930$. Removing data helps because the removed data was teaching the base rate.
+
+---
+
+## At least one witness
+
+Riedel, Yao, and McCallum (2010) replaced the distant assumption with a weaker one: if two entities are related, *at least one* sentence mentioning them might express it. They found the distant assumption wrong for $31\%$ of sampled New York Times candidates. On our training corpus it is wrong for $0.309$ of distant labels, while the at-least-one assumption fails for $4$ of the $177$ related (pair, relation) combinations ($0.023$): pairs the knowledge base relates that the corpus never states.
+
+<TheoremBlock type="definition" number={3} title="Bags and the at-least-one assumption">
+
+A **bag** is every training mention of one ordered entity pair. **At least one**: if $r \in \mathrm{KB}(h, t)$, some mention in the bag states $r$; if not, none does. With instance probabilities $p_i = q(r \mid \varphi_i)$ treated as independent, the bag's likelihood for $r$ is the **noisy-OR**
+
+$$
+P(\exists) = 1 - \prod_i (1 - p_i)
+$$
+
+when $r \in \mathrm{KB}(h, t)$, and $\prod_i (1 - p_i)$ otherwise. Multi-instance learning (MIL) maximizes the sum of their logarithms over bags and relations.
+
+</TheoremBlock>
+
+This is Dietterich, Lathrop, and Lozano-Pérez's (1997) multiple-instance problem, whose examples are positive when at least one of their instances is; "bag" is the later word. How does a bag's label reach its mentions?
+
+<TheoremBlock type="theorem" number={2} title="The bag gradient is an E-step">
+
+Let $y_i \sim \mathrm{Bernoulli}(p_i(\theta))$ independently and $E = \{\exists\, i: y_i = 1\}$. Then
+
+$$
+\nabla \log P(E) = \sum_i \Big[w_i\, \nabla \log p_i + (1 - w_i)\, \nabla \log(1 - p_i)\Big], \qquad w_i = P(y_i = 1 \mid E) = \frac{p_i}{P(E)}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Fisher's identity (Dempster, Laird, and Rubin 1977, Section 3; [formalStatistics: hidden Markov models](https://formalstatistics.com/topics/hidden-markov-models), Remark 16), $\nabla \log P(E) = \sum_{y \in E} P(y \mid E)\, \nabla \log P(y)$, because $\nabla P(E) = \sum_{y \in E} P(y)\nabla \log P(y)$. Here $\log P(y) = \sum_i y_i \log p_i + (1 - y_i) \log(1 - p_i)$, so the conditional expectation acts term by term with weights $\mathbb E[y_i \mid E]$. Since $y_i = 1$ implies $E$, $P(y_i = 1 \mid E) = P(y_i = 1)/P(E) = p_i/P(E)$.
+
+</TheoremBlock>
+
+Each mention is pushed toward $r$ in proportion to the posterior that it is the bag's witness. The coefficients have a closed form.
+
+<TheoremBlock type="corollary" number={2} title="One witness silences the rest">
+
+$$
+\frac{\partial \log P(E)}{\partial p_i} = \frac{\prod_{j \ne i} (1 - p_j)}{P(E)}.
+$$
+
+As any other $p_k \to 1$, this tends to $0$, while the confident mention's own coefficient tends to $\prod_{j \ne k}(1 - p_j)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+From Theorem 2, the coefficient of $\nabla p_i$ is $\frac{w_i}{p_i} - \frac{1 - w_i}{1 - p_i}$. With $w_i = p_i/P(E)$ this is $\frac{1}{P(E)} - \frac{P(E) - p_i}{P(E)(1 - p_i)} = \frac{1 - P(E)}{P(E)(1 - p_i)}$, and $1 - P(E) = \prod_j (1 - p_j)$. If $p_k \to 1$ then $P(E) \to 1$ and the numerator, which contains the factor $1 - p_k$ for every $i \ne k$, tends to $0$.
+
+</TheoremBlock>
+
+The **At least one** tab opens the bag of our overview pair, Hollis and Pellucid, for CFO_OF. Four of its nine mentions state the relation ("Martin Hollis, chief financial officer of Pellucid Software, reviewed …"), and the MIL classifier gives them $0.714$ to $0.845$. The five co-mentions get $0.001$, and Corollary 2's coefficient on each is $0.00252$: once the witnesses are confident, nothing pushes the co-mentions toward CFO_OF, and every bag in which the pair is unrelated pushes them toward NA. MIL labels no co-mention with a relation on either test. Zeng et al. (2015) train each bag on its single most probable mention, Corollary 2's limit, where the other mentions receive nothing at all.
+
+The same mechanism costs sentence recall. A stating mention whose bag already has a confident witness also stops learning, and if all its bags have one, nothing forces it to be labeled at all. Which mentions do the bag labels determine?
+
+<TheoremBlock type="proposition" number={2} title="What the bag labels determine">
+
+Let $C$ be a finite set of classes (here, templates), $h: C \to \{0, 1\}$ a hypothesis, and bags $B \subseteq C$ labeled by $\max_{c \in B} h^*(c)$, so at least one holds. Let $N$ be the set of classes that occur in some negative bag. Then:
+
+1. $h_{\max} = \mathbf 1[c \notin N]$ is consistent with every bag label;
+2. it is the only consistent hypothesis if and only if every $c \notin N$ is the only non-$N$ class of some positive bag;
+3. in that case $h_{\max} = h^*$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(1) A negative bag holds only classes in $N$, where $h_{\max} = 0$. A positive bag holds a class with $h^* = 1$, which no negative bag can hold, so it holds a class outside $N$. (2) Every consistent $h$ is $0$ on $N$, so $h \le h_{\max}$; write $h = h_{\max} - \mathbf 1_D$ with $D \cap N = \emptyset$. If such an $h$ with $D \ne \emptyset$ is consistent, so is $h_{\max} - \mathbf 1[c]$ for any $c \in D$, since it is pointwise larger. That hypothesis fails exactly at a positive bag whose only non-$N$ class is $c$. So a second consistent hypothesis exists if and only if some $c \notin N$ is the sole non-$N$ class of no positive bag. (3) $h^*$ is consistent.
+
+</TheoremBlock>
+
+The harness checks the proposition by brute force on $300$ random bag worlds. On the corpus, a stating template is *forced* for its relation when some training bag has it as its only template outside $N$, and *free* otherwise. MIL's recall on the seen test is $0.892$ on mentions of forced templates and $0.534$ on free ones ($0.940$ and $0.486$ on the held-out test). The bag labels never ask for the free mentions, and Corollary 2 means the gradient does not either. Overall, MIL's sentence precision is $0.977$ and its recall $0.711$: F1 $0.823$, below distant supervision's $0.867$.
+
+### From mentions to facts
+
+A knowledge base needs facts, not sentence labels.
+
+<TheoremBlock type="definition" number={4} title="Aggregating mentions into facts">
+
+Score a fact $(h, r, t)$ by the **max** of $q(r \mid \varphi)$ over the mentions of $(h, t)$ (Mintz et al.'s and Hoffmann et al.'s deterministic OR) or by the **noisy-OR** $1 - \prod (1 - q(r \mid \varphi))$ over them, and predict the facts that score above $1/2$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={3} title="Noisy-OR dominates the max, and saturates">
+
+For probabilities $p_1, \dots, p_m$, $1 - \prod_i (1 - p_i) \ge \max_i p_i$, and if every $p_i \ge \varepsilon$ then $1 - \prod_i (1 - p_i) \ge 1 - (1 - \varepsilon)^m$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\prod_i (1 - p_i) \le 1 - p_{\max}$, since every other factor is at most $1$, and $\prod_i (1 - p_i) \le (1 - \varepsilon)^m$.
+
+</TheoremBlock>
+
+Noisy-OR is MIL's own likelihood, so MIL's mention probabilities are trained for it. A classifier trained sentence by sentence has no such calibration, and a pair co-mentioned many times accumulates its weak probabilities toward $1$. Scored against the world's facts among the pairs each test co-mentions, the distantly supervised classifier's fact precision is $0.892$ with the max and $0.719$ with noisy-OR on the seen test, and $0.701$ against $0.331$ on the held-out test, where six companies repeat many co-mentions. MIL keeps precision $1.000$ under noisy-OR. At the fact level MIL wins: F1 $0.935$ against distant supervision's $0.928$ (seen) and $0.978$ against $0.825$ (held out), each with its own aggregator. MIL gave up sentences it did not need to recover the facts.
+
+---
+
+## An incomplete knowledge base is positive-unlabeled
+
+So far the knowledge base has known every fact. Real ones do not, and Mintz et al. note that their held-out evaluation "suffers from false negatives". A mention of a pair the knowledge base forgot is labeled NA, so the NA class holds unlabeled positives.
+
+<TheoremBlock type="definition" number={5} title="An incomplete knowledge base">
+
+Each unordered entity pair that the world relates is known, with all of its facts, independently with probability $c$ and independently of the text. The mentions of an unknown pair are labeled NA.
+
+</TheoremBlock>
+
+This is Elkan and Noto's (2008) "selected completely at random" assumption, applied to pairs (Bekker and Davis 2020 call it SCAR).
+
+<TheoremBlock type="theorem" number={3} title="Incompleteness scales the optimum by c">
+
+Let $q^*$ be Theorem 1's optimum for the complete knowledge base and $q_c^*$ for the incomplete one. Then:
+
+1. $q_c^*(r \mid \varphi) = c\, q^*(r \mid \varphi)$ for every $r \in R$, and $q_c^*(\mathrm{NA} \mid \varphi) = 1 - c\,\big(1 - q^*(\mathrm{NA} \mid \varphi)\big)$;
+2. a template with $q^*(r \mid \varphi) = 1$ keeps $r$ under argmax if and only if $c \gt 1/2$;
+3. Elkan and Noto's estimator $e_1$, the mean of $g = 1 - q_c(\mathrm{NA} \mid \varphi)$ over labeled positives, has expectation $c\, \mathbb E[1 - q^*(\mathrm{NA} \mid \varphi) \mid \text{labeled}]$, which equals $c$ only if $q^*$ puts no mass on NA at the labeled positives.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(1) Off NA, the incomplete label is $\ell_c(r) = s\, \ell(r)$ with $s \sim \mathrm{Bernoulli}(c)$, independent of $\varphi$ given the pair. Conditioning on the pair, $\mathbb E[\ell_c(r) \mid \varphi] = c\, \mathbb E[\ell(r) \mid \varphi]$, and Theorem 1 applies; NA takes the remaining mass. (2) Argmax compares $c$ with $1 - c$. (3) $g = c\,(1 - q^*(\mathrm{NA}))$ by (1), averaged over the labeled positives.
+
+</TheoremBlock>
+
+Part (1) is Elkan and Noto's Lemma 1, $p(y = 1 \mid x) = p(s = 1 \mid x)/c$, at the level of pairs. Part (3) makes explicit what their proof assumes, that the labeled positives are certain positives. Distant supervision's own target is not: on co-mention positives it is $\rho$, below $1$, so $e_1 = 0.910$ for the complete knowledge base. Elkan and Noto recommend $e_1$; here it runs low.
+
+Part (2) predicts something surprising, and the **Incomplete KB** tab shows it. As $c$ falls, the classifier's relation mass falls in step ($0.867$ of the complete classifier's at $c = 0.9$, $0.374$ at $c = 0.4$, slightly below $c$ because the L2 prior shrinks the rarer signal more). Co-mention templates sit near Corollary 1's threshold and fall below it first, while stating templates hold until $c = 1/2$. So a *moderately* incomplete knowledge base raises distant supervision's sentence F1, from $0.867$ to $0.932$ at $c = 0.8$, before recall collapses ($0.664$ at $c = 0.6$, $0.249$ at $c = 0.4$). Dividing by the true $c$ restores recall to at least $0.958$ down to $c = 0.6$, and with it the co-mention false positives: F1 returns to about $0.87$.
+
+<TheoremBlock type="proposition" number={4} title="Held-out evaluation reports c times the precision">
+
+For a set $S$ of predicted facts chosen independently of which pairs the knowledge base knows, the expected precision measured against the incomplete knowledge base is $c$ times the precision against the world:
+
+$$
+\mathbb E\left[\frac{|S \cap \mathrm{KB}_c|}{|S|}\right] = c\, \frac{|S \cap W|}{|S|}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$|S|$ is fixed, and each true fact in $S$ lies in $\mathrm{KB}_c$ with probability $c$, so linearity of expectation gives the result. False facts are never in $\mathrm{KB}_c$.
+
+</TheoremBlock>
+
+From $c = 0.8$ down, every fact the incomplete-KB classifier predicts is true, yet scored against an independent knowledge base of the same rate its precision reads $0.799$ at $c = 0.8$ and $0.616$ at $c = 0.6$, as Proposition 4 predicts. Scored against the knowledge base it trained on, a case the proposition does not cover because the predictions depend on it, the readings are $0.751$ and $0.598$.
+
+---
+
+## Names the extractor never saw
+
+<FinanceCaseStudy title="Finance case study: from held-out names to a knowledge base">
+
+The named entity recognition topic held out six companies, one per sector, with their subsidiaries, officers, and products. Its headline tagger trained on $30$ documents about the other $18$ and found spans in documents about the six at F1 $0.979$. Here the relation classifiers train on all $300$ documents of that run, with gold spans, and we test on the same two corpora: $2{,}038$ candidates about the seen companies and $1{,}964$ about the held-out ones.
+
+<TheoremBlock type="definition" number={6} title="The extraction pipeline">
+
+For each test sentence take the tagger's spans. Link each span of a linked type (ORG, PERSON, GPE, SECTOR) to the knowledge-base entity whose name or alias it spells exactly, with matching type. Every ordered pair of linked predicted mentions is a candidate for the relation classifier, and facts aggregate as in Definition 4.
+
+</TheoremBlock>
+
+On gold spans, exact linking reproduces every gold link. A predicted triple is correct when both argument spans and types match a gold triple's and the relation does.
+
+<TheoremBlock type="proposition" number={5} title="A triple needs both of its arguments">
+
+End-to-end triple recall is at most the share of gold triples whose two arguments the tagger found exactly.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A correct predicted triple is built on two predicted mentions equal to the gold triple's arguments, so every true positive is among the gold triples whose arguments were both found.
+
+</TheoremBlock>
+
+**The extractor does not care whose names they are.** Its features never read an argument's words, so on gold spans it does as well on the held-out companies as on the seen ones: F1 $1.000$ with gold labels on both tests, and MIL $0.896$ against $0.823$. Every loss in the pipeline comes from recognition. With the tagger's spans the gold-trained classifier's recall is $0.920$ on the held-out test, exactly Proposition 5's bound, and $0.730$ on the seen one, also its bound. The seen test's bound is lower because its arguments include training-roster companies and officers that the tagger's $30$ training documents rarely or never covered: it misses $0.189$ of the organization arguments there, against $0.076$ on the held-out test. Distant supervision and MIL sit below the bound by their own sentence-level errors.
+
+**Names leak through the arguments.** Add the arguments' own words as features and distant supervision memorizes the knowledge base pair by pair: it labels $0.813$ of the seen test's related co-mentions with their knowledge-base relation, and only $0.304$ once the names are new. The same happens with the masked-LM topic's encoder states at the two entity starts, Baldini Soares et al.'s (2019) representation (they mark the entities in the input; we read the mentions' first tokens): $0.796$ against $0.264$. The state at a mention's first token mostly encodes the name, and with gold labels that costs the held-out test $0.030$ of F1 ($0.970$). It is the named entity recognition topic's lesson in a new place: a feature that identifies the entity lets the model answer from memory.
+
+**The knowledge base for the next topic.** MIL on the tagger's spans over the held-out companies, aggregated by its own noisy-OR, recovers the world's facts at precision $1.000$ and recall $0.957$; its $45$ facts above $1/2$ are all true. That set, with its scores, is what the knowledge-graph embeddings topic embeds.
+
+</FinanceCaseStudy>
+
+<RelationExtractionLab client:visible />
+
+---
+
+## Where this sits
+
+The named entity recognition topic returned spans; this page reads relations between them and aggregates the readings into facts. Its main theorem is a warning about the labels rather than the model: distant supervision teaches a classifier the knowledge base's opinion of each pair (Theorem 1), multi-instance learning trades sentence recall for fact precision (Theorem 2, Proposition 2), and an incomplete knowledge base shrinks everything by its keep rate (Theorem 3). The output is a set of scored triples over companies, officers, places, and sectors, whose relations are symmetric (COMPETES_WITH), inverse (SUBSIDIARY_OF and PARENT_OF), and composed (BASED_IN from HQ_IN and LOCATED_IN). The next topic, knowledge-graph embeddings, asks which geometric models can represent those patterns.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Theorems 1–3, Corollaries 1–2, and Propositions 1–5 are proved here in full. The harness checks Theorem 1 on random finite worlds by complex-step gradients and random perturbations, Theorem 2 and Corollary 2 by complex step, Proposition 2 by enumerating every hypothesis on random bag worlds, Theorem 3 and Proposition 4 by enumerating every incomplete knowledge base of a toy world, and Proposition 1 against the corpus's own count.
+2. **A templated corpus.** With sentence-level gold labels the extraction is perfect, so the page measures supervision, not reading. Co-mention sentences relate their pair $60\%$ of the time by design, which sets every $\rho$ in Corollary 1.
+3. **A guideline choice.** Whether a headquarters appositive states BASED_IN is the annotation guideline's call; we follow the corpus, which says no.
+4. **Population versus fit.** Theorem 1 is about the risk minimizer over all functions; the classifiers are linear and L2-regularized, and match it within $0.05$ per template.
+5. **Independent mentions.** Noisy-OR treats a pair's mentions as independent; repeated templates are not.
+6. **Forgetting at random.** Definition 5 forgets pairs completely at random, unlike real knowledge bases, where well-known entities are better covered. The corrected classifier divides by the true $c$; $e_1$ is biased here; each $c$ is one random knowledge base.
+7. **Easy linking.** Linking is exact string matching against a knowledge base that names every entity: no unlinkable mentions, no ambiguity.
+8. **One prior.** Every classifier is fit once at $\lambda = 1/n$, untuned.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports the topic's Python module, which owns every number on this page. It imports the named entity recognition topic's module for the test splits, the headline tagger and its predictions, and the masked-LM encoder's states, and through it the linear classifiers topic's softmax objective and the finance corpus with its knowledge base. Its harness checks:
+
+- Proposition 1's three sources against the corpus's own distant-supervision precision;
+- Theorem 1 on random finite worlds, and Corollary 1 on every frequent co-mention template;
+- Theorem 2 and Corollary 2 by complex step, the MIL objective's analytic gradient by complex step, and Proposition 2 by brute force;
+- Proposition 3 on every classifier's facts, Theorem 3 and Proposition 4 exactly on toys and across eight keep rates on the corpus;
+- Proposition 5's bound on both tests for every classifier, and every comparison this page states.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
