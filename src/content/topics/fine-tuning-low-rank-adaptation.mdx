@@ -1,0 +1,496 @@
+---
+title: "Fine-Tuning and Low-Rank Adaptation"
+subtitle: "A pretrained encoder can be read by a probe, rewritten by full fine-tuning, or nudged inside a low-rank subspace. The factored update's first step is a random sketch of the full one, its two factors conserve a hyperbola under gradient flow, and what fine-tuning never touches is what it forgets least. On a toy encoder, the full update turns out to be nearly low-rank, while LoRA forgets more than full fine-tuning"
+status: "published"
+difficulty: "advanced"
+prerequisites:
+  - "contextual-embeddings-masked-lm"
+  - "linear-text-classifiers"
+tags:
+  - "fine-tuning"
+  - "lora"
+  - "low-rank-adaptation"
+  - "linear-probe"
+  - "lp-ft"
+  - "catastrophic-forgetting"
+  - "intrinsic-dimension"
+  - "neural-tangent-kernel"
+  - "counterfactual-augmentation"
+  - "financial-text"
+domain: "classification-sentiment"
+financeCaseStudy: true
+rigorFlag: "Every measurement on this page comes from a 158,447-parameter encoder pretrained from scratch on 69,000 tokens of synthetic filings, not from a pretrained language model, so the LoRA findings describe this scale only. Forgetting is the rise of held-out masked-LM loss on the same filings, not lost downstream capability, and each method was run at one learning rate for three epochs: that every LP-FT run beats every LoRA run on accuracy and on forgetting is this grid's result, not a law. Theorem 1(d), for Adam's first step, is this page's own; the published rank-stabilization theorem is proved for SGD as the rank grows without bound, a limit a rank of at most 64 in dimension 64 never reaches. Theorems 2 and 3(a) are facts about gradient descent, and every encoder run uses Adam, which breaks both; the harness measures by how much. The intrinsic dimension comes from a three-point grid with a plain sign sketch rather than the Fastfood transform, and the kernel comparison holds in a regime where gradient descent barely trains. The counterfactual rows add exactly the sentence frame the negation test uses, so they show the encoder can read that frame, not that it generalizes to frames it never saw. The training set keeps every polar aspect and 1,500 of the 6,484 neutral ones, aspect spans are gold, and the notebook's harness runs in about two and a quarter minutes, past the 60 seconds the other topics keep."
+videoId: null
+notebookPath: "notebooks/fine-tuning-low-rank-adaptation/01_fine_tuning_low_rank_adaptation.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/fine-tuning-low-rank-adaptation.mdx"
+datePublished: 2026-10-25
+estimatedReadTime: 40
+abstract: "A pretrained encoder can be adapted to a task in three ways: read it with a classifier on frozen features, rewrite every weight, or move each weight matrix by a product of two thin factors, the low-rank adaptation called LoRA. We fine-tune the masked-LM encoder of Topic 12 on Topic 19's aspect sentiment, where the frozen probe reads 0.761 of the test aspects, an encoder that was never pretrained reads 0.951 after fine-tuning, and the pretrained one reads 0.970 to 0.989, with the gap concentrated in negated adjectives. The mathematics of the factored update is exact. Its gradient is the full gradient multiplied by the other factor, so from the standard zero start the first step is the full step pushed through a random rank-r map, and its size stays put as the rank grows only when the scale falls like one over the square root of the rank, under SGD in expectation and under Adam for every draw. Gradient flow conserves the difference of the factors' Gram matrices, a hyperbola in one dimension, and Adam does not. Full fine-tuning's update is nearly low-rank: truncating every matrix to rank 4 keeps 0.977 of its 0.989. Gradient descent moves a linear layer only along its training inputs, so the 419 tokens never seen in fine-tuning keep their embeddings exactly, and starting from the probe's head distorts the encoder less: LP-FT keeps the masked-LM loss near 1.9 where full fine-tuning reaches 2.7. LoRA, constrained to two matrix types, makes updates 17 times larger and forgets most of all. A random subspace step is unbiased, and the pretrained encoder learns more in every subspace tried; linearized fine-tuning is kernel gradient descent, which gradient descent from the probe's head follows and Adam leaves. Finally, the fine-tuned encoder reads negation but learns a shortcut that counterfactual rows remove, and read aspect by aspect, the filings give back their tone at 0.880 against a ceiling of 0.890, where document-level fine-tuning reaches 0.559."
+connections:
+  - topic: "aspect-based-sentiment"
+    relationship: "Topic 19's single attention layer cannot read negation (its Theorem 1(c)); the fine-tuned encoder here is the deep escape that topic pointed to, scored on its aspect rows and its negation quadruples."
+references:
+  - type: "paper"
+    title: "LoRA: Low-Rank Adaptation of Large Language Models"
+    authors: "Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen"
+    year: 2022
+    url: "https://openreview.net/forum?id=nZeVKeeFYf9"
+    note: "ICLR 2022 (arXiv:2106.09685). Section 4.1: A Gaussian, B zero, the scale α/r; Section 7.2: the small intrinsic rank of the update"
+  - type: "paper"
+    title: "A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA"
+    authors: "Damjan Kalajdzievski"
+    year: 2023
+    url: "https://arxiv.org/abs/2312.03732"
+    note: "arXiv:2312.03732. Theorem 3.2: under SGD, adapters are rank-stabilized if and only if the scale is Θ(1/√r), as r grows"
+  - type: "paper"
+    title: "Algorithmic Regularization in Learning Deep Homogeneous Models: Layers are Automatically Balanced"
+    authors: "Simon S. Du, Wei Hu, and Jason D. Lee"
+    year: 2018
+    url: "https://proceedings.neurips.cc/paper_files/paper/2018/hash/fe131d7f5a6b38b23cc967316c13dae2-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 31. Theorem 2.2: gradient flow conserves the difference of consecutive linear layers' Gram matrices; Appendix B, Claim B.1: the exact change in one step"
+  - type: "paper"
+    title: "On the Optimization of Deep Networks: Implicit Acceleration by Overparameterization"
+    authors: "Sanjeev Arora, Nadav Cohen, and Elad Hazan"
+    year: 2018
+    url: "https://proceedings.mlr.press/v80/arora18a.html"
+    note: "Proceedings of the 35th ICML, PMLR 80:244–53. Equations 7 and 9: balancedness at initialization persists under gradient flow"
+  - type: "paper"
+    title: "Fine-Tuning can Distort Pretrained Features and Underperform Out-of-Distribution"
+    authors: "Ananya Kumar, Aditi Raghunathan, Robbie Jones, Tengyu Ma, and Percy Liang"
+    year: 2022
+    url: "https://arxiv.org/abs/2202.10054"
+    note: "ICLR 2022. Theorem 3.3: the out-of-distribution lower bound for fine-tuning; Lemma A.3: features never move off the training span; Proposition 3.7: LP-FT on perfect features"
+  - type: "paper"
+    title: "Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning"
+    authors: "Armen Aghajanyan, Sonal Gupta, and Luke Zettlemoyer"
+    year: 2021
+    url: "https://doi.org/10.18653/v1/2021.acl-long.568"
+    note: "Proceedings of ACL-IJCNLP 2021, 7319–28. d₉₀, the least subspace dimension reaching 90% of fine-tuning, and the finding that pretraining lowers it"
+  - type: "paper"
+    title: "Measuring the Intrinsic Dimension of Objective Landscapes"
+    authors: "Chunyuan Li, Heerad Farkhoor, Rosanne Liu, and Jason Yosinski"
+    year: 2018
+    url: "https://arxiv.org/abs/1804.08838"
+    note: "ICLR 2018. Training in a random subspace θ₀ + Pz, with dense, sparse, and Fastfood projections"
+  - type: "paper"
+    title: "A Kernel-Based View of Language Model Fine-Tuning"
+    authors: "Sadhika Malladi, Alexander Wettig, Dingli Yu, Danqi Chen, and Sanjeev Arora"
+    year: 2023
+    url: "https://proceedings.mlr.press/v202/malladi23a.html"
+    note: "Proceedings of the 40th ICML, PMLR 202:23610–41. When prompt-based fine-tuning behaves as a kernel method, a sign-based kernel for Adam, and LoRA's kernel (Theorem 7.2)"
+  - type: "paper"
+    title: "Neural Tangent Kernel: Convergence and Generalization in Neural Networks"
+    authors: "Arthur Jacot, Franck Gabriel, and Clément Hongler"
+    year: 2018
+    url: "https://proceedings.neurips.cc/paper_files/paper/2018/hash/5a4be1fa34e62bb8a6ec6b91d2462f5a-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 31, 8571–80. The kernel JJᵀ that governs a network trained near its initialization"
+  - type: "paper"
+    title: "LoRA Learns Less and Forgets Less"
+    authors: "Dan Biderman, Jacob Portes, Jose Javier Gonzalez Ortiz, Mansheej Paul, Philip Greengard, Connor Jennings, Daniel King, Sam Havens, Vitaliy Chiley, Jonathan Frankle, Cody Blakeney, and John P. Cunningham"
+    year: 2024
+    url: "https://openreview.net/forum?id=aloEru2qCG"
+    note: "Transactions on Machine Learning Research, August 2024. LoRA against full fine-tuning on Llama-2-7B, with forgetting measured on HellaSwag, WinoGrande, and ARC-Challenge"
+  - type: "paper"
+    title: "Explicit Inductive Bias for Transfer Learning with Convolutional Networks"
+    authors: "Xuhong Li, Yves Grandvalet, and Franck Davoine"
+    year: 2018
+    url: "https://proceedings.mlr.press/v80/li18a.html"
+    note: "Proceedings of the 35th ICML, PMLR 80:2825–34. L2-SP, a penalty toward the pretrained weights"
+  - type: "paper"
+    title: "Overcoming Catastrophic Forgetting in Neural Networks"
+    authors: "James Kirkpatrick, Razvan Pascanu, Neil Rabinowitz, Joel Veness, Guillaume Desjardins, Andrei A. Rusu, Kieran Milan, et al."
+    year: 2017
+    url: "https://doi.org/10.1073/pnas.1611835114"
+    note: "Proceedings of the National Academy of Sciences 114, no. 13: 3521–26. Elastic weight consolidation, a Fisher-weighted penalty toward the old weights"
+  - type: "paper"
+    title: "Parameter-Efficient Transfer Learning for NLP"
+    authors: "Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin de Laroussilhe, Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly"
+    year: 2019
+    url: "https://proceedings.mlr.press/v97/houlsby19a.html"
+    note: "Proceedings of the 36th ICML, PMLR 97:2790–99. Adapters: small trained modules inside a frozen network"
+  - type: "paper"
+    title: "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+    authors: "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova"
+    year: 2019
+    url: "https://doi.org/10.18653/v1/N19-1423"
+    note: "Proceedings of NAACL-HLT 2019, 4171–86. Pretrain by masked-LM, then fine-tune every weight with a new head"
+  - type: "paper"
+    title: "Utilizing BERT for Aspect-Based Sentiment Analysis via Constructing Auxiliary Sentence"
+    authors: "Chi Sun, Luyao Huang, and Xipeng Qiu"
+    year: 2019
+    url: "https://doi.org/10.18653/v1/N19-1035"
+    note: "Proceedings of NAACL-HLT 2019, 380–85. The aspect as a second sentence for a fine-tuned encoder"
+  - type: "paper"
+    title: "Learning the Difference that Makes a Difference with Counterfactually-Augmented Data"
+    authors: "Divyansh Kaushik, Eduard Hovy, and Zachary C. Lipton"
+    year: 2020
+    url: "https://arxiv.org/abs/1909.12434"
+    note: "ICLR 2020. Minimally edited, label-flipping training examples against spurious features"
+  - type: "paper"
+    title: "Evaluating Models' Local Decision Boundaries via Contrast Sets"
+    authors: "Matt Gardner, Yoav Artzi, Victoria Basmov, Jonathan Berant, Ben Bogin, Sihao Chen, Pradeep Dasigi, et al."
+    year: 2020
+    url: "https://doi.org/10.18653/v1/2020.findings-emnlp.117"
+    note: "Findings of EMNLP 2020, 1307–23. Small label-changing edits of test examples, the method of the negation quadruples"
+  - type: "book"
+    title: "Introduction to the Non-Asymptotic Analysis of Random Matrices"
+    authors: "Roman Vershynin"
+    year: 2012
+    url: "https://doi.org/10.1017/CBO9780511794308.006"
+    note: "In Compressed Sensing: Theory and Applications, edited by Yonina C. Eldar and Gitta Kutyniok, 210–68. Cambridge University Press. Theorem 5.32 and Corollary 5.35: a Gaussian matrix's extreme singular values"
+formalmlPrereqs:
+  - topic: "svd"
+    site: "formalml"
+    relationship: "Its Theorem 2, the Eckart–Young–Mirsky theorem, says the truncated SVD is the best rank-r approximation of a matrix; Proposition 2 uses it to ask how much of full fine-tuning's update a rank-r update could have captured."
+  - topic: "representation-learning"
+    site: "formalml"
+    relationship: "Its Definition 9.1 is the linear probe, a classifier on frozen features, which is the first of this page's three adaptations and the head that LP-FT starts from."
+formalmlConnections:
+  - topic: "double-descent"
+    site: "formalml"
+    relationship: "Its Theorem 1, the Marchenko–Pastur limit, gives the spectrum a Gaussian matrix would have, the yardstick against which full fine-tuning's update is shown to be low-rank, and its lazy-training section is the regime of Proposition 5's kernel."
+  - topic: "information-geometry"
+    site: "formalml"
+    relationship: "Elastic weight consolidation replaces L2-SP's identity by the Fisher information, the Riemannian metric of that topic, so that a penalty toward the old weights is weighted by how much each direction mattered."
+formalstatisticsPrereqs:
+  - topic: "regularization-and-penalized-estimation"
+    site: "formalstatistics"
+    relationship: "Its Theorem 5, the correspondence between a penalty and a prior, makes L2-SP a Gaussian prior centered at the pretrained weights, and its Remark 4, ridge along the singular vectors, is Proposition 3's shrinkage of the fine-tuning displacement."
+formalcalculusPrereqs:
+  - topic: "jacobian"
+    site: "formalcalculus"
+    relationship: "Its Theorem 2, the multivariate chain rule, gives the factored gradient of Theorem 1(a) and the Jacobian J whose Gram matrix is Proposition 5's kernel."
+formalragConnections:
+  - topic: "dense-retrieval-dual-encoders"
+    site: "formalrag"
+    relationship: "Its Theorem 2 bounds the rank of the score matrix a dual encoder can produce; this page bounds the rank of a weight update instead, a different object with the same low-rank arithmetic."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import LowRankAdaptationLab from '../../components/viz/LowRankAdaptationLab.tsx';
+
+## Overview & Motivation
+
+The [aspect sentiment topic](/topics/aspect-based-sentiment) ended on a limit. One attention layer whose query is the aspect is a signed vote, and replacing one word by another moves the vote in a direction no context can reverse, so no such layer reads "sales were not weak this period". It pointed to the standard escape: a pretrained encoder, fine-tuned, in which every word's representation is already a function of its neighbors. This page does that. The encoder is the one the [masked-LM topic](/topics/contextual-embeddings-masked-lm) trained from scratch on synthetic filings: an $879$-word vocabulary, $32$ positions, width $d = 64$, two pre-LN blocks, $158{,}447$ parameters. The task is Topic 19's: read the polarity of a gold aspect, from the mean of the encoder's final states over the aspect's words.
+
+There are three ways to adapt a pretrained network to a task:
+- **Read it.** Train a classifier on its frozen features, the linear probe of formalML's `representation-learning`.
+- **Rewrite it.** Train every weight from the pretrained start with a new head (Devlin and colleagues 2019).
+- **Nudge it.** Freeze every weight and train a low-rank correction to each matrix (Hu and colleagues 2022).
+
+On $14{,}179$ test aspects, the probe reads $0.761$. The same encoder never pretrained, fine-tuned identically, reads $0.951$. The pretrained encoder, fine-tuned, reads $0.970$ to $0.989$ over three seeds. The gap between the last two is what pretraining buys, and most of it is negation: negated adjectives are read at $0.920$ to $0.991$ against $0.717$.
+
+The page proves what can be said exactly about the third way and measures the rest on this encoder, in order:
+
+1. **One weight, two factors.** What the factorization gives and costs.
+2. **The first step.** Why the scale must fall like $1/\sqrt r$.
+3. **What two factors conserve.** A hyperbola under gradient flow.
+4. **Is the update low-rank?** Full fine-tuning's answer.
+5. **What fine-tuning leaves alone.** The span lemma, probe-first fine-tuning, and forgetting.
+6. **Two lenses on why a small update suffices.** Random subspaces and kernels.
+7. **Reading negation in filings.** A shortcut, its repair, and document tone.
+
+---
+
+## One weight, two factors
+
+Start with one number. A weight $w_0$ is frozen, and the adaptation moves it by $s\,ab$, a product of two trained numbers $a$ and $b$ and a fixed scale $s$. Every update $\Delta w$ is reached along a whole curve of pairs, the hyperbola $ab = \Delta w/s$, so the parameters are not identified by the function they compute. If $b$ starts at $0$, the update starts at $0$. The matrix version is the same picture in higher dimension.
+
+<TheoremBlock type="definition" number={1} title="Low-rank adaptation">
+
+A layer maps a row vector $x \in \mathbb R^k$ to $xW$ with $W \in \mathbb R^{k \times m}$. Its **low-rank adaptation** freezes $W_0$ and trains
+
+$$W = W_0 + s\,AB, \qquad A \in \mathbb R^{k \times r},\ B \in \mathbb R^{r \times m},$$
+
+from $A_0$ with independent $N(0, \sigma^2)$ entries, $\sigma^2 = 1/k$, and $B_0 = 0$. The **scale** $s$ is $\alpha/r$ (Hu and colleagues) or $\alpha/\sqrt r$ (rank-stabilized, Kalajdzievski 2023), for a constant $\alpha$. A **probe** trains only a new head on frozen features; **full fine-tuning** trains every parameter.
+
+</TheoremBlock>
+
+Hu and colleagues write the transpose, for column vectors, with their $B$ zero and their $A$ random. We keep the roles: $A$ is the random factor and $B$ the one that starts at zero. Their text draws $A$ from a Gaussian; their reference code draws it from a uniform distribution.
+
+<TheoremBlock type="proposition" number={1} title="What the factorization buys and costs">
+
+**(a)** $\operatorname{rank}(s\,AB) \le r$, with $r(k + m)$ trained parameters in place of $km$.
+
+**(b)** $x(W_0 + s\,AB) = xW_0 + s\,(xA)B$, so after training the update merges into one matrix and inference costs nothing extra.
+
+**(c)** For every invertible $S \in \mathbb R^{r \times r}$, the pair $(AS, S^{-1}B)$ gives the same update, so the factors are not identified.
+
+**(d)** Two updates of rank $r$ can sum to rank $2r$, so the set of rank-at-most-$r$ updates is not a linear space.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The columns of $AB$ are combinations of the $r$ columns of $A$. (b) and (c) are associativity: $(AS)(S^{-1}B) = AB$. (d) If $A_1B_1$ and $A_2B_2$ have column spaces that meet only at $0$, their sum has rank $2r$.
+
+</TheoremBlock>
+
+On this encoder we adapt the query and value maps of both blocks, as Hu and colleagues do in most of their experiments. Each is a $64 \times 64$ matrix once the four heads sit side by side, so rank $16$ trains $8{,}192$ numbers of the encoder's $158{,}447$. The **One weight, two factors** tab draws the one-dimensional picture: the loss $\tfrac12(ab - 2)^2$ in the $(a, b)$ plane, and the paths of gradient descent and of Adam from $(a_0, 0)$.
+
+<LowRankAdaptationLab client:visible />
+
+---
+
+## The first step of a factored update
+
+Write $G = \partial L / \partial W$ for the gradient full fine-tuning would use at the current weights. The chain rule (formalCalculus `jacobian`, Theorem 2) gives the factors' gradients in terms of $G$, and at the zero start one of them vanishes.
+
+<TheoremBlock type="theorem" number={1} title="The factored gradient and the first step">
+
+**(a)** $\partial L/\partial A = s\,GB^\top$ and $\partial L/\partial B = s\,A^\top G$.
+
+**(b)** At $B = 0$, $\partial L / \partial A = 0$, and one SGD step of rate $\eta$ moves the weights by
+
+$$\Delta W_1 = -\eta\, s^2 A_0 A_0^\top G,$$
+
+the full step $-\eta G$ pushed through the random map $A_0A_0^\top$ of rank $r$.
+
+**(c)** $\mathbb E[A_0A_0^\top] = r\sigma^2 I$, so $\mathbb E\,\Delta W_1 = -\eta\, s^2 r \sigma^2 G$: under $s = \alpha/r$ the mean step shrinks like $1/r$, and under $s = \alpha/\sqrt r$ it does not depend on $r$. A single draw is noisy: $\mathbb E \lVert A_0A_0^\top - r\sigma^2 I \rVert_F^2 = r\sigma^4 k(k+1)$, a relative deviation of $\sqrt{(k+1)/r}$.
+
+**(d)** Adam's first step from zero moments, with its $\epsilon$ set to $0$, is the sign step $B_1 = -\eta \operatorname{sgn}(A_0^\top G)$, so $\Delta W_1 = -\eta\, s\, A_0 \operatorname{sgn}(A_0^\top G)$, and when no entry of $A_0^\top G$ is zero,
+
+$$\eta\, s \sqrt{rm}\ \sigma_{\min}(A_0) \le \lVert \Delta W_1 \rVert_F \le \eta\, s \sqrt{rm}\ \sigma_{\max}(A_0).$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) $W$ depends on $A$ through $s\,AB$, so a change $dA$ changes $L$ by $\langle G, s\, dA\, B\rangle = \langle s\,GB^\top, dA\rangle$; likewise $\langle G, s\,A\, dB\rangle = \langle s\,A^\top G, dB\rangle$.
+
+(b) At $B = 0$ the first gradient is $0$. The step sets $B_1 = -\eta s A_0^\top G$ and leaves $A$ at $A_0$, so $\Delta W_1 = s\,A_0 B_1$.
+
+(c) Write $a_1, \dots, a_r$ for the columns of $A_0$, so $A_0A_0^\top = \sum_l a_l a_l^\top$ and $\mathbb E[a_l a_l^\top] = \sigma^2 I$. The terms $a_la_l^\top - \sigma^2 I$ are independent with mean $0$, so the expected squared norm of their sum is $r\, \mathbb E\lVert aa^\top - \sigma^2 I \rVert_F^2 = r\,(\mathbb E\lVert a\rVert^4 - 2\sigma^2\, \mathbb E\lVert a \rVert^2 + k\sigma^4)$. For a Gaussian vector, $\mathbb E\lVert a\rVert^2 = k\sigma^2$ and $\mathbb E \lVert a \rVert^4 = (k^2 + 2k)\sigma^4$, which gives $r\sigma^4(k^2 + k)$. Dividing by $\lVert r\sigma^2 I\rVert_F^2 = r^2\sigma^4 k$ gives $(k+1)/r$.
+
+(d) Adam's first update is $m_1/(\sqrt{v_1} + \epsilon)$ with $m_1 = g$ and $v_1 = g^2$ after bias correction, which is $\operatorname{sgn}(g)$ when $\epsilon = 0$; the sign of $s\,A_0^\top G$ is the sign of $A_0^\top G$. Let $Q = \operatorname{sgn}(A_0^\top G)$, an $r \times m$ matrix of signs with columns $q_j$, $\lVert q_j \rVert^2 = r$. Then $\lVert A_0 Q\rVert_F^2 = \sum_j \lVert A_0 q_j\rVert^2$, and each term lies between $\sigma_{\min}(A_0)^2\, r$ and $\sigma_{\max}(A_0)^2\, r$.
+
+</TheoremBlock>
+
+For a Gaussian $A_0$ with $r \le k$, the singular values of $A_0/\sigma$ lie within $\sqrt k \pm \sqrt r$ in expectation (Vershynin 2012, Theorem 5.32, with the tail bound of Corollary 5.35). So under Adam $\lVert \Delta W_1 \rVert_F$ is about $\eta\, s\sqrt{rm}$: it stays put as $r$ grows only under $s = \alpha/\sqrt r$, for every draw. Kalajdzievski's Theorem 3.2 proves the general version for SGD, at every fixed step as $r \to \infty$; part (c) is its first step made exact, and part (d), for Adam, is ours.
+
+On the encoder, from the probe's head (at a zero head every encoder gradient is zero), we averaged $16$ draws of $A_0$ for each rank, with the same draws under both scales. Under Adam with $\alpha/\sqrt r$, the first step's size moves from $1.285$ at $r = 1$ to $1.626$ at $r = 64$. With $\alpha/r$ it falls to $0.203$, exactly $1/\sqrt r$ times the other. Under SGD with $\alpha/\sqrt r$, the mean step is $0.0057$ at every rank, but a single draw at $r = 1$ is $0.0428$, the factor $\sqrt{65} \approx 8$ of part (c), and it falls toward the mean, reaching $0.0081$ at $r = k = 64$. The **Rank and scaling** tab plots these, and what training made of them.
+
+Trained for three epochs at one rate, the scale decides the update's size more than its accuracy. Under $\alpha/\sqrt r$, the merged update $\lVert s\,AB\rVert_F$ grows from $28.4$ at rank $1$ to $61.8$ at rank $64$; under $\alpha/r$ it shrinks to $21.4$. The accuracies cross: $0.954$ against $0.947$ at rank $4$, $0.933$ against $0.956$ at rank $16$. Rank stability promises that the right learning rate does not move with $r$, not that one scale wins at a fixed rate.
+
+---
+
+## What two factors conserve
+
+Back in one dimension, gradient descent on $(a, b)$ for a loss of $w = s\,ab$ has $\dot a = -s\,b\,g$ and $\dot b = -s\,a\,g$ for the same scalar $g$, so $\tfrac{d}{dt}(a^2 - b^2) = 0$. The path never leaves the hyperbola it starts on, and from $(a_0, 0)$ that is $a^2 - b^2 = a_0^2$: the factor that started at zero can grow only as fast as the other.
+
+<TheoremBlock type="theorem" number={2} title="Balancedness">
+
+**(a)** Under gradient flow on $(A, B)$, $\tfrac{d}{dt}\,(A^\top A - BB^\top) = 0$. From $B_0 = 0$, $A^\top A - BB^\top = A_0^\top A_0$ for all time, and in particular $\lVert A\rVert_F^2 - \lVert B\rVert_F^2 = \lVert A_0\rVert_F^2$.
+
+**(b)** One gradient-descent step of size $\eta$ changes $A^\top A - BB^\top$ by exactly $\eta^2 s^2\,(BG^\top GB^\top - A^\top GG^\top A)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) By Theorem 1(a), $\dot A = -s\,GB^\top$ and $\dot B = -s\,A^\top G$. Then $\tfrac{d}{dt}(A^\top A) = \dot A^\top A + A^\top \dot A = -s\,(BG^\top A + A^\top G B^\top)$ and $\tfrac{d}{dt}(BB^\top) = \dot B B^\top + B \dot B^\top = -s\,(A^\top G B^\top + BG^\top A)$, the same matrix. Taking traces gives the norms.
+
+(b) With $A_1 = A - \eta s\, GB^\top$ and $B_1 = B - \eta s\, A^\top G$, expand $A_1^\top A_1$ and $B_1B_1^\top$. The terms linear in $\eta$ are equal, as in (a), and the quadratic terms are $\eta^2 s^2\, BG^\top G B^\top$ and $\eta^2 s^2\, A^\top G G^\top A$.
+
+</TheoremBlock>
+
+This is Theorem 2.2 of Du, Hu, and Lee (2018), for consecutive linear layers, and part (b) is their Claim B.1; Arora, Cohen, and Hazan (2018) use the same invariant (their Equation 9). Part (b) makes the drift $O(\eta^2)$ per step, so over a fixed time horizon it is $O(\eta)$. On a small least-squares problem, halving $\eta$ halves the drift at a fixed horizon: the slope against $\eta$ on log axes is $1.004$.
+
+Adam is not gradient descent. It divides every coordinate by its own running scale, and the invariant goes. Fine-tuning the encoder with Adam, the headline LoRA run ends with $A^\top A - BB^\top$ moved by $1.42$ times the size of $A_0^\top A_0$. Full-batch gradient descent from the same start keeps it to within $2.4 \times 10^{-6}$. In the lab, the Adam paths leave their hyperbolas at once.
+
+---
+
+## Is the update low-rank?
+
+Hu and colleagues hypothesized that the update full fine-tuning makes has a low intrinsic rank, which is why a rank-$r$ correction can stand in for it. We can ask full fine-tuning directly: take its update $\Delta W$ to each of the twelve block matrices (query, key, value, output, and the two MLP maps, in both blocks) and look at its singular values.
+
+<TheoremBlock type="proposition" number={2} title="Truncating the full update">
+
+For any $\Delta W$ with singular values $\sigma_1 \ge \sigma_2 \ge \cdots$, the truncated SVD $\Delta W_r$, which keeps the top $r$ singular triples, minimizes $\lVert \Delta W - M\rVert_F$ over all $M$ of rank at most $r$, with $\lVert \Delta W - \Delta W_r\rVert_F^2 = \sum_{i \gt r} \sigma_i^2$.
+
+</TheoremBlock>
+
+This is the Eckart–Young–Mirsky theorem, proved in full as Theorem 2 of formalML's `svd`. Two yardsticks say whether an update is low-rank. The first is a random matrix of the same size and the same Frobenius norm, whose largest singular value sits near $\tau(\sqrt k + \sqrt m)$ with $\tau = \lVert\Delta W\rVert_F / \sqrt{km}$, the edge of the Marchenko–Pastur law (formalML's `double-descent`, Theorem 1). The second is accuracy: merge the truncated update back in and score the result.
+
+For full fine-tuning's first seed, every one of the twelve updates has its top singular value $1.76$ to $3.72$ times above that edge, and a stable rank $\lVert\Delta W\rVert_F^2/\sigma_1^2$ between $2.06$ and $5.55$, out of a possible $64$. The accuracy confirms it. With every block update removed and only the fine-tuned embeddings and head kept, the model reads $0.480$; with every update truncated to rank $1$, $0.808$; to rank $2$, $0.929$; to rank $4$, $0.977$; to rank $8$, $0.987$; and the full update reads $0.989$. The **What full fine-tuning changed** tab shows the spectra and slides the truncation.
+
+So a rank-$4$ update exists that does nearly everything full fine-tuning does. LoRA trained at rank $4$ does not find it in three epochs: it reads $0.954$ under $\alpha/r$ and $0.947$ under $\alpha/\sqrt r$. The low-rank solution exists, and the factored parametrization does not reach it on this schedule.
+
+---
+
+## What fine-tuning leaves alone
+
+Gradient descent on a linear layer has a simple structure: the gradient of $W$ is a sum of outer products of the layer's inputs with the backpropagated signals, so every step lies in the span of the inputs the layer saw.
+
+<TheoremBlock type="theorem" number={3} title="What fine-tuning leaves alone">
+
+**(a)** Let a linear map $x \mapsto xW$ be trained by SGD on fixed inputs $x_1, \dots, x_n$, and let $S$ be their span. The columns of $W_t - W_0$ lie in $S$, so $vW_t = vW_0$ for every $v$ orthogonal to $S$.
+
+**(b)** In the encoder, an embedding row whose token never occurs in the fine-tuning inputs has zero gradient at every step, so it never moves, under SGD, under Adam, and under the L2-SP penalty of Proposition 3.
+
+**(c)** Let $f(x) = v^\top B x$ with $B \in \mathbb R^{k \times d}$ and $v \in \mathbb R^k$ be trained by gradient flow on squared loss, from $(B_0, v_0)$, on inputs spanning $S$, with targets $v_\ast^\top B_\ast x$. Then $B_t x = B_0 x$ for all $x \perp S$ and all $t$. If the features are perfect, $B_0 = UB_\ast$ for an invertible $U$, and $v_0$ is the probe's least-squares head, then the loss is $0$ at every input, in $S$ or not, for all $t$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The gradient of $\tfrac1n\sum_i \ell(x_iW)$ is $\tfrac1n\sum_i x_i^\top \delta_i$, with $\delta_i$ the gradient of $\ell$ at $x_iW$. Its columns lie in $S$, and so does every sum of such steps. For $v \perp S$, $v(W_t - W_0) = 0$.
+
+(b) The embedding gradient is a sum over input positions of the backpropagated signal at that position, scattered to the row of the position's token, so an absent token's row receives $0$ at every step. Adam's moments for that row then stay $0$, and its update $m/(\sqrt v + \epsilon)$ is $0$. L2-SP adds $\lambda(\theta - \theta_0)$, which is $0$ while the row sits at $\theta_0$, so by induction it stays there.
+
+(c) The flow is $\dot B = -v\,(XB^\top v - Y)^\top X$ up to a constant factor, with the inputs as rows of $X$, so $\dot B\, x = 0$ whenever $Xx = 0$: that is Kumar and colleagues' Lemma A.3. With perfect features, the head $v = U^{-\top}v_\ast$ fits the targets exactly, since $B_0^\top v = B_\ast^\top U^\top U^{-\top}v_\ast = B_\ast^\top v_\ast$. If the training features have full column rank, it is the unique least-squares head, so the probe returns it. Its residual on the training inputs is $0$, so both gradients are $0$, nothing moves, and the identity $B_0^\top v = B_\ast^\top v_\ast$ holds at every input.
+
+</TheoremBlock>
+
+Part (c) is the easy half of Kumar and colleagues' Proposition 3.7. The hard half, which we cite, is their Theorem 3.3: from a head that does not already fit, fine-tuning changes the features on $S$ while leaving them fixed off it, so the head it learns no longer matches the features of inputs off $S$, and the out-of-distribution error is bounded below. Their remedy is **LP-FT**: fit the probe first, then fine-tune everything from there. On a toy of their form, with $d = 10$, $k = 2$, and a training span of dimension $4$, the features never move off the span ($5 \times 10^{-15}$ at most), and the out-of-distribution loss stays at $1.6 \times 10^{-31}$ from the probe's head but reaches $6.85$ from a random one.
+
+On the encoder, part (b) is exact. The training rows leave $419$ of the $880$ token rows unseen; full fine-tuning moves exactly the other $461$ and none of the $419$, and LoRA moves no embedding at all. Part (a) is a gradient-descent fact. On a linear toy, SGD leaves the component of the update off the span at $2 \times 10^{-15}$, and Adam, with the same data, at $1.008$.
+
+Forgetting is what fine-tuning does to the pretrained skill, and we measure it as the rise of held-out masked-LM loss on test filings, from $1.523$ for the pretrained encoder. Full fine-tuning ends at $2.553$ to $2.759$ over three seeds. LP-FT, from the probe's head, ends at $1.889$ to $1.965$ while reading $0.975$ to $0.981$, as accurate as full fine-tuning ($0.970$ to $0.989$) and with less than half its forgetting. LoRA ends at $5.208$ to $5.705$ while reading only $0.911$ to $0.956$.
+
+That ranking contradicts Biderman and colleagues (2024), who found on Llama-2-7B that LoRA learns less and forgets less. Here it learns less and forgets more. Every LoRA run on this page, at every rank, scale, and rate, is beaten by every LP-FT run on both counts. The update sizes say why. Confined to the query and value maps, LoRA moves them by $\lVert s\,AB \rVert_F = 45.1$ at rank $16$, where full fine-tuning moves the same four matrices by $2.69$. At LoRA's rate, ten times full fine-tuning's (Biderman and colleagues report the same gap in their best rates), a small factored budget is spent on a large change to a few matrices. At a slower rate LoRA forgets less ($2.729$) and reads less ($0.935$).
+
+A third way to keep the pretrained skill is to penalize distance from it.
+
+<TheoremBlock type="proposition" number={3} title="L2-SP is a prior at the pretrained weights">
+
+The penalty $\tfrac\lambda2\lVert\theta - \theta_0\rVert^2$ is $-\log N(\theta;\, \theta_0, \lambda^{-1}I)$ up to a constant, so the penalized optimum is the MAP estimate under that prior. For a quadratic loss $\tfrac12(\theta - \theta_\ast)^\top H(\theta - \theta_\ast)$, the penalized optimum is
+
+$$\hat\theta = \theta_0 + (H + \lambda I)^{-1} H\,(\theta_\ast - \theta_0),$$
+
+which shrinks the full displacement $\theta_\ast - \theta_0$ by $h/(h + \lambda)$ along each eigenvector of $H$ with eigenvalue $h$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The Gaussian log-density is $-\tfrac\lambda2\lVert\theta - \theta_0\rVert^2$ plus a constant. Setting the gradient $H(\theta - \theta_\ast) + \lambda(\theta - \theta_0)$ to $0$ gives $(H + \lambda I)(\theta - \theta_0) = H(\theta_\ast - \theta_0)$. In the eigenbasis of $H$ both matrices are diagonal.
+
+</TheoremBlock>
+
+The first statement is Theorem 5 of formalStatistics' `regularization-and-penalized-estimation`, and the shrinkage is its Remark 4 on ridge seen through the SVD, here centered at $\theta_0$ instead of $0$. Li, Grandvalet, and Davoine (2018) introduced the penalty as L2-SP; they also penalize the new head toward $0$, which we do not. Elastic weight consolidation (Kirkpatrick and colleagues 2017) replaces $\lambda I$ by the Fisher information, the metric of formalML's `information-geometry`. L2-SP trades accuracy for retention: $\lambda = 0.1$ reads $0.905$ with loss $1.712$, and $\lambda = 1$ reads $0.757$ with loss $1.543$. Full fine-tuning at a third of its rate reads $0.920$ with loss $1.815$. LP-FT gets the retention without that price. The **Learning vs. forgetting** tab plots every run on these two axes.
+
+---
+
+## Two lenses on why a small update suffices
+
+LoRA restricts the update to a small set. Two older ideas explain why a small set can be enough, and both can be checked on this encoder.
+
+**A random subspace.** Li and colleagues (2018) trained networks inside a random subspace, $\theta = \theta_0 + Sz$ for a fixed $P \times D$ matrix $S$ and trained $z \in \mathbb R^D$, and called the least $D$ that reaches $90$ percent of ordinary training the intrinsic dimension. Aghajanyan, Gupta, and Zettlemoyer (2021) measured it for fine-tuning and found that pretraining lowers it. We use the cheapest such $S$.
+
+<TheoremBlock type="proposition" number={4} title="A random subspace step is unbiased">
+
+Let $S \in \mathbb R^{P \times D}$ have exactly one nonzero entry in each row, $\varepsilon_p = \pm 1$ with equal probability, in a column $h(p)$ uniform on $\lbrace 1, \dots, D\rbrace$, all independent. Then $(SS^\top)_{pp} = 1$, $\mathbb E[SS^\top] = I$, and for any gradient $g$, $\mathbb E\lVert S^\top g\rVert^2 = \lVert g \rVert^2$. A gradient step in $z$, $\Delta\theta = -\eta\, SS^\top g$, is the full step in expectation.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$(SS^\top)_{pq} = \varepsilon_p \varepsilon_q\, [h(p) = h(q)]$. On the diagonal this is $\varepsilon_p^2 = 1$. Off it, $\varepsilon_p\varepsilon_q$ has mean $0$ and is independent of the indicator. Then $\mathbb E\lVert S^\top g \rVert^2 = g^\top\, \mathbb E[SS^\top]\, g = \lVert g\rVert^2$, and the step's mean is $-\eta\, \mathbb E[SS^\top] g = -\eta g$.
+
+</TheoremBlock>
+
+This is the structure of Theorem 1(c) again, a random map whose mean is the identity. Li and colleagues normalize the columns of $S$ instead, and Aghajanyan and colleagues use the Fastfood transform with learned per-layer scales, but Adam's per-coordinate scaling makes the column scale immaterial to training. Inside subspaces of dimension $64$, $512$, and $4{,}096$, out of $157{,}568$ encoder parameters, the pretrained encoder reads $0.754$, $0.820$, and $0.870$, and the never-pretrained one $0.722$, $0.786$, and $0.823$. Neither reaches $90$ percent of its own full fine-tuning ($0.885$ and $0.856$) on this grid, so both intrinsic dimensions exceed $4{,}096$. The pretrained encoder leads at every dimension tried, which is Aghajanyan and colleagues' direction, measured.
+
+**A kernel.** Near its starting point a network is close to its linearization, $f_{\text{lin}}(x; \theta) = f(x; \theta_0) + J(x)(\theta - \theta_0)$, where $J(x)$ is the Jacobian of the outputs at $\theta_0$.
+
+<TheoremBlock type="proposition" number={5} title="Linearized fine-tuning is kernel gradient descent">
+
+Let $K = J(X)J(X)^\top$ over training pairs (example, output), $K(x, X) = J(x)J(X)^\top$, and let $\ell$ be any differentiable loss of the training outputs. Gradient descent on $\theta$ for $f_{\text{lin}}$ with rate $\eta$ moves the outputs by
+
+$$f(X) \leftarrow f(X) - \eta\, K\, \nabla_f \ell, \qquad f(x) \leftarrow f(x) - \eta\, K(x, X)\, \nabla_f \ell.$$
+
+For squared loss, $f_t(X) - Y = (I - \eta K)^t\,(f_0(X) - Y)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The gradient of $\ell(f_{\text{lin}}(X; \theta))$ in $\theta$ is $J(X)^\top \nabla_f\ell$, so a step moves $\theta$ by $-\eta J(X)^\top \nabla_f \ell$, and since $f_{\text{lin}}$ is affine in $\theta$, any output moves by $J(\cdot)$ times that. For squared loss, $\nabla_f\ell = f(X) - Y$, and the recursion is linear.
+
+</TheoremBlock>
+
+<TheoremBlock type="corollary" number={1} title="LoRA's kernel">
+
+At $B = 0$, LoRA's kernel over its trained factors is $K_{\text{LoRA}}(x, x') = s^2 \sum_W \operatorname{tr}\big(G_x^\top A_0A_0^\top G_{x'}\big)$, summed over the adapted matrices, where $G_x$ is the gradient of an output at $x$ with respect to $W$. Its mean over $A_0$ is $s^2 r\sigma^2$ times the kernel of the adapted matrices themselves.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Theorem 1(a), at $B = 0$ an output's gradient in $A$ is $0$ and in $B$ is $s\,A_0^\top G_x$, so the kernel is $\sum_W \langle s\,A_0^\top G_x,\ s\,A_0^\top G_{x'}\rangle$. Its mean follows from $\mathbb E[A_0A_0^\top] = r\sigma^2 I$ (Theorem 1(c)).
+
+</TheoremBlock>
+
+The kernel is the neural tangent kernel of Jacot, Gabriel, and Hongler (2018). Malladi and colleagues (2023) asked when fine-tuning a language model behaves like gradient descent with it, found that prompt-based fine-tuning often does, and proved that LoRA's kernel is close to the full one with high probability (their Theorem 7.2), the concentrated form of Corollary 1. The lazy-training section of formalML's `double-descent` is the regime in general.
+
+A zero head has a zero Jacobian, so we linearize LoRA (rank $16$, query and value maps) around LP-FT's start, the probe's head held fixed, on $120$ training rows. Kernel gradient descent and the real LoRA model trained by full-batch gradient descent for $300$ steps agree on $0.992$ of $240$ test rows, end at training losses $0.5990$ and $0.5989$, and the kernel moves by $6.5$ percent. But at a stable rate, gradient descent barely trains: the loss falls only from $0.620$. Adam, from the same start, drives the training loss to $5.2 \times 10^{-5}$, its kernel moves by $169$ percent, it agrees with the kernel predictor on $0.658$ of test rows, and its test accuracy falls from $0.767$ to $0.621$. Malladi and colleagues describe Adam's early steps with a kernel built from signs; on $120$ rows, Adam does not stay in any kernel regime for long.
+
+---
+
+## Reading negation in filings
+
+<FinanceCaseStudy title="Finance case study: a shortcut, its repair, and the tone of a filing">
+
+Topic 19 built contrast sets for negation. Take each of the $302$ test sentences of the form "T was not ADJ this period", set the adjective to each pair of a positive and a negative adjective, and either keep or delete "not". That gives $18{,}120$ quadruples, scored here on a fixed sample of $2{,}000$. A reader passes a quadruple when it reads all four sentences. No single-token attention layer can pass one; the fine-tuned encoder passes almost none either, for a different reason.
+
+| sentence | full FT, 3 seeds |
+|---|---|
+| T was not ADJ₊ | $0.944$ to $1.000$ |
+| T was not ADJ₋ | $0.926$ to $1.000$ |
+| T was ADJ₊ | $0.007$ to $0.408$ |
+| T was ADJ₋ | $0.000$ to $0.172$ |
+
+The encoder reads both negated forms. It fails the sentences with "not" deleted, which it mostly calls neutral. In the training filings the frame "T was ADJ this period" occurs only with "not", so the encoder has learned the frame as well as the word. The test is in distribution for the negated half and out of it for the other. Contrast sets (Gardner and colleagues 2020) find exactly this.
+
+Counterfactual augmentation (Kaushik, Hovy, and Lipton 2020) adds minimally edited, relabeled training examples. Here that means the $310$ training sentences of the negated form with "not" deleted and the polarity flipped back. Trained with them, every seed of full fine-tuning reads all four positions of every sampled quadruple, $1.000$. LP-FT with them passes $0.890$ of the quadruples, LoRA $0.010$. The rows teach the frame the test uses, so this shows the encoder *can* read negation compositionally in it, not that it generalizes to frames it never saw. The **Reading negation** tab shows every reader by construction and the quadruples before and after.
+
+The tone of a filing follows. Topic 19's Proposition 2 says that tone given the polarities of a filing's tone-bearing sentences is the corpus's Bayes ceiling, $0.890$ on the $1{,}500$ test filings. Read by the fine-tuned aspect reader and aggregated by that rule, the filings give back their tone at $0.880$, within two standard errors of the ceiling. Fine-tuned on the document labels directly, the same encoder reads tone at $0.559$, below Topic 17's unigram logistic regression ($0.739$), Topic 18's lexicon readers ($0.637$ and $0.724$), and bigram regression ($0.771$). The never-pretrained encoder, fine-tuned the same way, reads $0.536$. The supervision has to match the structure: $1{,}500$ document labels cannot teach an encoder of this size a per-sentence exclusive-or through a mean over $230$ tokens, and $9{,}283$ aspect labels can.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this sits
+
+LoRA is one of a family of parameter-efficient methods. Adapters (Houlsby and colleagues 2019) insert small trained modules instead of correcting the weights, and the methods differ in where the small set lives, not in the questions this page asked of it. The page's answers on one toy encoder:
+- the factored step is a random sketch of the full one;
+- the factors are balanced only under gradient descent;
+- the full update is nearly low-rank, while the factored parametrization does not find it on a short schedule;
+- probe-first fine-tuning keeps what pretraining learned better than LoRA does.
+
+Sun, Huang, and Qiu (2019) gave the encoder the aspect as a second sentence. Our reader takes the aspect's own contextual states instead, which fits Topic 19's definition and read better than a pair input averaged over every position when we prototyped both. The extraction topics fine-tune the same kind of encoder for span labeling, and formalRAG's `dense-retrieval-dual-encoders` bounds the rank of a dual encoder's scores, where this page bounded the rank of an update.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Propositions 1, 3, 4, and 5, Corollary 1, Theorems 1 and 2, and the parts of Theorem 3 that we prove are proved here in full and checked by the harness on random instances. Proposition 2 is cited from formalML, and the out-of-distribution bound behind Theorem 3(c) is cited from Kumar and colleagues.
+2. **A toy encoder.** The encoder has $158{,}447$ parameters, pretrained from scratch on $69{,}000$ tokens of synthetic filings. The LoRA findings, including that it forgets more than full fine-tuning, describe this scale.
+3. **One meaning of forgetting.** Forgetting is held-out masked-LM loss on the same filings, not lost downstream capability. Each method ran at one rate for three epochs (LoRA at ten times full fine-tuning's), so "every LP-FT run beats every LoRA run" is this grid's result.
+4. **Theorem 1(d) is ours.** The published rank-stabilization theorem is proved for SGD as $r \to \infty$; ranks up to $64$ in dimension $64$ never reach that limit, and at a fixed rate neither scale wins on accuracy.
+5. **Gradient-descent facts, Adam runs.** Theorems 2 and 3(a) hold for gradient descent. Every encoder run uses Adam, which breaks both, as measured. Theorem 3(b) survives Adam.
+6. **Empirical lenses.** The intrinsic dimension rests on a three-point grid with a sign sketch, and neither encoder reaches it. The kernel comparison holds in a regime where gradient descent barely trains.
+7. **The repair teaches the test.** The counterfactual rows add exactly the frame the quadruples use.
+8. **A subsampled training set, gold spans.** Training keeps every polar aspect and $1{,}500$ of the $6{,}484$ neutral ones. Spans are gold, and full fine-tuning's three seeds spread over $0.970$ to $0.989$.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `fine_tuning_low_rank_adaptation.py`, which owns every number on this page. That module imports the masked-LM topic's module for the encoder, its training run, its corruption channel, and its vocabulary. It imports the aspect sentiment topic's module for the aspect rows, the constructions, the contrast sets, the tone-bearing sentences, and, through it, the linear classifiers topic's Newton solver and the document baselines. The encoder's backward pass is lifted from the masked-LM training loop and pinned equal to it, and its attention is rewritten as flattened matrix products, pinned equal to the transformer topic's. The harness checks:
+
+- every gradient against central differences;
+- Theorem 1's identities exactly, its means and the fluctuation law by Monte Carlo, and Adam's bounds on random instances;
+- Theorem 2's one-step identity and its drift's order;
+- Proposition 3's shrinkage, Proposition 4's moments, and Proposition 5 and Corollary 1 on random linear models;
+- Theorem 3 on the linear toys and, for the embeddings, on every fine-tuning run;
+- every comparison this page states, across the $31$ fine-tuning runs.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

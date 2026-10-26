@@ -61,9 +61,7 @@ export const tracks = [
     layer: 'Tasks',
     description:
       'Labeling documents: generative versus discriminative linear classifiers, lexicon-based financial sentiment, aspect-level sentiment, and low-rank fine-tuning.',
-    planned: [
-      'Fine-Tuning and Low-Rank Adaptation',
-    ],
+    planned: [],
     dependsOnFormalML: false,
   },
   {
