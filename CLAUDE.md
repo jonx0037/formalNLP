@@ -151,7 +151,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - `TheoremBlock` titles carry no citations; attribute the result in the surrounding prose. Number each
   type separately (Theorems 1–3, Propositions 1–3, Corollaries 1–2), and use the same numbers in the
   brief, the `.py` docstrings, and the notebook: Topic 16's brief numbered in one sequence and had to be
-  renumbered everywhere at Phase B.
+  renumbered everywhere at Phase B. Fix the brief's numbers in the order the page will present them: Topic 21's draft
+  page put decoding risk (Thm 4) second, and the section was moved rather than renumbering three files.
+  `type="algorithm"` is a numbered block too.
 - Markdown tables render `display: block; overflow-x: auto`, and `$…$` cells never wrap, so a wide table
   scrolls even at desktop width (the prose box is 704 px). Keep headers short and define them in the
   sentence above; put the long axis down the rows.
@@ -283,6 +285,29 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   η = n/λ_max, GD barely trains in 300 steps (loss 0.620 → 0.599), while Adam memorizes 120 rows and leaves the
   kernel (K moves 169%). Topic 20's harness runs ≈ 2¼ min: the README's 60 s rule was waived for that topic only, by
   Jonathan.
+- Sequence labeling on corpus models (Topic 21). Topic 12's HMM is nearly deterministic (each state owns three tokens:
+  Bayes tagging accuracy 0.995, flat learning curves); blend its emissions toward uniform (ε = 0.3 → Bayes 0.782). A
+  world whose word comes from the *next* state (ρ = 0.5) misspecifies the HMM but keeps the Bayes tagger a chain: fold
+  each word's emission into the edge it straddles. A prefix chain must marginalize the unseen next state out of its
+  last word ((1 − ρ)B + ρ·TB); truncating the full chain silently drops x_{e−1} (lag-0 Bayes read 0.425, truly 0.743).
+  CRF fitting: exact Hessian-vector products by complex step need a log-sum-exp shifted by the *real* part's max; at
+  n = 1,000 near-separable sequences trust-ncg takes ~150 Hv (8 s), while L-BFGS with `ftol = 0, gtol = 10⁻⁶` lands
+  within 2.4·10⁻⁵ in 2 s with identical decodes (pin the gap in a test). Validation-best λ tracked 1/n at every n, and
+  λ = 1/n on the mean objective is MAP under N(0, I): fit once, untuned. Add-1 cost the finance HMM 2–5 points (a
+  uniform Dirichlet over ~500 words), so tune α (closed form, free). The indicator CRF beat the HMM on conditional
+  log-loss but not accuracy in the misspecified world: report log-loss whenever a claim is about conditional MLE.
+  Prop 2 (an MEMM's marginals ignore words past its lookahead) binds posterior decoding only: a causal MEMM decoded by
+  Viterbi beat the lag-0 Bayes ceiling (0.758 vs 0.743), since future factors sum to one but their max varies. A CRF's
+  revision decays with distance (the last word moved z₁ by 3·10⁻⁵). Finance BIO: entity spans are character offsets,
+  token index = `len(fc._tokens(text[s:start]))`; no span crosses a sentence or cuts a token, sentences are ≤ 31
+  tokens, `million`/`percent` occur only inside entities (MONEY/PERCENT trivial), and at 300 training documents the
+  perceptron tags test text perfectly, so the informative regime is 3–30 documents, where nearly every error is an
+  unseen name (#22's subject). The templates let the left context settle "the" (causal MEMM 0.997), so show label bias
+  on in-vocabulary counterfactual continuations instead. A unit-norm teacher over ~30 weights gives margins of
+  0.03–0.3, and rejection sampling for a larger margin hangs (one teacher stream had none above 0.06): enumerate all
+  V^T inputs once and draw from those above the threshold. Pick a lab's example path with a unique mode: the first
+  candidate had two Viterbi paths tied to 2.5·10⁻¹⁷. Store max-marginals relative to the mode (the mode's probability,
+  1.1·10⁻⁴, rounds to 0.000).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -321,7 +346,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   equal to Topics 11–12 at 10⁻¹¹, and cut a run from 4.2 to 2.4 s. Topic 20's `fine_tune(cfg)` takes ~1.8 s, plus ~0.6 s
   for `evaluate`; its 31 runs, `ntk_experiment` (~10 s), and `doc_fine_tune` (~5 s each) make up the ≈ 2¼ min harness.
   `encoder_backward`, `aspect_loss_grad`, `lora_grads`, `first_step`, `balance`/`gd_drift`, `sketch_matrix`,
-  `kernel_gd`, `tone_from`, and `doc_windows` are reusable.
+  `kernel_gd`, `tone_from`, and `doc_windows` are reusable. Topic 21's harness takes ~45 s (`world_curves` ~10 s per
+  world, `memm_table` ~4 s, `fin_models` ~13 s for 3/10/30 documents); `chain_forward`/`chain_backward` (either
+  semiring), `chain_marginals`, `max_marginals`, `viterbi`, `path_score`, `brute_force`, `hmm_fit` (with an end state),
+  `make_data` (length buckets), `crf_objective`/`crf_hessp` (complex-step safe), `crf_fit_lbfgs`, `memm_fit` (Topic
+  17's `lr_fit` on token rows), `perceptron` (averaged), `hmm_from_crf`, `bio_sentences`, `spans`/`span_f1`, and
+  `world_chain`/`lagged_bayes` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -329,6 +359,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   fixed integers, and share the batch-order stream across methods per seed (common random numbers).
 - Run the harness once with `python -W error`. Under macOS Accelerate, `np.linalg.det`/`slogdet` on
   large sparse block matrices raise spurious FP flags — check such determinants block by block.
+  Keep `_run_harness` and the `__main__` block last in the `.py`: Topic 21 appended sections after them, and an edit
+  that truncated the file at `def _run_harness` deleted those sections silently (the next run failed on a NameError).
 - Test a published bound's stated constant on adversarial instances before citing it (Chen et al.
   2023's PI bound fails as stated for d ≤ 128). Recompute a paper's headline from its printed parameters:
   Hoffmann et al.'s rounded Eq. 10 gives 32B at Gopher's budget, not their 40B (the unrounded values,
@@ -371,6 +403,16 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   - **Davidson and Szarek (2001).** The handbook chapter is paywalled, so its theorem number cannot be verified. Cite
     Vershynin (2012), Thm 5.32 and Cor 5.35, for a Gaussian matrix's √N ± √n singular values.
   - **Jacot et al. (2018).** The NTK title carries the subtitle "Convergence and Generalization in Neural Networks".
+  Topic 21 citation facts:
+  - **Smith and Johnson (2007).** Cor 2 (HMM conditionals = chain-MRF conditionals) is for Mealy features, by Chi's
+    method; Lemma 1 and Thm 2 give C_MEMM ⊊ C_HMM. The Moore-feature converse (an indicator CRF is some HMM's
+    conditional) is Topic 21's own h-transform proof: h = (cI − M)⁻¹e^η for c > ρ(M), and it needs an end state.
+  - **Sutton and McCallum (2012).** §2.3 proves HMM → CRF and calls the converse "more complicated"; §5.1.3 is MEMMs and
+    label bias, with the caveat that copying later words into the features buys them back.
+  - **Collins (2002), W02-1001.** Thm 1 is the separable bound R²/δ²; Thm 2 the non-separable one; §2.5 averaging.
+  - **McCallum, Freitag, and Pereira (2000).** No DOI, and ACM's page returns 403: cite the author's copy,
+    people.cs.umass.edu/~mccallum/papers/memm-icml2000.ps (pages 591–98 from Sutton and McCallum's bibliography).
+  - **Klein and Manning (2002)** is W02-1002. formalStatistics `exponential-families` Thm 1 is one-parameter only.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -400,8 +442,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Cover agentic topics (MCP, tool calling, workflows, agent security) — reserved for formalAgentic.
 - Cite a sibling slug without checking it exists **and** is `status: published` on the sibling's
   GitHub `main` — a local sibling checkout can lag or sit on another branch. Check what it covers, too:
-  formalML `message-passing` is GNNs, with no max-product or Viterbi, and as of 2026-10-24 no published
-  sibling covers Viterbi (formalStatistics `hidden-markov-models` is still draft). The design's
+  formalML `message-passing` is GNNs, with no max-product or Viterbi. formalStatistics `hidden-markov-models`
+  (published 2026-10-25) proves the forward recursion, forward–backward, Viterbi, and Baum–Welch (Thms 5–10) and names
+  CRFs only in Rem 23; no sibling covers CRFs, MEMMs, or the structured perceptron (2026-10-26). The design's
   watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
