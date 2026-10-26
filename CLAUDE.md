@@ -94,8 +94,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - **`pnpm build` passing ≠ math correct.** KaTeX is non-strict: parse errors render as
   `.katex-error` spans and the build still exits 0. Open the page and assert zero `.katex-error`.
 - MDX: a bare `<` is JSX — use `\lt`/`\gt` in math, backtick `<s>`/`</s>`/`<unk>`. Long inline
-  number lists get one `$…$` per number (one KaTeX span can't wrap); at the mobile preset assert
-  `innerWidth === 375`. Smart quotes turn an apostrophe right after `)` or `$…$` into an opening
+  number lists get one `$…$` per number (one KaTeX span can't wrap), and a long inline formula goes to display math
+  (Topic 22's proof of Thm 1 widened the page to 483 px); at the mobile preset assert `innerWidth === 375`. Smart quotes turn an apostrophe right after `)` or `$…$` into an opening
   quote, a link's closing `)` included ("[Zipf topic](/topics/…)'s"): write "the score of head $h$" or
   "the event that $G$ measures", not "$h$'s score", and assert the built page's text has no `‘`. A shell
   grep for `\$'s` silently misses it (quoting): search the MDX with Python `re`.
@@ -283,8 +283,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   √((k+1)/r) away. No count sketch with D ≤ 4,096 reaches d₉₀. For the NTK, per-example Jacobians come from single-row
   backward passes; take the training rows at one length, so each full-batch step is one batch. At the stable rate
   η = n/λ_max, GD barely trains in 300 steps (loss 0.620 → 0.599), while Adam memorizes 120 rows and leaves the
-  kernel (K moves 169%). Topic 20's harness runs ≈ 2¼ min: the README's 60 s rule was waived for that topic only, by
-  Jonathan.
+  kernel (K moves 169%). Topic 20's harness runs ≈ 2¼ min: the README's 60 s rule was waived for that topic, by
+  Jonathan (and later for Topic 22).
 - Sequence labeling on corpus models (Topic 21). Topic 12's HMM is nearly deterministic (each state owns three tokens:
   Bayes tagging accuracy 0.995, flat learning curves); blend its emissions toward uniform (ε = 0.3 → Bayes 0.782). A
   world whose word comes from the *next* state (ρ = 0.5) misspecifies the HMM but keeps the Bayes tagger a chain: fold
@@ -308,6 +308,29 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   V^T inputs once and draw from those above the threshold. Pick a lab's example path with a unique mode: the first
   candidate had two Viterbi paths tied to 2.5·10⁻¹⁷. Store max-marginals relative to the mode (the mode's probability,
   1.1·10⁻⁴, rounds to 0.000).
+- Named entities on corpus models (Topic 22). `fc.split_roster()` holds out one company per sector (with subsidiaries,
+  officers, flagship products): train on the first 30 docs of `generate_corpus(300, 0, roster=train)`, test on
+  `(200, 1)` with each roster. Every held-out ORG/PERSON/PRODUCT mention has an unseen word, but so do 214 of 3,747
+  seen-roster spans at 30 docs (rarely covered companies, cities), so report F1 on unseen *mentions* (filter gold and
+  predicted spans by their own words) beside the two tests. The word-feature CRF memorizes names: held-out ORG F1 is
+  exactly 0, even in "X reported revenue of". Name dropout must *delete* a dropped token's word/affix features and
+  every neighbor's feature naming it: substituting a shared `<unk>` makes it a feature seen only on entities, whose O
+  weight is negative at the L2 optimum (Prop 5: nλW[f,k] = Σ(1[z=k] − γ(k)), and Σ_k W[f,k] = 0), so precision
+  collapses (0.48) on every unseen content word; deletion raised both tests (seen 0.945 → 0.975, unseen 0.642 →
+  0.890). At p = 1 deletion also hides closed-class entity words (million, percent, quarter) and falls back. Topic 12's
+  encoder was pretrained on the full roster (35 of 49 held-out name words are in its vocabulary); the encoder cannot
+  delete, so dropped tokens enter as [UNK], and that pays only if unseen words are read as [UNK] at test too ("train as
+  you test": 0.884 by id, 0.979 as [UNK]); without dropout the [UNK] reading lowers the score. Read each sentence alone
+  with a trailing [SEP] (sentences are ≤ 31 tokens). `fc._tokens` lowercases: take case from the raw text with
+  `re.findall(r"[A-Za-z]+", text[s:e])`, which aligns with it token for token; one "cap" feature reaches 0.920 on the
+  held-out test. On frozen states a softmax head decodes invalid BIO in 10–15% of sentences and trails the CRF by
+  0.09–0.11 even constrained; BIOES gained nothing (features see the neighbors). Overlapping spans are exclusive
+  events (q_a + q_b ≤ 1), so a threshold τ ≥ 1/2 needs no interval program; skipping it for disjoint candidates cut
+  the threshold sweeps from 19.5 to 6 s. Theorem 3's F*/2 is optimal for the model's beliefs: where the realized F1
+  peaks (above 1/2 for the overconfident `<unk>` tagger, 0.38 vs F*/2 = 0.458 for the headline) measures
+  miscalibration. A softmax head by Topic 17's `lr_fit` (trust-ncg, gtol 10⁻¹⁰) on 6k dense rows took 37 s; L-BFGS
+  on `ltc.lr_objective` with dense X takes ~1 s. Topic 22's harness runs ≈ 82 s: the 60 s rule was waived for it by
+  Jonathan, as for Topic 20. In a TSX block comment, "F*/2" closes the comment (`*/`) and tsc reports a parse error.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -351,7 +374,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   semiring), `chain_marginals`, `max_marginals`, `viterbi`, `path_score`, `brute_force`, `hmm_fit` (with an end state),
   `make_data` (length buckets), `crf_objective`/`crf_hessp` (complex-step safe), `crf_fit_lbfgs`, `memm_fit` (Topic
   17's `lr_fit` on token rows), `perceptron` (averaged), `hmm_from_crf`, `bio_sentences`, `spans`/`span_f1`, and
-  `world_chain`/`lagged_bayes` are reusable.
+  `world_chain`/`lagged_bayes` are reusable. Topic 22's harness takes ≈ 82 s (Topic 12's pretraining, 21 s, runs
+  inside `ner.encoder()` and is not cached across processes; 18 CRF fits ≈ 42 s); `tagset`/`encode`/`decode`/`masks`/
+  `is_valid` (BIO and BIOES), `constrain` (Thm 1's −∞ masks), `span_marginals`, `interval_dp`, `f1_decode`
+  (Dinkelbach), `prf` (four match schemes)/`micro_mixture`, `build` (Topic 21's `Data` from dense or sparse rows),
+  `states` (encoder states per sentence), `ner_sentences` (BIO plus case), and `word_features` (substitute or delete
+  dropout) are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -413,6 +441,20 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   - **McCallum, Freitag, and Pereira (2000).** No DOI, and ACM's page returns 403: cite the author's copy,
     people.cs.umass.edu/~mccallum/papers/memm-icml2000.ps (pages 591–98 from Sutton and McCallum's bibliography).
   - **Klein and Manning (2002)** is W02-1002. formalStatistics `exponential-families` Thm 1 is one-parameter only.
+  Topic 22 citation facts:
+  - **Lipton, Elkan, and Naryanaswamy (2014).** The F*/2 threshold is **Corollary 1** of Thm 1 (calibrated scores, F1 as a
+    ratio of population rates); expected F1 is their Thm 2. LNCS 8725 (ECML PKDD Part II), 225–39. arXiv 1402.1892v2 has
+    another title ("Thresholding Classifiers to Maximize F1 Score") and spells the third author "Narayanaswamy".
+  - **Dinkelbach (1967).** INFORMS returns 403: cite from the Crossref abstract, which says the paper restates and proves
+    Jagannathan's (1966) fractional–parametric theorem and gives the iteration.
+  - **Ye et al. (2012).** EUM–DTA asymptotic equivalence is Thm 8 (§2.3); the PDF header says "Optimizing F-Measures",
+    arXiv's metadata "F-measure".
+  - **Lample et al. (2016), N16-1030.** §4.1 replaces singletons by UNK with probability 0.5; §2.4 found IOBES *no*
+    significant gain over IOB. Ratinov and Roth (2009, W09-1119, §4, Table 2) found BILOU better on 3 of 4 sets.
+  - **SemEval-2013 Task 9 (S13-2056), §3.1** lists strict, exact-boundary, partial, and type matching but defines no
+    partial credit (it defers to MUC, Chinchor and Sundheim 1993).
+  - **Augenstein et al. (2017).** The seen/unseen F1 gap is in the body (arXiv 1701.02877, §3.3, Table 13), not the
+    abstract. BERT's NER setup (no CRF, first sub-token) is §5.3; Collobert et al.'s sentence-level likelihood §3.4.2.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -444,7 +486,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   GitHub `main` — a local sibling checkout can lag or sit on another branch. Check what it covers, too:
   formalML `message-passing` is GNNs, with no max-product or Viterbi. formalStatistics `hidden-markov-models`
   (published 2026-10-25) proves the forward recursion, forward–backward, Viterbi, and Baum–Welch (Thms 5–10) and names
-  CRFs only in Rem 23; no sibling covers CRFs, MEMMs, or the structured perceptron (2026-10-26). The design's
+  CRFs only in Rem 23; no sibling covers CRFs, MEMMs, or the structured perceptron (2026-10-26). No sibling covers NER, BIO/BIOES, span F1, or F1-optimal
+  thresholding either; formalRAG `set-metrics-precision-recall-map-mrr` (set precision and recall, Def 1) and formalML
+  `uncertainty-quantification` (perfect calibration, Def 3) are the nearest (2026-10-26). The design's
   watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
