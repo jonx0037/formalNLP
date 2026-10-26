@@ -123,7 +123,7 @@
     {
       "id": "sequence-labeling-hmm-crf",
       "label": "Sequence Labeling: From HMMs to Linear-Chain CRFs",
-      "status": "planned",
+      "status": "published",
       "domain": "extraction-knowledge-graphs"
     },
     {

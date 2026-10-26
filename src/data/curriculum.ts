@@ -71,7 +71,6 @@ export const tracks = [
     description:
       'From text to structure: sequence labeling with HMMs and CRFs, named entities, relation extraction under distant supervision, and knowledge-graph embeddings — closing with the earnings-call capstone.',
     planned: [
-      'Sequence Labeling: From HMMs to Linear-Chain CRFs',
       'Named Entity Recognition',
       'Relation Extraction and Distant Supervision',
       'Knowledge-Graph Embeddings: TransE and RotatE',
