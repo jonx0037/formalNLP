@@ -1,0 +1,475 @@
+---
+title: "Sequence Labeling: From HMMs to Linear-Chain CRFs"
+subtitle: "One recursion in two semirings tags a sequence. From the hidden Markov model to the conditional random field, the family of conditionals does not change; what changes is what the estimator optimizes and what the features can see."
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "n-gram-models-smoothing"
+  - "linear-text-classifiers"
+tags:
+  - "sequence-labeling"
+  - "hmm"
+  - "crf"
+  - "memm"
+  - "viterbi"
+  - "forward-backward"
+  - "label-bias"
+  - "structured-perceptron"
+  - "bio-tagging"
+  - "generative-discriminative"
+  - "financial-text"
+domain: "extraction-knowledge-graphs"
+financeCaseStudy: true
+rigorFlag: "The finance task is synthetic and templated: with 30 training documents every tagger passes 0.977 token accuracy, nearly all remaining errors are names never seen in training, and the left context alone settles the one tag whose label depends on the next word, so the corpus barely exercises label bias; the page shows Proposition 2 on counterfactual continuations instead. Theorem 3 holds for indicator features only. Proposition 2 and Corollary 2 bind posterior-marginal decoding, not Viterbi. The discriminative taggers are fit at one prior, untuned, while the HMM's smoothing is tuned. Theorem 5 assumes separability, and its bound is loose by two to three orders of magnitude here."
+videoId: null
+notebookPath: "notebooks/sequence-labeling-hmm-crf/01_sequence_labeling_hmm_crf.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/sequence-labeling-hmm-crf.mdx"
+datePublished: 2026-10-26
+estimatedReadTime: 35
+abstract: "A sequence labeler assigns one tag to every token, and the possible taggings of a sentence are the paths through a trellis. We prove that one forward recursion, run in the sum-product semiring, gives the partition function and every marginal, and run in the max-product semiring, gives the best path; formalStatistics' forward-backward and Viterbi algorithms are its probability case. The hidden Markov model tagger is counting, a tag n-gram times naive Bayes emissions. The linear-chain conditional random field models the tags given the words; its conditional likelihood is concave with gradient observed minus expected features. With indicator features the two models define exactly the same conditional distributions: the HMM-to-CRF direction is a reparametrization, and the converse is an h-transform we prove in full. So on those features they differ only in the estimator, and in a misspecified world the CRF wins on conditional log-loss even where it loses on accuracy. Locally normalized taggers (MEMMs) are different: their marginals cannot depend on words beyond their lookahead, which caps their posterior-decoded accuracy by a lagged Bayes rule, while Viterbi decoding escapes the cap. We prove that Viterbi minimizes sequence error and posterior decoding minimizes token error, prove the structured perceptron's mistake bound, and measure everything against an exact Bayes tagger in simulated worlds and on BIO-tagged entity spans in synthetic filings."
+connections:
+  - topic: "contextual-embeddings-masked-lm"
+    relationship: "Its eight-state hidden Markov model is this page's simulated world, and its scaled forward-backward pass is the reference our semiring recursion is pinned against to 10^-10."
+  - topic: "beam-search-decoding"
+    relationship: "Viterbi is exact max-product search because a chain's state is its last tag; beam search is what remains when a decoder carries its whole prefix as state and no recombination is possible."
+references:
+  - type: "paper"
+    title: "Conditional Random Fields: Probabilistic Models for Segmenting and Labeling Sequence Data"
+    authors: "John Lafferty, Andrew McCallum, and Fernando C. N. Pereira"
+    year: 2001
+    url: "https://repository.upenn.edu/cis_papers/159/"
+    note: "Proceedings of the 18th ICML, 282–89. The linear-chain CRF and the label bias problem of locally normalized taggers"
+  - type: "paper"
+    title: "Maximum Entropy Markov Models for Information Extraction and Segmentation"
+    authors: "Andrew McCallum, Dayne Freitag, and Fernando Pereira"
+    year: 2000
+    url: "https://people.cs.umass.edu/~mccallum/papers/memm-icml2000.ps"
+    note: "Proceedings of the 17th ICML, 591–98. The MEMM: a Markov chain whose transitions are log-linear classifiers of the observation"
+  - type: "paper"
+    title: "Weighted and Probabilistic Context-Free Grammars Are Equally Expressive"
+    authors: "Noah A. Smith and Mark Johnson"
+    year: 2007
+    url: "https://doi.org/10.1162/coli.2007.33.4.477"
+    note: "Computational Linguistics 33, no. 4: 477–91. Corollary 2: HMMs and chain random fields with Mealy features give the same conditionals; Theorem 2: MEMMs give strictly fewer"
+  - type: "paper"
+    title: "An Introduction to Conditional Random Fields"
+    authors: "Charles Sutton and Andrew McCallum"
+    year: 2012
+    url: "https://doi.org/10.1561/2200000013"
+    note: "Foundations and Trends in Machine Learning 4, no. 4: 267–373. Section 2.3 (an HMM's conditional is a CRF; the converse is 'more complicated'), Section 5.1.3 (MEMMs and label bias)"
+  - type: "paper"
+    title: "Discriminative Training Methods for Hidden Markov Models: Theory and Experiments with Perceptron Algorithms"
+    authors: "Michael Collins"
+    year: 2002
+    url: "https://aclanthology.org/W02-1001/"
+    note: "Proceedings of EMNLP 2002, 1–8. Theorem 1 (the separable mistake bound), Theorem 2 (the non-separable bound), Section 2.5 (averaging)"
+  - type: "paper"
+    title: "Conditional Structure versus Conditional Estimation in NLP Models"
+    authors: "Dan Klein and Christopher D. Manning"
+    year: 2002
+    url: "https://aclanthology.org/W02-1002/"
+    note: "Proceedings of EMNLP 2002. Separates the model's conditional structure from conditional estimation, and names observation bias in MEMMs"
+  - type: "paper"
+    title: "On Discriminative vs. Generative Classifiers: A Comparison of Logistic Regression and Naive Bayes"
+    authors: "Andrew Y. Ng and Michael I. Jordan"
+    year: 2002
+    url: "https://proceedings.neurips.cc/paper_files/paper/2001/file/7b7a53e239400a13bd6be6c91c4f6c4e-Paper.pdf"
+    note: "Advances in Neural Information Processing Systems 14, 841–48. The generative–discriminative pair, of which Theorem 3 is the sequence version"
+  - type: "paper"
+    title: "A Tutorial on Hidden Markov Models and Selected Applications in Speech Recognition"
+    authors: "Lawrence R. Rabiner"
+    year: 1989
+    url: "https://doi.org/10.1109/5.18626"
+    note: "Proceedings of the IEEE 77, no. 2: 257–86. The forward–backward and Viterbi recursions in their classical form"
+formalstatisticsPrereqs:
+  - topic: "hidden-markov-models"
+    site: "formalstatistics"
+    relationship: "Its Definition 3 is the HMM, its Theorem 4 the factorization, and its Theorems 5, 7, and 8 the forward recursion, forward-backward smoothing, and Viterbi decoding, which Theorem 1 here generalizes from probabilities to arbitrary nonnegative potentials in either semiring."
+  - topic: "exponential-families"
+    site: "formalstatistics"
+    relationship: "Its Theorem 1 proves that the log-partition function's first two derivatives are the mean and variance of the sufficient statistic in one dimension; Theorem 2 here is the multivariate, conditional version that makes the CRF likelihood concave."
+  - topic: "multivariate-distributions"
+    site: "formalstatistics"
+    relationship: "Its Theorem 6, Dirichlet-multinomial conjugacy, makes the HMM tagger's add-alpha counts the posterior mean under a Dirichlet prior on each row (Proposition 1)."
+formalmlPrereqs:
+  - topic: "convex-analysis"
+    site: "formalml"
+    relationship: "Its Theorem 3, the second-order condition, turns Theorem 2's negative semidefinite Hessian into concavity of the CRF's conditional log-likelihood, and strict concavity once the L2 penalty is added."
+  - topic: "naive-bayes"
+    site: "formalml"
+    relationship: "Its Section 7 compares naive Bayes with logistic regression, the classic generative-discriminative pair; Theorem 3 here shows the HMM and the indicator-feature CRF are the same pair for sequences, with one family of conditionals and two estimators."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import SequenceLabelingLab from '../../components/viz/SequenceLabelingLab.tsx';
+
+## Overview & Motivation
+
+An information-extraction system reads "Solenne Power guided to 4 percent growth in the first quarter" and has to mark *Solenne Power* as an organization, *4 percent* as a percentage, and *the first quarter* as a date. Each of those is a span of tokens, and the standard trick turns spans into one tag per token. With **BIO** tags, a token is O (outside every entity), B-*type* (it begins an entity), or I-*type* (it continues one). The sentence above becomes
+
+`solenne/B-ORG power/I-ORG guided/O to/O percent/B-PERCENT growth/O in/O the/B-DATE first/I-DATE quarter/I-DATE`.
+
+The B is not decoration: "Boston, Massachusetts" tokenizes to two adjacent places, B-GPE B-GPE, and without it the two spans would merge.
+
+A tagging of a sentence with $T$ tokens and $K$ tags is a path through a **trellis**: $K$ rows of states, $T$ columns of positions, one state chosen per column. There are $K^T$ paths, so every method on this page is a way to score paths and then find good ones without enumerating them. We take that in order:
+
+1. **The HMM tagger** scores a path by how likely it is to have generated the words, and fitting it is counting.
+2. **One recursion, two semirings.** Sums over paths and the best path come from the same pass.
+3. **The linear-chain CRF** scores a path given the words, and its likelihood is concave.
+4. **A generative–discriminative pair.** With word-identity features the HMM and the CRF define exactly the same conditional distributions.
+5. **Decoding risk.** The best path and the best tags are different answers to different losses.
+6. **Local normalization.** A chain of classifiers (the MEMM) cannot let later words change earlier tags.
+7. **The structured perceptron** learns the scores directly, with a mistake bound.
+
+Then we measure all of it where the Bayes tagger is known exactly, and on the finance corpus.
+
+---
+
+## The HMM tagger
+
+We write $x_{1:T}$ for the words and $z_{1:T}$ for the tags.
+
+<TheoremBlock type="definition" number={1} title="Sequence labeling with BIO tags">
+
+A **tagger** maps a sentence $x_{1:T}$ to a tag sequence $z_{1:T} \in \mathcal Y^T$. For entity types $E$, the **BIO** tag set is $\mathcal Y = \{\mathrm O\} \cup \{\mathrm{B}\text{-}e, \mathrm{I}\text{-}e : e \in E\}$. An entity span opens at a B-$e$ tag, or at an I-$e$ tag that does not continue a span of type $e$, and it runs while I-$e$ tags follow.
+
+</TheoremBlock>
+
+The hidden Markov model of formalStatistics' `hidden-markov-models` (its Definition 3) becomes a tagger once the hidden states are the tags. We add one ingredient, an end state, so that the model is a distribution over sentences of every length.
+
+<TheoremBlock type="definition" number={2} title="The HMM tagger">
+
+An **HMM tagger** has a start distribution $\nu$, transitions $a_{jk}$ and stop probabilities $a_{j,\mathrm{stop}}$ with $\sum_k a_{jk} + a_{j,\mathrm{stop}} = 1$ for every tag $j$, and emissions $b_k(w)$. It assigns
+
+$$
+p(x_{1:T}, z_{1:T}) = \nu_{z_1} \prod_{t=2}^{T} a_{z_{t-1} z_t} \prod_{t=1}^{T} b_{z_t}(x_t)\; a_{z_T,\mathrm{stop}}.
+$$
+
+</TheoremBlock>
+
+Read the product from left to right. The tags form a bigram language model, the [n-gram topic's](/topics/n-gram-models-smoothing) model over tags instead of words, and each word is drawn from its tag alone, as naive Bayes draws a document's words from its class. Supervised training is then what those topics already do.
+
+<TheoremBlock type="proposition" number={1} title="The HMM tagger is counting">
+
+Given tagged sentences, the maximum-likelihood $\hat\nu$, $\hat a$, and $\hat b$ are normalized counts: $\hat a_{jk}$ and $\hat a_{j,\mathrm{stop}}$ divide the counts of $j \to k$ and of $j$ ending a sentence by the number of times $j$ is followed by anything, and $\hat b_k(w)$ divides the count of $w$ tagged $k$ by the count of $k$. Adding $\alpha$ to every count gives the posterior mean under independent symmetric Dirichlet($\alpha$) priors on the rows. With the end state, $\sum_{T \ge 1} \nu A^{T-1} e = \nu(I - A)^{-1} e = 1$, where $A = (a_{jk})$ and $e = (a_{j,\mathrm{stop}})_j$, so the model is a distribution over sentences of every length.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Take logs. The log-likelihood is a sum of separate terms, one per row: $\sum_k c_{jk}\log a_{jk} + c_{j,\mathrm{stop}} \log a_{j,\mathrm{stop}}$ for each tag $j$, one such sum for $\nu$, and $\sum_w c_{kw} \log b_k(w)$ for each emission row. Each is a multinomial log-likelihood over its own probability vector, maximized by the frequencies: by Gibbs' inequality, $\sum_i c_i \log q_i \le \sum_i c_i \log (c_i / \sum_l c_l)$ for every probability vector $q$. The Dirichlet statement is conjugacy (formalStatistics `multivariate-distributions`, Theorem 6): the posterior of a row is Dirichlet($\alpha + c$), with mean $(\alpha + c_i)/\sum_l(\alpha + c_l)$. For the last claim, every row of $A$ sums to $1 - a_{j,\mathrm{stop}}$, so whenever every stop probability is positive the spectral radius of $A$ is below one, the series $\sum_T A^{T-1}$ converges to $(I - A)^{-1}$, and $(I - A)\mathbf 1 = e$ gives $(I-A)^{-1}e = \mathbf 1$ and $\nu \mathbf 1 = 1$.
+
+</TheoremBlock>
+
+---
+
+## One recursion, two semirings
+
+Both training targets on this page, and both ways of decoding, are sums or maxima over the $K^T$ paths. We write every model as a chain of log-potentials. A path scores
+
+$$
+\operatorname{score}(z_{1:T}) = \sum_{t=1}^{T} U_t(z_t) + \sum_{t=1}^{T-1} P_t(z_t, z_{t+1}),
+$$
+
+with unary terms $U_t$ and pairwise terms $P_t$, and the chain's distribution is $p(z) = e^{\operatorname{score}(z)}/Z$ with $Z = \sum_z e^{\operatorname{score}(z)}$. For the HMM, $U_t(k) = \log b_k(x_t)$ (plus $\log \nu_k$ at $t = 1$ and $\log a_{k,\mathrm{stop}}$ at $t = T$) and $P_t(j, k) = \log a_{jk}$, so $Z = p(x_{1:T})$ and $p(z)$ is the posterior of the tags.
+
+Now notice that a sum over paths and a maximum over paths have the same structure. Multiplication distributes over addition, $a(b + c) = ab + ac$, and nonnegative multiplication distributes over maximum, $a\max(b, c) = \max(ab, ac)$. A **commutative semiring** is a set with two operations, $\oplus$ and $\otimes$, each associative and commutative, with $\otimes$ distributing over $\oplus$. The sum-product semiring $(+, \times)$ and the max-product semiring $(\max, \times)$ on the nonnegative reals are the two we need. Write $\psi_t(k) = e^{U_t(k)}$ and $\psi_{t,t+1}(j, k) = e^{P_t(j, k)}$.
+
+<TheoremBlock type="theorem" number={1} title="The chain distributive law">
+
+In any commutative semiring, define $\alpha_1(k) = \psi_1(k)$ and, for $t \ge 2$,
+
+$$
+\alpha_t(k) = \psi_t(k) \otimes \bigoplus_{j} \alpha_{t-1}(j) \otimes \psi_{t-1,t}(j, k),
+$$
+
+and symmetrically $\beta_T(j) = \mathbf 1$ and $\beta_t(j) = \bigoplus_k \psi_{t,t+1}(j, k) \otimes \psi_{t+1}(k) \otimes \beta_{t+1}(k)$. Write $\Psi(z) = \bigotimes_t \psi_t(z_t) \otimes \bigotimes_t \psi_{t,t+1}(z_t, z_{t+1})$. Then:
+
+**(a)** $\bigoplus_k \alpha_T(k) = \bigoplus_{z} \Psi(z)$.
+
+**(b)** $\alpha_t(k) \otimes \beta_t(k) = \bigoplus_{z : z_t = k} \Psi(z)$, the aggregate of every path through $(t, k)$.
+
+**(c)** $\alpha_t(j) \otimes \psi_{t,t+1}(j, k) \otimes \psi_{t+1}(k) \otimes \beta_{t+1}(k) = \bigoplus_{z : z_t = j,\, z_{t+1} = k} \Psi(z)$.
+
+Each pass costs $O(TK^2)$ operations. In $(+, \times)$, (a) is $Z$, and dividing (b) and (c) by $Z$ gives the node marginals $\gamma_t(k) = p(z_t = k)$ and the edge marginals. In $(\max, \times)$, (a) is the score of the best path (as a potential), and (b) divided by $Z$ is the **max-marginal** $\mu_t(k) = \max_{z: z_t = k} p(z)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) We show by induction on $t$ that $\alpha_t(k) = \bigoplus_{z_{1:t-1}} \Psi_{1:t}(z_{1:t-1}, k)$, the aggregate over prefixes ending in $k$ of the potentials up to $t$. At $t = 1$ there is nothing to aggregate. For the step, split the prefix into $z_{1:t-2}$ and $z_{t-1} = j$. The factor $\psi_{t-1,t}(j, k) \otimes \psi_t(k)$ does not involve $z_{1:t-2}$, so by distributivity it comes out of the aggregate over $z_{1:t-2}$, which leaves $\alpha_{t-1}(j)$; aggregating over $j$ gives the recursion. At $t = T$, aggregate over $k$ too.
+
+(b) The same induction run from the right shows $\beta_t(k)$ aggregates the potentials after $t$ over suffixes that follow $k$. A path through $(t, k)$ is a prefix ending in $k$ and a suffix following $k$, chosen independently, and its potential is the product of the two parts. Distributivity turns the aggregate of products over independent choices into the product of the two aggregates.
+
+(c) is (b) with the path pinned at two adjacent positions: prefix ending in $j$, the edge, and suffix following $k$. Each step of each pass aggregates $K$ terms for each of $K$ states, so $O(K^2)$ per position.
+
+</TheoremBlock>
+
+One proof covers both semirings, and formalStatistics' forward recursion (its Theorem 5), forward–backward smoothing (Theorem 7), and Viterbi decoding (Theorem 8) are the HMM's potentials run through it. Viterbi's back-pointers record which $j$ attained each maximum, so the best path itself, not only its score, comes out of the max pass. In code everything runs in log space, where $\otimes$ is addition and $\oplus$ is a log-sum-exp or a maximum. The harness checks all three parts against brute-force enumeration of every path on random chains, some with forbidden tags and transitions, and pins the sum-product pass on Topic 12's HMM against that topic's forward–backward to $10^{-10}$.
+
+The **Trellis** tab draws one sequence from that HMM, eight states over $24$ positions. Toggle the semiring. In $(+, \times)$ each cell shows its marginal $\gamma_t(k)$; in $(\max, \times)$ it shows the max-marginal relative to the best path's probability, which is exactly $1$ along the Viterbi path. At position $8$ the two views disagree: the marginal favors state $5$ ($0.505$), while the best path through state $0$ beats the best path through state $5$ ($1$ against $0.614$).
+
+<SequenceLabelingLab client:visible />
+
+---
+
+## The linear-chain CRF
+
+The HMM spends its parameters explaining the words, which a tagger is given. The **conditional random field** of Lafferty, McCallum, and Pereira (2001) models only the tags given the words.
+
+<TheoremBlock type="definition" number={3} title="The linear-chain CRF">
+
+Fix a feature map $f(z_{t-1}, z_t, x, t) \in \mathbb R^d$ and let $F(x, z) = \sum_t f(z_{t-1}, z_t, x, t)$, with $z_0$ a start symbol (and an end feature at $t = T$). The **linear-chain CRF** with weights $\theta \in \mathbb R^d$ is
+
+$$
+p_\theta(z \mid x) = \frac{\exp\big(\theta \cdot F(x, z)\big)}{Z_\theta(x)}, \qquad Z_\theta(x) = \sum_{z'} \exp\big(\theta \cdot F(x, z')\big).
+$$
+
+</TheoremBlock>
+
+A feature may look at the whole sentence: the current word, its suffix, the words two to the left and two to the right. It can depend on at most two adjacent tags, which is what keeps the model a chain. For fixed $x$ the score $\theta \cdot F(x, z)$ is a chain score, so Theorem 1 computes $Z_\theta(x)$ and every marginal.
+
+<TheoremBlock type="theorem" number={2} title="The CRF likelihood is concave">
+
+For training pairs $(x_i, z_i)_{i \le n}$, let $\ell(\theta) = \frac1n \sum_i \log p_\theta(z_i \mid x_i)$. Then
+
+$$
+\nabla \ell(\theta) = \frac1n \sum_i \Big(F(x_i, z_i) - \mathbb E_\theta\big[F(x_i, Z) \mid x_i\big]\Big), \qquad \nabla^2 \ell(\theta) = -\frac1n \sum_i \operatorname{Cov}_\theta\big[F(x_i, Z) \mid x_i\big] \preceq 0.
+$$
+
+So $\ell$ is concave, and for every $\lambda \gt 0$ the penalized objective $\ell(\theta) - \frac\lambda2 \|\theta\|^2$ is strictly concave, with exactly one maximizer if it has one. The expectation decomposes over Theorem 1's node and edge marginals.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\log p_\theta(z_i \mid x_i) = \theta \cdot F(x_i, z_i) - \log Z_\theta(x_i)$. Differentiating $\log Z_\theta(x) = \log \sum_z e^{\theta\cdot F(x, z)}$ gives $\sum_z p_\theta(z \mid x) F(x, z)$, the conditional mean of $F$. Differentiating that mean once more gives $\sum_z p_\theta(z \mid x) F F^\top - \big(\sum_z p_\theta F\big)\big(\sum_z p_\theta F\big)^\top$, the conditional covariance. This is the multivariate, conditional form of formalStatistics `exponential-families`, Theorem 1. A covariance matrix is positive semidefinite, so the Hessian of $\ell$ is negative semidefinite and $\ell$ is concave by the second-order condition (formalML `convex-analysis`, Theorem 3). Subtracting $\frac\lambda2\|\theta\|^2$ subtracts $\lambda I$ from the Hessian, which makes it negative definite, and a strictly concave function has at most one maximizer. Finally, $F$ is a sum of terms each involving at most $z_{t-1}$ and $z_t$, so its mean is a sum of expectations under the edge marginals $p_\theta(z_{t-1}, z_t \mid x)$.
+
+</TheoremBlock>
+
+At the optimum without a penalty, the gradient condition says the model's expected feature counts equal the observed ones: the moment-matching condition of logistic regression in the [linear text classifiers topic](/topics/linear-text-classifiers), now with expectations taken over paths. We fit by trust-region Newton's method with exact Hessian-vector products, which we obtain by the complex step, $\nabla^2\ell\, v = \operatorname{Im} \nabla \ell(\theta + ihv)/h$, through a log-sum-exp that shifts by the real part's maximum. On the experiment grids we use L-BFGS stopped at gradient $10^{-6}$, which lands within $10^{-4}$ of the Newton solution with identical decodes, a gap the harness checks.
+
+---
+
+## A generative–discriminative pair
+
+The HMM and the CRF look like different models. With the simplest features they are not.
+
+<TheoremBlock type="theorem" number={3} title="HMMs and indicator CRFs give the same conditionals">
+
+Call a CRF an **indicator CRF** if its features are indicators of each transition $j \to k$, each tag–word pair $(k, w)$, each start tag, and each end tag, with weights $\theta_{jk}$, $\mu_{kw}$, $s_k$, and $\eta_k$. Over a finite vocabulary, the set of conditionals $p(z \mid x)$ of HMM taggers (Definition 2) equals the set of conditionals of indicator CRFs.
+
+**(a)** An HMM's conditional is the indicator CRF with $\theta_{jk} = \log a_{jk}$, $\mu_{kw} = \log b_k(w)$, $s_k = \log \nu_k$, $\eta_k = \log a_{k,\mathrm{stop}}$.
+
+**(b)** Conversely, given any real weights, let $S_k = \sum_w e^{\mu_{kw}}$ and $M_{jk} = e^{\theta_{jk}} S_k$, pick any $c$ larger than the spectral radius $\rho(M)$, and let $h = (cI - M)^{-1} e^{\eta}$, where $e^{\eta}$ is the vector of the $e^{\eta_j}$. Then $h \gt 0$, and the HMM
+
+$$
+b_k(w) = \frac{e^{\mu_{kw}}}{S_k}, \qquad a_{jk} = \frac{M_{jk}\, h_k}{c\, h_j}, \qquad a_{j,\mathrm{stop}} = \frac{e^{\eta_j}}{c\, h_j}, \qquad \nu_k \propto e^{s_k} S_k h_k
+$$
+
+has the same conditional as the CRF, for every sentence of every length.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The HMM's log-joint is $\log\nu_{z_1} + \sum_t \log a_{z_{t-1}z_t} + \sum_t \log b_{z_t}(x_t) + \log a_{z_T,\mathrm{stop}}$, which is the indicator CRF's score with those weights. Dividing the joint by $p(x) = \sum_z p(x, z)$ gives the CRF's normalization.
+
+(b) $M$ has positive entries, so for $c \gt \rho(M)$ the Neumann series $(cI - M)^{-1} = \sum_{m \ge 0} M^m / c^{m+1}$ converges and has positive entries, and $h$ is positive. Each emission row sums to one by the choice of $S_k$. For the transitions, the $j$-th row of $(cI - M)h = e^{\eta}$ reads $c\,h_j = \sum_k M_{jk} h_k + e^{\eta_j}$; dividing by $c\,h_j$ gives $\sum_k a_{jk} + a_{j,\mathrm{stop}} = 1$. Now multiply the HMM's factors along a path. The factors of $h$ telescope:
+
+$$
+\nu_{z_1} \prod_{t \ge 2} a_{z_{t-1}z_t} \, a_{z_T,\mathrm{stop}} \prod_t b_{z_t}(x_t) = \frac{e^{s_{z_1}} S_{z_1} h_{z_1}}{N} \cdot \prod_{t \ge 2} \frac{e^{\theta_{z_{t-1}z_t}} S_{z_t} h_{z_t}}{c\, h_{z_{t-1}}} \cdot \frac{e^{\eta_{z_T}}}{c\, h_{z_T}} \cdot \prod_t \frac{e^{\mu_{z_t x_t}}}{S_{z_t}},
+$$
+
+with $N = \sum_k e^{s_k} S_k h_k$. Each $h_{z_t}$ in a numerator cancels the denominator of the next factor, the last against $a_{z_T,\mathrm{stop}}$; each $S_{z_t}$ cancels its emission's denominator. What remains is $e^{\operatorname{score}(z)}/(N c^{T})$, where $\operatorname{score}$ is the CRF's. The constant depends on $T$ but not on $z$, so conditioning on $x$ removes it, and $p(z \mid x)$ is the CRF's.
+
+</TheoremBlock>
+
+Sutton and McCallum (2012, §2.3) prove direction (a) and call the converse "more complicated." Smith and Johnson (2007, Corollary 2) prove the equivalence for features that pair a transition with the word it emits, by renormalizing weighted grammars; the construction above is the direct proof for our features. The harness builds the HMM of (b) for random weights, checks that it is a valid HMM, and checks its conditional against the CRF's on every path to $10^{-12}$.
+
+<TheoremBlock type="corollary" number={1} title="Same family, two estimators">
+
+On indicator features, fitting an HMM by joint maximum likelihood and fitting a CRF by conditional maximum likelihood search the same set of conditionals. They differ in the criterion: the CRF minimizes the conditional log-loss of the tags on the training data, the HMM the joint log-loss of words and tags. As $n \to \infty$, the CRF's conditional log-loss converges to the smallest the family allows, so it is at most the HMM's, with equality when the data come from an HMM.
+
+</TheoremBlock>
+
+This is the [linear text classifiers topic's](/topics/linear-text-classifiers) naive Bayes and logistic regression story, now for sequences; formalML's `naive-bayes` (Section 7) has the classifier version of Ng and Jordan's comparison. The geometry is one set of conditionals and two estimators landing at different points of it. Where the HMM is right, both land at the truth, and the HMM, whose estimates are counts, gets there faster. Where the HMM is wrong, the CRF lands closer in the metric it optimizes, and a CRF with richer features leaves the family altogether.
+
+The harness measures both regimes in worlds where the Bayes tagger is exact, built on Topic 12's HMM: eight states in two regimes, $24$ tokens per sequence, emissions blended with uniform noise. In the **well-specified** world the data come from that HMM. In the **next-state** world each word is drawn, with probability $0.5$, from the emission row of the *next* state, so an HMM is wrong but a CRF that sees the previous word is not. The true model's conditional is still a chain, with each word's emission folded into the edge it straddles, so Theorem 1 gives the Bayes tagger exactly. The CRFs are fit at $\lambda = 1/n$, which on the mean objective is MAP estimation under a standard normal prior on $\theta$; the HMM's smoothing $\alpha$ is tuned on validation data.
+
+| world, n | HMM | CRF, words | CRF, ±1 word | Bayes |
+|---|---|---|---|---|
+| well-specified, 10 | $0.738$ | $0.725$ | $0.708$ | $0.782$ |
+| well-specified, 1000 | $0.776$ | $0.776$ | $0.773$ | $0.782$ |
+| next-state, 10 | $0.486$ | $0.479$ | $0.496$ | $0.620$ |
+| next-state, 1000 | $0.540$ | $0.534$ | $0.591$ | $0.620$ |
+
+The table gives test token accuracy; the CRF on words alone is the indicator CRF, the HMM's own family. In the well-specified world the HMM leads at $n = 10$ and the two tie at $n = 1000$, in accuracy and in conditional log-loss ($0.583$ nats per token each, against the Bayes tagger's $0.580$). In the next-state world the window CRF leads at every $n$. The indicator CRF trails the HMM in accuracy there, $0.534$ against $0.540$, but beats it in conditional log-loss, $1.036$ against $1.040$ nats: Corollary 1 is a statement about the criterion each estimator optimizes, and accuracy is not that criterion. The **Learning curves** tab plots every $n$, in accuracy or log-loss.
+
+---
+
+## Decoding risk
+
+The trellis offers two answers: the single best path, and the best tag at each position. They answer different questions.
+
+<TheoremBlock type="theorem" number={4} title="What each decoder minimizes">
+
+Let $p(z \mid x)$ be a distribution over tag sequences with node marginals $\gamma_t$.
+
+**(a)** The Viterbi path $z^\ast = \arg\max_z p(z \mid x)$ minimizes the expected **sequence loss** $\mathbb E[\mathbf 1\{\hat z \ne z\}]$.
+
+**(b)** The **posterior-marginal** (or minimum-Bayes-risk) decoding $\hat z_t = \arg\max_k \gamma_t(k)$ minimizes the expected **Hamming loss** $\mathbb E\big[\sum_t \mathbf 1\{\hat z_t \ne z_t\}\big]$, the expected number of wrong tags.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The expected sequence loss of $\hat z$ is $1 - p(\hat z \mid x)$, smallest when $p(\hat z \mid x)$ is largest. (b) By linearity of expectation the expected Hamming loss is $\sum_t \big(1 - \gamma_t(\hat z_t)\big)$, a sum of terms each depending on one $\hat z_t$, so it is minimized position by position.
+
+</TheoremBlock>
+
+Token accuracy is one minus the Hamming loss divided by $T$, so the Bayes tagger for token accuracy is posterior-marginal decoding, not Viterbi. In the well-specified world, the true model decoded by posterior marginals tags $0.782$ of test tokens correctly and decoded by Viterbi $0.776$. On the trellis sequence, Viterbi gets $17$ of $24$ tags right and posterior decoding $19$; their expected numbers of correct tags are $16.384$ and $16.928$. formalStatistics shows that the posterior-marginal path can even be impossible, with a zero-probability transition. Theorem 4 says when that is still the right answer: when what we count is tags, not sentences. Every learned tagger on this page is nevertheless decoded by Viterbi, as is standard; the Bayes reference is reported both ways.
+
+---
+
+## Local normalization and label bias
+
+Before the CRF there was a cheaper discriminative tagger: train a classifier for each tag given the previous tag and the words, and chain the classifiers.
+
+<TheoremBlock type="definition" number={4} title="The MEMM">
+
+A **maximum-entropy Markov model** (McCallum, Freitag, and Pereira 2000) is $p(z \mid x) = \prod_{t} p(z_t \mid z_{t-1}, x)$, each factor a softmax logistic regression on features of $x$. It has **lookahead** $w$ if the factor at $t$ depends on $x$ only through $x_{1:t+w}$.
+
+</TheoremBlock>
+
+Each factor is trained as an ordinary classifier on the gold previous tag, so an MEMM needs no forward–backward pass to train. It pays for that in what its marginals can see.
+
+<TheoremBlock type="proposition" number={2} title="An MEMM's past ignores its future">
+
+For an MEMM with lookahead $w$ and every $t$, $p(z_{1:t} \mid x) = p(z_{1:t} \mid x_{1:t+w})$: the marginal of the first $t$ tags depends on no word after position $t + w$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$p(z_{1:t} \mid x) = \sum_{z_{t+1:T}} \prod_{s \le T} p(z_s \mid z_{s-1}, x)$. Sum out $z_T$ first: only the last factor involves it, and it is a distribution over $z_T$, so it sums to one. Then sum out $z_{T-1}$, and so on down to $z_{t+1}$. What remains is $\prod_{s \le t} p(z_s \mid z_{s-1}, x)$, and by the lookahead assumption each of those factors depends on $x$ only through $x_{1:s+w} \subseteq x_{1:t+w}$.
+
+</TheoremBlock>
+
+This is **label bias** in its cleanest form (Lafferty, McCallum, and Pereira 2001): a locally normalized tagger passes on all of a state's probability whatever the later words say, so the evidence of a later word cannot reach an earlier tag. Smith and Johnson (2007, Theorem 2) show that MEMMs represent strictly fewer conditionals than HMMs. Sutton and McCallum (2012, §5.1.3) add the practical caveat: copying later words into each factor's features, a lookahead $w \gt 0$, buys back exactly $w$ words, which Proposition 2 makes precise.
+
+<TheoremBlock type="corollary" number={2} title="A ceiling for posterior decoding">
+
+An MEMM with lookahead $w$, decoded by posterior marginals, has expected token accuracy at most that of the Bayes rule $\hat z_t = \arg\max_k p(z_t = k \mid x_{1:t+w})$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Proposition 2 the MEMM's marginal for $z_t$, and hence its decision at $t$, is a function of $x_{1:t+w}$. Among all functions of $x_{1:t+w}$, the Bayes rule maximizes the probability of a correct tag at each $t$.
+
+</TheoremBlock>
+
+<TheoremBlock type="remark">
+
+Corollary 2 is about posterior decoding, and it does not extend to Viterbi. The later factors of an MEMM sum to one over their tags, but their maximum is not constant, so the best path through $(t, k)$ still depends on how peaked the later factors are, and so on later words. That is label bias in Lafferty and colleagues' original, Viterbi form.
+
+</TheoremBlock>
+
+Both halves are visible in the simulated worlds. Each MEMM sees two words to the left, with lookahead $0$ or $1$, and is trained on $1{,}000$ sequences:
+
+| world, lookahead | ceiling | MEMM, posterior | MEMM, Viterbi |
+|---|---|---|---|
+| well-specified, 0 | $0.743$ | $0.735$ | $0.758$ |
+| well-specified, 1 | $0.769$ | $0.763$ | $0.765$ |
+| next-state, 0 | $0.588$ | $0.574$ | $0.563$ |
+| next-state, 1 | $0.610$ | $0.593$ | $0.580$ |
+
+The "ceiling" column is Corollary 2's lagged Bayes rule, computed exactly on prefix chains. Every posterior-decoded MEMM sits below its ceiling, and in the well-specified world the causal MEMM decoded by Viterbi ($0.758$) rises above it ($0.743$), as the remark allows. The CRF, whose marginals see the whole sentence, is bounded only by the full Bayes rule, $0.782$ there. One word of lookahead recovers most of the gap, $0.769$, because a CRF's dependence on a far word decays: in a chain, the influence of a word on a tag shrinks with their distance at the rate the chain forgets its state. The **CRF vs. MEMM** tab shows Proposition 2 on a sentence.
+
+---
+
+## The structured perceptron
+
+The CRF fits probabilities. Collins (2002) asked for less: weights under which the gold path outscores every other path, found by correcting mistakes.
+
+<TheoremBlock type="algorithm" number={1} title="The structured perceptron">
+
+Start at $\theta = 0$. For each training pair $(x_i, z_i)$ in turn, decode $\hat z = \arg\max_z \theta \cdot F(x_i, z)$ by Viterbi; if $\hat z \ne z_i$, update $\theta \leftarrow \theta + F(x_i, z_i) - F(x_i, \hat z)$. Repeat for several epochs. The **averaged** perceptron returns the average of $\theta$ over every step.
+
+</TheoremBlock>
+
+<TheoremBlock type="theorem" number={5} title="The perceptron's mistake bound">
+
+Suppose some unit vector $u$ separates the training data with margin $\gamma \gt 0$, $u \cdot \big(F(x_i, z_i) - F(x_i, z)\big) \ge \gamma$ for every $i$ and every $z \ne z_i$, and every difference has norm at most $R$. Then the perceptron makes at most $R^2/\gamma^2$ mistakes, however many epochs it runs.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $\theta_k$ be the weights before the $k$-th mistake, $\theta_1 = 0$, and suppose that mistake happens on pair $i$ with decoded path $\hat z$. Then $\theta_{k+1} = \theta_k + \Delta$ with $\Delta = F(x_i, z_i) - F(x_i, \hat z)$. First, $u \cdot \theta_{k+1} = u \cdot \theta_k + u \cdot \Delta \ge u \cdot \theta_k + \gamma$, so $u \cdot \theta_{k+1} \ge k\gamma$. Second, $\|\theta_{k+1}\|^2 = \|\theta_k\|^2 + 2\,\theta_k \cdot \Delta + \|\Delta\|^2 \le \|\theta_k\|^2 + R^2$, because $\hat z$ won the decoding, so $\theta_k \cdot \Delta \le 0$. So $\|\theta_{k+1}\|^2 \le kR^2$. Since $u$ is a unit vector, $k\gamma \le u \cdot \theta_{k+1} \le \|\theta_{k+1}\| \le \sqrt k\, R$, so $k \le R^2/\gamma^2$.
+
+</TheoremBlock>
+
+The proof uses the decoder only through one fact, that it returned a path scoring at least as high as the gold one, so the bound holds for any exact decoder. Collins's Theorem 2 extends it to data that are not separable, and averaging, which we use in every experiment, is his practical recommendation. The **Perceptron** tab runs the theorem on data labeled by a teacher, at six margins: mistakes rise from $3$ to $21$ as $\gamma$ falls from $0.315$ to $0.041$, while the bound rises from $867$ to $50{,}700$. It holds every time, and it is loose by two to three orders of magnitude, as worst-case bounds are.
+
+---
+
+## Tagging entities in filings
+
+<FinanceCaseStudy title="Finance case study: BIO tags over the corpus's entity spans">
+
+The shared finance corpus annotates every entity span in its synthetic filings and call transcripts: organizations, people, places, products, sectors, dates, money amounts, and percentages. We convert the spans to BIO tags over the corpus's tokens, lowercase letters only, which gives $17$ tags. That tokenization keeps only the word `million` of a money amount and the word `percent` of a percentage, two words that occur only inside entities, so MONEY and PERCENT are easy. The work is in names, and in "the", which opens a PRODUCT or DATE span ("the third quarter") and is otherwise outside every entity.
+
+We train on the first $3$, $10$, and $30$ documents of one corpus run and test on $200$ documents of another. Every tagger except the HMM sees the same features: the word, its three-letter prefix and suffix, and the two words on each side (the causal MEMM sees only the left side). There is no gazetteer, so a name is learned only from training text. The HMM maps words seen once to an unknown-word symbol. **Accuracy / span F1** on the test documents:
+
+| docs | HMM | causal MEMM | CRF | perceptron |
+|---|---|---|---|---|
+| 3 | $0.909$ / $0.618$ | $0.890$ / $0.517$ | $0.895$ / $0.556$ | $0.909$ / $0.572$ |
+| 10 | $0.936$ / $0.745$ | $0.942$ / $0.756$ | $0.943$ / $0.776$ | $0.960$ / $0.840$ |
+| 30 | $0.977$ / $0.923$ | $0.982$ / $0.936$ | $0.983$ / $0.943$ | $0.991$ / $0.964$ |
+
+At $3$ documents the HMM leads the CRF in both measures, the well-specified world's small-$n$ story; by $30$ every discriminative tagger passes it, and the averaged perceptron, which carries no prior pulling the name weights toward zero, leads. What remains is mostly unseen names. With $3$ training documents, $0.369$ of the test tokens are words never seen in training, and with $30$ still $0.138$. On those tokens the taggers score $0.911$ (HMM) to $0.958$ (perceptron) at $30$ documents, against $0.977$ to $0.991$ overall: the context features carry a name the model has never seen. How far context alone can go, with names held out by design, is the subject of the next topic, named-entity recognition.
+
+Label bias has little to bite on here. The causal MEMM must tag "the" before it sees the next word, yet it tags "the" correctly $0.997$ of the time at $30$ documents: the templates that generate the corpus make the left context enough. So we test Proposition 2 directly instead. Take a test sentence's opening, "solenne power guided to percent growth in the", and complete it five ways with words seen in training. With "first quarter", the CRF tags "the" B-DATE with probability $0.963$; with "prior year" it tags it O with probability $0.977$. The causal MEMM gives "the" B-DATE with probability $0.850$ under every continuation, identical to every printed digit as Proposition 2 requires, and its Viterbi path tags "the prior" as the start of a date. The HMM agrees with the CRF except on "kestrel platform", where it reads the polyseme *kestrel*, a company that is also a product name, as a PRODUCT with probability $0.962$: the word's emission outweighs its neighbors, which reach a tag only through the transitions, never as features of it. The **CRF vs. MEMM** tab shows every token of every continuation, and the **Finance** tab the table above with unseen-word accuracy.
+
+</FinanceCaseStudy>
+
+---
+
+## Where this sits
+
+The tagger on this page has two parts: a chain over tags and a scorer for each position. The chain, and with it every algorithm here, stays when the scorer changes. The next topic, named-entity recognition, replaces the hand-built features with a contextual encoder's states and keeps the CRF on top. It also takes up what this page left aside: span-level evaluation, decoding constrained to valid BIO sequences, and names held out by design. A chain is the simplest graphical model; Theorem 1's semiring argument is the one that sum-product and max-product message passing generalize to trees.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Theorems 1–5, Propositions 1–2, and Corollary 2 are proved here in full. The harness checks Theorems 1–4 and both propositions against enumeration of every path on random instances, and Theorem 5 on teacher-labeled data. Corollary 1's asymptotic claim is measured, not proved.
+2. **Indicator features only.** Theorem 3's equivalence is for word-identity features. A CRF with overlapping features, such as neighboring words or suffixes, has a larger family than any HMM.
+3. **Posterior decoding only.** Proposition 2 and Corollary 2 bind an MEMM's marginals. Decoded by Viterbi, an MEMM still sees later words, as the well-specified world shows.
+4. **One prior, untuned.** Every discriminative tagger is fit at $\lambda = 1/n$, MAP under a standard normal prior, while the HMM's add-$\alpha$ is tuned on validation data. Add-one smoothing cost the finance HMM two to five points.
+5. **A templated corpus.** With $30$ training documents every tagger passes $0.977$ token accuracy, nearly all remaining errors are unseen names, and the left context settles the one tag ("the") whose label depends on the next word, so this corpus barely exercises label bias. Proposition 2 is shown on counterfactual continuations.
+6. **Loose bound.** Theorem 5 assumes separability, and its bound exceeds the observed mistakes by two to three orders of magnitude.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `sequence_labeling_hmm_crf.py`, which owns every number on this page. It imports the n-gram topic's module and the linear text classifiers topic's module, whose softmax logistic regression fits every MEMM factor and whose finance corpus supplies the entity spans, and the masked-LM topic's module for its HMM, sampler, and forward–backward pass. Its harness checks:
+
+- Theorem 1 in both semirings, and the max-marginals, against enumeration of every path;
+- Proposition 1's counts and length law;
+- Theorem 2's gradient and Hessian-vector products against complex-step derivatives, and its unique optimum from two starts;
+- Theorem 3 in both directions on random weights, sentences, and lengths;
+- Proposition 2 and Theorem 4 on random chains, and Corollary 2 against lagged Bayes rules;
+- Theorem 5 at every margin of the sweep;
+- every comparison this page states, in both worlds and on the finance documents.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
