@@ -1,0 +1,462 @@
+---
+title: "Named Entity Recognition"
+subtitle: "A tagger that learns names by their spelling cannot find a name it never saw. What generalizes is context, provided training removes the name the way test-time novelty does."
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "sequence-labeling-hmm-crf"
+  - "contextual-embeddings-masked-lm"
+tags:
+  - "named-entity-recognition"
+  - "bio-tagging"
+  - "bioes"
+  - "constrained-decoding"
+  - "crf"
+  - "contextual-embeddings"
+  - "span-f1"
+  - "f1-optimal-decoding"
+  - "word-dropout"
+  - "generalization"
+  - "financial-text"
+domain: "extraction-knowledge-graphs"
+financeCaseStudy: true
+rigorFlag: "The corpus is synthetic and templated, and its tokenizer lowercases, removing the capitalization cue real recognizers lean on (one case feature recovers most of the gap). The pretrained encoder saw the held-out names in unlabeled text, so reading unseen words as [UNK] only approximates names never seen anywhere. The encoder is small (d = 64, two layers) and frozen: fine-tuning might close the gap between the CRF and softmax heads, and this page does not test it. Name dropout's rate is fixed a priori and every tagger is fit once at one prior, untuned. Theorem 3 maximizes F1 of expected counts, which equals expected F1 only asymptotically, and is optimal for the model's own marginals, which the name shift miscalibrates. Proposition 2's strictness needs token-local features; the taggers here see their neighbors, so their BIO and BIOES scores differ by estimation, not expressiveness."
+videoId: null
+notebookPath: "notebooks/named-entity-recognition/01_named_entity_recognition.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/named-entity-recognition.mdx"
+datePublished: 2026-10-26
+estimatedReadTime: 35
+abstract: "A named entity recognizer predicts a set of typed spans, and tag schemes such as BIO and BIOES are encodings of that set. We prove that each encoding is a bijection onto its valid tag sequences, that validity is a first-order constraint, and that decoding under the constraint is exactly conditioning a chain model on validity. BIOES is at least as expressive as BIO and strictly more so only for features that see one token at a time. A CRF on a contextual encoder backpropagates gold indicators minus marginals into the encoder, and on frozen states its objective stays strictly concave. We prove that micro F1 is a prediction-weighted mixture of per-type F1s, compute every span's marginal with one forward-backward pass, and decode the span set that maximizes F1 of expected counts by Dinkelbach's method over a weighted-interval program, which thresholds the marginals at half the optimal F1. Then we hold names out by design: taggers train on filings about 18 companies and are tested on filings about 6 others. A word-feature CRF finds no unseen organization at all. Dropout that rewrites names as an unknown-word symbol teaches a shortcut, which we prove: a feature seen only on entities argues against the outside tag. Dropout that deletes the name's features avoids it, and a tagger whose encoder reads unseen words as [UNK] at test, as its dropout did in training, reaches span F1 0.979 on the held-out companies."
+connections:
+  - topic: "language-model-calibration"
+    relationship: "Theorem 3's F1-optimal decoder is optimal only for calibrated span marginals; the held-out names miscalibrate them, and the calibration topic's reliability analysis is how one would measure that."
+  - topic: "fine-tuning-low-rank-adaptation"
+    relationship: "Its encoder backward pass is the one Theorem 2 feeds with gold indicators minus marginals; this page keeps the encoder frozen, and fine-tuning it through the CRF is the experiment it leaves open."
+references:
+  - type: "paper"
+    title: "Introduction to the CoNLL-2003 Shared Task: Language-Independent Named Entity Recognition"
+    authors: "Erik F. Tjong Kim Sang and Fien De Meulder"
+    year: 2003
+    url: "https://aclanthology.org/W03-0419/"
+    note: "Proceedings of CoNLL-2003, 142–47. The benchmark and its scoring: a phrase counts only if it matches a gold phrase exactly (strict span F1)"
+  - type: "paper"
+    title: "Design Challenges and Misconceptions in Named Entity Recognition"
+    authors: "Lev Ratinov and Dan Roth"
+    year: 2009
+    url: "https://aclanthology.org/W09-1119/"
+    note: "Proceedings of CoNLL-2009, 147–55. Section 4 and Table 2 compare BIO with BILOU (BIOES): BILOU wins on three of four evaluation sets"
+  - type: "paper"
+    title: "Neural Architectures for Named Entity Recognition"
+    authors: "Guillaume Lample, Miguel Ballesteros, Sandeep Subramanian, Kazuya Kawakami, and Chris Dyer"
+    year: 2016
+    url: "https://aclanthology.org/N16-1030/"
+    note: "Proceedings of NAACL-HLT 2016, 260–70. A BiLSTM with a CRF output layer; §4.1 replaces singletons with an unknown-word embedding with probability 0.5 in training; §2.4 finds IOBES no significant improvement over IOB"
+  - type: "paper"
+    title: "Natural Language Processing (Almost) from Scratch"
+    authors: "Ronan Collobert, Jason Weston, Léon Bottou, Michael Karlen, Koray Kavukcuoglu, and Pavel Kuksa"
+    year: 2011
+    url: "https://jmlr.org/papers/v12/collobert11a.html"
+    note: "Journal of Machine Learning Research 12: 2493–537. Section 3.4.2, the sentence-level log-likelihood: transition scores added to a network's per-token scores, normalized over all tag paths, trained end to end"
+  - type: "paper"
+    title: "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding"
+    authors: "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova"
+    year: 2019
+    url: "https://aclanthology.org/N19-1423/"
+    note: "Proceedings of NAACL-HLT 2019, 4171–86. Section 5.3: CoNLL-2003 NER as tagging, the first sub-token's representation fed to a token-level classifier with no CRF layer"
+  - type: "paper"
+    title: "Generalisation in Named Entity Recognition: A Quantitative Analysis"
+    authors: "Isabelle Augenstein, Leon Derczynski, and Kalina Bontcheva"
+    year: 2017
+    url: "https://doi.org/10.1016/j.csl.2017.01.012"
+    note: "Computer Speech & Language 44: 61–83. Leading recognizers rely on surface forms seen in training, and score markedly lower on unseen entities, mostly through recall"
+  - type: "paper"
+    title: "SemEval-2013 Task 9: Extraction of Drug-Drug Interactions from Biomedical Texts (DDIExtraction 2013)"
+    authors: "Isabel Segura-Bedmar, Paloma Martínez, and María Herrero-Zazo"
+    year: 2013
+    url: "https://aclanthology.org/S13-2056/"
+    note: "Proceedings of SemEval 2013, 341–50. Section 3.1: the four entity-matching criteria, strict, exact boundary, partial boundary, and type"
+  - type: "paper"
+    title: "On Nonlinear Fractional Programming"
+    authors: "Werner Dinkelbach"
+    year: 1967
+    url: "https://doi.org/10.1287/mnsc.13.7.492"
+    note: "Management Science 13, no. 7: 492–98. Restates and proves Jagannathan's (1966) theorem relating fractional and parametric programs, and gives the iteration; cited from the abstract (the full text was not accessible)"
+  - type: "paper"
+    title: "Optimal Thresholding of Classifiers to Maximize F1 Measure"
+    authors: "Zachary C. Lipton, Charles Elkan, and Balakrishnan Naryanaswamy"
+    year: 2014
+    url: "https://doi.org/10.1007/978-3-662-44851-9_15"
+    note: "Machine Learning and Knowledge Discovery in Databases: ECML PKDD 2014, Part II, Lecture Notes in Computer Science 8725, 225–39. Corollary 1: with calibrated probabilities, the F1-optimal threshold is half the optimal F1 (population F1, a ratio of rates)"
+  - type: "paper"
+    title: "Optimizing F-Measures: A Tale of Two Approaches"
+    authors: "Nan Ye, Kian Ming A. Chai, Wee Sun Lee, and Hai Leong Chieu"
+    year: 2012
+    url: "https://arxiv.org/abs/1206.4625"
+    note: "Proceedings of the 29th ICML. Theorem 8: empirical utility maximization and the decision-theoretic approach to F-measures are asymptotically equivalent on large i.i.d. test sets"
+formalmlPrereqs:
+  - topic: "convex-analysis"
+    site: "formalml"
+    relationship: "Its Theorem 3, the second-order condition, makes the CRF objective on frozen encoder features strictly concave once the L2 penalty is added (Corollary 1), so every tagger on this page has one optimum."
+formalmlConnections:
+  - topic: "uncertainty-quantification"
+    site: "formalml"
+    relationship: "Its Definition 3 is perfect calibration; Theorem 3 here is F1-optimal only for calibrated span marginals, and the held-out names show what miscalibration does to the threshold."
+formalragPrereqs:
+  - topic: "set-metrics-precision-recall-map-mrr"
+    site: "formalrag"
+    relationship: "Its Definition 1 treats precision and recall as properties of a retrieved set; Definition 4 here applies them to sets of predicted entity spans under four matching criteria."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import NamedEntityLab from '../../components/viz/NamedEntityLab.tsx';
+
+## Overview & Motivation
+
+A filing says "Northgate Energy guided to 7 percent growth in fiscal 2026." An information-extraction system has to return three typed spans: *Northgate Energy*, an organization; *7 percent*, a percentage; *fiscal 2026*, a date. The [sequence labeling topic](/topics/sequence-labeling-hmm-crf) turned that into one BIO tag per token and tagged the corpus's entities with a linear-chain CRF. Its finance case study ended on a warning: almost every error it had left was a name the tagger had never seen in training.
+
+This page takes that warning as its subject. We split the corpus's companies in two. The taggers train on $30$ documents about $18$ companies and are tested on documents about those $18$ and on documents about $6$ others, whose organizations, people, and products never appear in training. On the held-out documents, the sequence labeling topic's CRF does not find a single organization. Read the lab's sentence, from the held-out test: "northgate energy guided to percent growth in fiscal". The word-feature CRF finds the percentage and the date and tags *northgate energy* as outside every entity.
+
+Why that happens, and what fixes it, needs four pieces of mathematics first:
+
+1. **Encodings.** Tags are one way to write a set of spans. We prove which tag sequences are valid, and when BIOES is more expressive than BIO.
+2. **Constrained decoding.** Decoding only valid sequences is exactly conditioning the model on validity.
+3. **A CRF on a contextual encoder.** The masked-LM topic's encoder supplies the features, and the CRF's gradient tells the encoder what to change.
+4. **Span evaluation and F1-optimal decoding.** What span F1 averages, and how to decode the span set that maximizes it.
+
+Then the held-out names. The fix that works is old, word dropout, but only in one of its two forms, and we prove why the other fails.
+
+---
+
+## Spans and their encodings
+
+A sentence has tokens $x_1, \dots, x_T$, and $E$ is the set of entity types: here ORG, PERSON, GPE (places), PRODUCT, SECTOR, DATE, MONEY, and PERCENT.
+
+<TheoremBlock type="definition" number={1} title="Span set">
+
+A **span** $(s, e, \tau)$ covers the tokens $s, s+1, \dots, e-1$ and has type $\tau \in E$. A **span set** is a set of pairwise disjoint spans. A recognizer maps a sentence to a span set.
+
+</TheoremBlock>
+
+A tagger cannot output a set directly, so we encode the set as one tag per token.
+
+<TheoremBlock type="definition" number={2} title="BIO and BIOES">
+
+**BIO** tags the first token of a span B-$\tau$, its other tokens I-$\tau$, and every other token O: $2|E| + 1$ tags. **BIOES** tags a one-token span S-$\tau$ and a longer span B-$\tau$, I-$\tau$, $\dots$, I-$\tau$, E-$\tau$, with O elsewhere: $4|E| + 1$ tags.
+
+</TheoremBlock>
+
+The lab's sentence is `northgate/B-ORG energy/I-ORG guided/O to/O percent/B-PERCENT growth/O in/O fiscal/B-DATE` in BIO. In BIOES the organization ends on E-ORG, and the one-word percentage and date become S-PERCENT and S-DATE. (The tokenizer keeps letters only, so "7" and "2026" are gone.)
+
+Not every tag sequence encodes a span set. "O I-ORG" continues a span that never began, and in BIOES so does "B-ORG O": a span that opens and never closes. Picture all $K^T$ sequences as paths through a $K \times T$ trellis. The valid ones are the paths that avoid certain starts, certain steps, and certain ends.
+
+<TheoremBlock type="proposition" number={1} title="Encodings are bijections onto first-order languages">
+
+For each scheme, the encoding is a bijection from the span sets on $T$ tokens onto the **valid** tag sequences, and a sequence is valid exactly when its first tag passes a start mask, each adjacent pair passes a transition mask, and its last tag passes an end mask:
+
+- **BIO:** I-$\tau$ may follow only B-$\tau$ or I-$\tau$, so it may not start a sentence; every tag may end one.
+- **BIOES:** after B-$\tau$ or I-$\tau$ only I-$\tau$ or E-$\tau$ may follow; after O, E, or S only O, B, or S may follow; a sentence starts on O, B, or S and ends on O, E, or S.
+
+With $M$ the 0–1 transition matrix and $a, b$ the start and end masks, the number of valid sequences is $a^\top M^{T-1} b = N(T)$, where $N(0) = 1$ and $N(T) = N(T-1) + |E| \sum_{l=1}^{T} N(T - l)$. Reading tags left to right, opening a span at any tag that does not continue an open span of its type (the CoNLL scorer's convention), maps all $K^T$ sequences onto the span sets, many to one.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Decoding a valid sequence reads each span back: a B or S tag opens a span, I continues it, and in BIO the next tag that does not continue it closes it, while in BIOES an E or S closes it. So decoding inverts encoding on valid sequences, and encoding is injective. Conversely, every pattern the masks forbid is one that no encoding produces (an I or E with nothing open, a B or I followed by something other than I or E, a span still open at the end), so the valid sequences are exactly the images. The mask conditions involve only one tag or two adjacent tags, which is what first-order means, and $a^\top M^{T-1} b$ counts the paths of length $T$ through the 0–1 graph of allowed steps. For the recursion, look at token $T$: either it lies outside every span, leaving a span set on $T - 1$ tokens, or it ends a span of length $l \in \{1, \dots, T\}$ and one of $|E|$ types, leaving a span set on $T - l$ tokens. The repair reads some span set off every sequence, and it reads the same set off, for example, "O I-ORG" and "O B-ORG".
+
+</TheoremBlock>
+
+With all eight types, $T = 4$ tokens have $8{,}721$ span sets, against $83{,}521$ BIO sequences and $1{,}185{,}921$ BIOES sequences. The harness checks the bijection, the mask characterization, and the count by enumerating every sequence for one and two types up to $T = 5$.
+
+BIOES carries more information per tag: whether a span ends here. Does that make it a richer model?
+
+<TheoremBlock type="proposition" number={2} title="BIO against BIOES">
+
+**(a)** For every BIO chain with potentials $(U, P)$, the BIOES chain $U'_t(y) = U_t(c(y))$, $P'(y, y') = P(c(y), c(y'))$, where $c$ maps S-$\tau$ to B-$\tau$ and E-$\tau$ to I-$\tau$, gives every span set the same probability, both chains constrained to valid sequences.
+
+**(b)** With token-local features, where $U_t$ depends on the sentence only through $x_t$, the inclusion is strict. Take two training sentences, "a d" with gold span set $\{(0, 1, \mathrm{ORG})\}$ and "c d" with $\{(0, 2, \mathrm{ORG})\}$. Every BIO chain gives the two gold span sets total probability at most $1$, while BIOES chains give each one probability as close to $1$ as we like.
+
+**(c)** If each token's features include the word to its left, BIO chains also approach probability $1$ on both.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The map $c$ sends each valid BIOES sequence to the valid BIO sequence of the same span set, so it is a bijection between the two valid sets (Proposition 1), and by construction the score of $y$ is the score of $c(y)$. Equal scores over sets in bijection give equal probabilities after normalizing.
+
+(b) Both gold span sets need $z_1 = \mathrm B$. Given $z_1 = \mathrm B$, the chain's conditional law of $z_2$ is proportional to $e^{P(\mathrm B, z_2) + U_2(z_2)}\beta_2(z_2)$, which depends on the sentence only through $x_2$, and both sentences have $x_2 = d$. Call that law $q$. The first gold set needs $z_2 = \mathrm O$ and the second needs $z_2 = \mathrm I$, so their probabilities are at most $q(\mathrm O)$ and $q(\mathrm I)$, which sum to at most $1$. In BIOES the two sentences need different first tags, S for "a" and B for "c", which token-local weights can separate, and after B the masks force E.
+
+(c) A feature "the left word is $c$" on token $2$ lets $U_2(\mathrm I)$ differ between the sentences, which breaks the argument in (b).
+
+</TheoremBlock>
+
+Fit by penalized maximum likelihood, the token-local BIO chain gives the two gold sets $0.499$ and $0.499$; BIOES gives $0.994$ and $0.995$; BIO with the left word gives $0.994$ and $0.994$. Ratinov and Roth (2009) found BILOU, their name for BIOES, better than BIO in practice. Proposition 2 says what such a finding can and cannot mean: once the features see a token's neighbors, as every tagger below does, the two schemes describe the same span distributions, and any difference is estimation, with twice the tags to estimate.
+
+---
+
+## Constrained decoding
+
+A CRF trained on valid sequences still gives invalid ones positive probability, and its Viterbi path can be invalid. The fix is to forbid them, and the next theorem says what forbidding computes.
+
+<TheoremBlock type="theorem" number={1} title="Constrained decoding is conditioning">
+
+Let $C$ be the valid sequences of Proposition 1, and modify a chain's log-potentials by setting $U_1(k) = -\infty$ for every tag $k$ the start mask forbids, $U_T(k) = -\infty$ for every tag the end mask forbids, and $P(j, k) = -\infty$ for every forbidden step. Then the sequence recursions of the sequence labeling topic, run on the modified chain, return
+
+**(a)** the Viterbi path $\arg\max_{z \in C} p(z \mid x)$;
+
+**(b)** the node marginals $p(z_t = k \mid x, Z \in C)$;
+
+**(c)** $\log Z_C - \log Z = \log p(Z \in C \mid x)$, where $Z_C$ is the modified chain's partition function.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The modification multiplies each path's potential $e^{\operatorname{score}(z)}$ by
+
+$$
+\mathbf 1[z_1 \text{ allowed}]\,\prod_t \mathbf 1[(z_t, z_{t+1}) \text{ allowed}]\;\mathbf 1[z_T \text{ allowed}] = \mathbf 1[z \in C],
+$$
+
+a product of factors on single nodes and adjacent pairs. So the modified potentials are again a chain, and the sequence labeling topic's Theorem 1 applies to it unchanged: its max pass returns the best path with nonzero potential, which is the best valid path; its sum pass returns $Z_C = \sum_{z \in C} e^{\operatorname{score}(z)}$ and marginals of the distribution proportional to $e^{\operatorname{score}(z)}\mathbf 1[z \in C]$, which is $p(z \mid x, Z \in C)$. Finally $Z_C / Z = \sum_{z \in C} p(z \mid x)$.
+
+</TheoremBlock>
+
+Two things follow. Constrained Viterbi is not a heuristic repair; it is the exact mode of the model conditioned on producing a span set. And the cost is nothing: the same $O(TK^2)$ passes with some entries set to $-\infty$. The harness checks all three parts against enumeration on random chains in both schemes. Every CRF tagger below decodes an invalid sequence in fewer than $0.7\%$ of test sentences without the constraint, so for CRFs the constraint rarely binds. For the independent softmax head of the next section it binds constantly.
+
+---
+
+## A CRF on a contextual encoder
+
+The sequence labeling topic scored each token with hand-built features: the word, its prefix and suffix, its neighbors. The [masked-LM topic](/topics/contextual-embeddings-masked-lm) trained an encoder whose final state at each position summarizes the whole sentence around that token. We put the CRF on top of it.
+
+<TheoremBlock type="definition" number={3} title="A CRF on encoder states">
+
+Let $h_t \in \mathbb R^d$ be an encoder's final state at token $t$. The **encoder CRF** has unary potentials $U_t(k) = (W h_t + b)_k$, transition weights $P(j, k)$, and start and end weights, and $p(z \mid x) \propto \exp\big(\sum_t U_t(z_t) + \sum_t P(z_t, z_{t+1})\big)$ with the start and end weights folded into $U_1$ and $U_T$. The **softmax head** is the case $P = 0$ with no start or end weights: an independent classifier at each token.
+
+</TheoremBlock>
+
+<TheoremBlock type="theorem" number={2} title="The gradient at the potentials">
+
+Write $\gamma_t(k) = p(z_t = k \mid x)$ and $\xi_t(j, k) = p(z_t = j, z_{t+1} = k \mid x)$. Then
+
+$$
+\frac{\partial \log p(z \mid x)}{\partial U_t(k)} = \mathbf 1[z_t = k] - \gamma_t(k), \qquad
+\frac{\partial \log p(z \mid x)}{\partial P(j, k)} = \sum_{t=1}^{T-1}\big(\mathbf 1[z_t = j,\, z_{t+1} = k] - \xi_t(j, k)\big).
+$$
+
+So the loss $L = -\log p(z \mid x)$ sends the encoder $\partial L / \partial h_t = (\gamma_t - e_{z_t})^\top W$, where $e_{z_t}$ is the indicator vector of the gold tag. For the softmax head, $\gamma_t$ is the per-token softmax and this is the cross-entropy gradient.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\log p(z \mid x) = \operatorname{score}(z) - \log Z$. The score is linear in the potentials, with derivative $\mathbf 1[z_t = k]$ in $U_t(k)$ and the count of $j \to k$ steps in $P(j, k)$. For $\log Z = \log \sum_{z'} e^{\operatorname{score}(z')}$, the derivative in $U_t(k)$ is $\sum_{z'} p(z' \mid x)\mathbf 1[z'_t = k] = \gamma_t(k)$, and in $P(j, k)$ it is the expected number of $j \to k$ steps, $\sum_t \xi_t(j, k)$. This is the sequence labeling topic's Theorem 2 with the potentials themselves as the parameters. The chain rule through $U_t = W h_t + b$ gives the encoder's gradient. With $P = 0$ and no start or end weights the chain factorizes over tokens, so $\gamma_t$ is the softmax of $U_t$.
+
+</TheoremBlock>
+
+The vector $\gamma_t - e_{z_t}$ is "what the model believes minus what is true," position by position, and Collobert et al. (2011) trained taggers end to end on exactly this sentence-level objective. The harness checks Theorem 2 by complex-step differentiation on random chains and checks its chain rule through the masked-LM encoder, fed into the [fine-tuning topic's](/topics/fine-tuning-low-rank-adaptation) backward pass, by central differences on its weights. On this page we keep the encoder **frozen**: its states are fixed features, and only the CRF is trained.
+
+<TheoremBlock type="corollary" number={1} title="Frozen states keep the objective strictly concave">
+
+With the encoder fixed, the penalized conditional log-likelihood of an encoder CRF, in $(W, b, P)$ and the start and end weights, is strictly concave for every $\lambda \gt 0$ and has exactly one maximizer.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Fixed states make every feature $h_t$ a constant, so the encoder CRF is the sequence labeling topic's linear-chain CRF with dense real-valued features. Its Theorem 2 gives a negative semidefinite Hessian, and the penalty subtracts $\lambda I$ (formalML `convex-analysis`, Theorem 3, for the second-order condition). The objective grows to $-\infty$ in every direction, so its maximum is attained, at one point.
+
+</TheoremBlock>
+
+Fine-tuning gives this up: the score becomes a non-convex function of the encoder's weights. Devlin et al. (2019) fine-tune BERT for the same task with a softmax head and no CRF, so whether a CRF still helps a fine-tuned encoder is a fair question, and one this page leaves open. On frozen states the answer is clear (the **Heads & constraints** tab). The softmax head decodes an invalid BIO sequence in $9.9\%$ of the seen-roster test sentences and $14.9\%$ of the held-out ones. Theorem 1's constraint removes those and raises its span F1 from $0.763$ to $0.809$ (seen) and from $0.699$ to $0.710$ (held out). The CRF head on the same states scores $0.902$ and $0.823$. The frozen states know a token is part of a name; they were never trained to know where the name ends, and the transition weights supply that.
+
+---
+
+## Span evaluation in depth
+
+The sequence labeling topic scored taggers by exact-match span F1, the CoNLL-2003 convention (Tjong Kim Sang and De Meulder 2003). That is one point in a small space of choices.
+
+<TheoremBlock type="definition" number={4} title="Match criteria and span F1">
+
+Fix a **match** relation between a gold span $g$ and a predicted span $p$ of the same sentence:
+
+- **strict:** the same boundaries and type;
+- **boundary:** the same boundaries, any type;
+- **type:** overlapping, with the same type;
+- **partial:** overlapping.
+
+**Precision** is the share of predicted spans that match some gold span, **recall** the share of gold spans that some predicted span matches, and **F1** their harmonic mean, $2PR/(P + R)$. Under strict matching both shares count the same pairs, so $F_1 = 2\,\mathrm{TP}/(|G| + |\hat P|)$, with $G$ and $\hat P$ the gold and predicted spans. Per-type F1 restricts both sets to one type.
+
+</TheoremBlock>
+
+These are the four criteria of the SemEval-2013 drug-interaction task (Segura-Bedmar, Martínez, and Herrero-Zazo 2013, §3.1), which defers the crediting of partial matches to the MUC scoring conventions; we count any overlap as a match. Two facts about them are worth stating precisely.
+
+<TheoremBlock type="proposition" number={3} title="What span F1 averages, and relaxing the match">
+
+**(a)** Under strict matching, the micro F1 over all types is a mixture of the per-type F1s,
+
+$$
+F_1 = \sum_{\tau \in E} w_\tau\, F_{1,\tau}, \qquad w_\tau = \frac{|G_\tau| + |\hat P_\tau|}{\sum_{\sigma \in E} \big(|G_\sigma| + |\hat P_\sigma|\big)},
+$$
+
+with weights that depend on the predictions. Macro F1 is the mixture with equal weights.
+
+**(b)** If every pair that matches under one relation matches under a second, then precision, recall, and F1 under the second are at least their values under the first. So strict $\le$ boundary $\le$ partial and strict $\le$ type $\le$ partial, in all three measures.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) $F_{1,\tau} = 2\,\mathrm{TP}_\tau / (|G_\tau| + |\hat P_\tau|)$, so $w_\tau F_{1,\tau} = 2\,\mathrm{TP}_\tau / \sum_\sigma (|G_\sigma| + |\hat P_\sigma|)$; summing over $\tau$ gives $2\,\mathrm{TP} / (|G| + |\hat P|)$, because the types partition both sets. (b) A predicted span matched under the first relation is matched under the second, so precision can only rise, and likewise recall. F1 increases in each of $P$ and $R$.
+
+</TheoremBlock>
+
+Part (a) is a warning about reading micro F1. A tagger that predicts many spans of an easy type raises that type's weight, and with it the micro score, even if its F1 on the hard types stays put. Here MONEY and PERCENT are read off one word each (`million`, `percent`), so every tagger scores near $1$ on them, and organizations are the hard type: per-type F1 is the number to watch. Part (b) makes the gaps between criteria diagnostic. The encoder CRF on the held-out test scores $0.823$ strict but $0.915$ under type matching: it finds the organizations and misplaces their boundaries, an error a strict score alone cannot separate from missing them. The **Held-out names** tab switches between the four criteria.
+
+---
+
+## F1-optimal span decoding
+
+Viterbi decoding maximizes the probability of the whole tag sequence (the sequence labeling topic's Theorem 4), and span F1 is not that. Can we decode for F1 directly? The first ingredient is the probability of each span.
+
+<TheoremBlock type="proposition" number={4} title="Span marginals">
+
+Let $\alpha$ and $\beta$ be the forward and backward messages of a constrained chain (Theorem 1), and write $\psi_t(k) = e^{U_t(k)}$ and $\psi(j, k) = e^{P(j, k)}$. In BIO, the probability that the span set contains $(s, e, \tau)$ is
+
+$$
+q_{(s, e, \tau)} = \frac{1}{Z}\, \alpha_s(\mathrm B_\tau) \prod_{t=s+1}^{e-1} \psi(\cdot, \mathrm I_\tau)\, \psi_t(\mathrm I_\tau) \; \sum_{k \ne \mathrm I_\tau} \psi(\cdot, k)\, \psi_e(k)\, \beta_e(k),
+$$
+
+where each $\psi(\cdot, \cdot)$ links the tag before it to the next, and the last factor is $\beta_{T}(\cdot) = 1$ when $e - 1$ is the last token. In BIOES the span is S-$\tau$ at $s$, or B-$\tau$, I-$\tau$, $\dots$, E-$\tau$, closed by $\beta_{e-1}$. The marginals sum to the expected number of spans, $m = \mathbb E|S| = \sum_t p(z_t \in \mathrm B \cup \mathrm S \mid x)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+In BIO a valid sequence contains the span exactly when $z_s = \mathrm B_\tau$, $z_{s+1}, \dots, z_{e-1} = \mathrm I_\tau$, and $z_e \ne \mathrm I_\tau$ (or the sentence ends). Summing the potentials of all such paths factorizes as in the sequence labeling topic's Theorem 1: prefixes ending in B-$\tau$ at $s$ give $\alpha_s(\mathrm B_\tau)$, the pinned middle contributes its product, and suffixes starting with any $k \ne \mathrm I_\tau$ at $e$ give the last sum. BIOES is the same with its own pinned pattern. Each span begins with exactly one B or S tag, so the number of spans is the number of such tags, and expectations add.
+
+</TheoremBlock>
+
+Now the objective. With marginals $q$ over a whole test corpus and $m = \sum q$, a predicted span set $\hat S$ has expected true positives $\sum_{s \in \hat S} q_s$ and the gold set has expected size $m$, so the **F1 of expected counts** is $\Phi(\hat S) = 2\sum_{s \in \hat S} q_s \,/\, (|\hat S| + m)$.
+
+<TheoremBlock type="theorem" number={3} title="F1-optimal span decoding">
+
+Maximize $\Phi(\hat S)$ over span sets, one per sentence.
+
+**(a)** $F^* = \max \Phi$ if and only if $\max_{\hat S} \sum_{s \in \hat S}(2q_s - F^*) = F^* m$.
+
+**(b)** Starting from $F_0 = 0$, the iteration $\hat S_k = \arg\max_{\hat S} \sum_{s \in \hat S}(2q_s - F_k)$, $F_{k+1} = \Phi(\hat S_k)$ increases strictly until it stops, after finitely many steps, at $F^*$, and $\hat S_k$ is then optimal.
+
+**(c)** The inner maximization chooses disjoint spans to maximize $\sum (q_s - F/2)$, a weighted interval scheduling problem solved per sentence by a dynamic program over token positions. So the optimal span set thresholds the marginals at $F^*/2$, subject to disjointness. When the candidate spans are pairwise disjoint it is exactly $\{s : q_s \gt F^*/2\}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) For every $\hat S$, $\Phi(\hat S) \le F$ is equivalent to $\sum_{\hat S} 2q_s - F(|\hat S| + m) \le 0$, since the denominator is positive, and $\sum_{\hat S} 2q_s - F|\hat S| = \sum_{\hat S}(2q_s - F)$. So $F \ge \max\Phi$ exactly when $g(F) = \max_{\hat S}\sum_{\hat S}(2q_s - F) - Fm \le 0$, with equality at $F = \max \Phi$ because the maximizing set attains it. This is the characterization of a ratio's maximum that Dinkelbach (1967) restates from Jagannathan and turns into an algorithm.
+
+(b) $g(F_k) \ge \sum_{\hat S_{k-1}}(2q_s - F_k) - F_k m = 0$, using $\Phi(\hat S_{k-1}) = F_k$. If $g(F_k) \gt 0$, the set $\hat S_k$ has $\sum_{\hat S_k} 2q_s - F_k(|\hat S_k| + m) \gt 0$, which says $\Phi(\hat S_k) \gt F_k$: a strict increase. If $g(F_k) = 0$, then $F_k = F^*$ by (a). There are finitely many span sets, so the values cannot rise forever.
+
+(c) For fixed $F$ the objective adds one weight $2q_s - F$ per chosen span, and the only constraint is that spans in one sentence be disjoint. Let $V(t)$ be the best total over spans inside the first $t$ tokens. Then $V(t) = \max\big(V(t-1), \max_{(s, t, \tau)} V(s) + 2q_{(s,t,\tau)} - F\big)$, and $V(T)$ with its back-pointers is the optimum. A span with weight at most $0$ never helps, so only spans with $q_s \gt F/2$ are chosen. With disjoint candidates there is no conflict, and the set is all of them.
+
+</TheoremBlock>
+
+Lipton, Elkan, and Naryanaswamy (2014, Corollary 1) proved the threshold $F^*/2$ for binary decisions with calibrated probabilities, F1 taken as a ratio of population rates; spans add the disjointness constraint, which the interval program handles. One more fact makes the program cheap.
+
+<TheoremBlock type="remark" title="Above one half, no conflicts">
+
+Two overlapping spans cannot both belong to one span set, so they are disjoint events and $q_a + q_b \le 1$. Two candidates above a threshold $\tau \ge 1/2$ therefore never overlap, and thresholding at $\tau \ge 1/2$ needs no dynamic program at all.
+
+</TheoremBlock>
+
+Two caveats belong next to the theorem. $\Phi$ is the F1 of expected counts, not the expected F1, and the two agree only asymptotically, on large test sets (Ye et al. 2012, Theorem 8). And the theorem optimizes the model's own beliefs. If the marginals are calibrated, in formalML's sense of `uncertainty-quantification` (its Definition 3), $F^*$ is a forecast of the realized F1 and $F^*/2$ the right threshold; if not, neither is. The [calibration topic](/topics/language-model-calibration) is about measuring exactly that gap, and the held-out names below open one. The harness checks Theorem 3 against brute force over every combination of disjoint span subsets on random multi-sentence instances, and the threshold form against all $2^{10}$ subsets of ten disjoint candidates.
+
+---
+
+## Holding names out by design
+
+<FinanceCaseStudy title="Finance case study: names the tagger never saw">
+
+The shared corpus describes a fixed world of $24$ public companies, their subsidiaries, officers, products, and headquarters. Its `split_roster()` holds out one company per sector: Dunmore Aerospace, Meridale Medical, Northgate Energy, Saltmarsh Capital, Stratus Point Networks, and Tamsin Retail Group, with their subsidiaries, officers, and flagship products. The taggers train on the first $30$ documents of a corpus about the other $18$ ($598$ sentences, $552$ spans). They are tested on $200$ documents about the same $18$ ($3{,}747$ spans, the **seen** test) and on $200$ about the six held out ($3{,}648$ spans, the **unseen** test). In the unseen test every organization, person, and product mention contains a word training never shows; the places, sectors, dates, money amounts, and percentages are shared. Even the seen test is not entirely seen: $30$ documents leave some rarely covered companies and cities out, and $214$ of its spans contain a word training never shows. So besides the two tests we report F1 on **unseen mentions**, the spans containing such a word, as Augenstein, Derczynski, and Bontcheva (2017) do.
+
+Every tagger is a CRF fit once at $\lambda = 1/n$, MAP under a standard normal prior, untuned, and decoded by constrained Viterbi. The **Held-out names** tab has them all.
+
+**Memorization.** With the sequence labeling topic's features (the word, its three-letter prefix and suffix, two words on each side), the CRF scores $0.945$ on the seen test and $0.642$ on the unseen one. Its organization F1 falls from $0.929$ to $0$: on the unseen test it predicts no organization at all, even in "northgate energy reported revenue of", whose context names a company as plainly as a template can. Word identity explains every training label, so the context features never needed weight.
+
+**Word dropout, two ways.** The standard remedy hides names during training, so the model has to read their context. Lample et al. (2016) replace singleton words with an unknown-word embedding with probability $0.5$. Here the names are not singletons, so we drop name tokens.
+
+<TheoremBlock type="definition" number={5} title="Name dropout">
+
+Each training token inside a gold span is dropped independently with probability $p$. **Substitution** rewrites a dropped token as `<unk>`, so every feature that mentions it now mentions `<unk>`; at test time, every word never seen in training is rewritten the same way. **Deletion** removes the dropped token's word, prefix, and suffix features and every neighbor's feature that mentions it, and adds nothing. In both, a dropped token enters the encoder as [UNK].
+
+</TheoremBlock>
+
+Substitution at $p = 0.5$ is a disaster: seen-test F1 falls from $0.945$ to $0.611$, with precision $0.481$. Recall on the unseen test jumps from $0.472$ to $0.936$, but every unseen word, name or not, is now predicted to be an entity. The next proposition says why.
+
+<TheoremBlock type="proposition" number={5} title="A feature seen only on entities argues against O">
+
+At the maximizer of the penalized CRF objective $\frac1n \sum_i \log p(z_i \mid x_i) - \frac\lambda2\|\theta\|^2$, the unary weights satisfy $\sum_k W[f, k] = 0$ for every feature $f$. If $f$ fires in training only on tokens whose gold tag lies in a set $A$, then $W[f, k] \lt 0$ for every tag $k \notin A$, and so $\sum_{k \in A} W[f, k] \gt 0$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Theorem 2, the gradient of the objective in $W[f, k]$ is $\frac1n \sum_{(i, t):\, f \text{ fires}}\big(\mathbf 1[z_{it} = k] - \gamma_{it}(k)\big) - \lambda W[f, k]$, which is zero at the maximizer. Summed over $k$, each token contributes $1 - 1 = 0$, so $\sum_k W[f, k] = 0$. For $k \notin A$ the indicator is $0$ at every token where $f$ fires, and every marginal $\gamma_{it}(k)$ is positive because all weights are finite, so $n\lambda W[f, k] = -\sum \gamma_{it}(k) \lt 0$. Then $\sum_{k \in A} W[f, k] = -\sum_{k \notin A} W[f, k] \gt 0$.
+
+</TheoremBlock>
+
+Substitution makes `<unk>` exactly such a feature: in training it appears only where an entity was dropped, so its O weight is negative (the harness finds it the most negative of its $17$ weights). At test time `<unk>` marks every unseen word, and most unseen words in a filing are ordinary vocabulary, so the shortcut fires on them too. Deletion adds no feature, so Proposition 5 has nothing to act on. Deletion at $p = 0.5$ raises F1 on **both** tests, to $0.975$ (seen) and $0.890$ (unseen), and organization F1 on the unseen test from $0$ to $0.763$. The **Dropout** tab sweeps $p$. Substitution's seen-test precision falls at every step, to $0.037$ at $p = 1$. Deletion's unseen F1 rises to $0.920$ at $p = 0.75$ and falls to $0.823$ at $p = 1$, where even the words that always sit inside entities (`million`, `percent`, `quarter`) never show their identity in training.
+
+**Context from an encoder.** The masked-LM topic's encoder was pretrained on filings about all $24$ companies, so it saw the held-out names in unlabeled text: $35$ of the $49$ held-out name words are in its vocabulary, the regime a pretrained encoder is always in. The CRF on its frozen states finds unseen organizations at F1 $0.571$, where the word CRF found none, and scores $0.823$ overall on the unseen test. If every word unseen in training is instead read as [UNK], as if the names had never been seen anywhere, it drops to $0.783$: pretraining exposure to the names is worth something. Both feature sets side by side, without dropout, give $0.973$ and $0.857$.
+
+**Train as you test.** The encoder cannot delete a token, so in dropout a dropped name enters it as [UNK]. Our headline tagger combines word features with deletion and encoder states with [UNK] dropout. Read at test with the encoder's own vocabulary, it scores $0.884$ on the unseen test. Read with every unseen word as [UNK], the input its dropout trained, it scores $0.979$, with organization F1 $0.951$ and unseen-mention F1 $0.964$, and $0.951$ on the seen test. Without dropout, the same [UNK] reading lowers both encoder taggers. The lesson is not "use [UNK]" but "make an unseen name look at test time the way dropout made names look in training". Substituted `<unk>` fails that test because ordinary unseen words look the same, and the encoder passes it because its state at an [UNK] position also reflects the sentence around it.
+
+**Capitalization.** The tokenizer lowercases, and real recognizers lean on case. One feature, "capitalized and not sentence-initial", added to the word CRF without dropout, lifts the unseen test from $0.642$ to $0.920$ and organizations to $0.873$. Most of this problem is a casing problem the corpus pipeline throws away; the rest needs context.
+
+**BIOES.** With deletion dropout, BIOES scores $0.970$ and $0.888$ against BIO's $0.975$ and $0.890$: no gain, as Proposition 2 predicts for features that see their neighbors.
+
+**F1-optimal decoding** (the **F1 decoding** tab). For the substitution tagger, whose Viterbi path is far from its F1-optimal operating point, Theorem 3's decoder lifts F1 from $0.611$ to $0.725$ (seen) and from $0.654$ to $0.752$ (unseen). For the headline it changes almost nothing: $0.951$ to $0.952$ and $0.979$ to $0.973$. Neither model's $F^*$ forecasts its realized F1. The headline expects $0.916$ on the unseen test and realizes $0.973$ with its own F1-optimal sets, so it is underconfident under the name shift. Its realized F1 peaks at $\tau = 0.38$, below its $F^*/2 = 0.458$. The substitution tagger expects $0.649$ there, and its realized F1 peaks above $\tau = 1/2$ ($0.52$ on the seen test, $0.60$ on the unseen one), far above its $F^*/2 = 0.324$: its spans are overconfident. Theorem 3 is optimal for what a model believes, and a name shift changes how far to believe it.
+
+</FinanceCaseStudy>
+
+<NamedEntityLab client:visible />
+
+---
+
+## Where this sits
+
+The sequence labeling topic built the chain; this page fixed its output language (Proposition 1, Theorem 1), its features (a frozen contextual encoder), its metric (Proposition 3, Theorem 3), and its training data (name dropout, Proposition 5). The spans it returns are the input of the next topic, relation extraction, which asks which pairs of recognized entities a sentence relates. Its distant supervision reads labels off the corpus's knowledge base, so its errors start where this page's end: a missed organization is a relation that can never be found.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Theorems 1–3, Propositions 1–5, and Corollary 1 are proved here in full. The harness checks Propositions 1, 2, and 4 and Theorems 1 and 3 against enumeration of every sequence or span subset, Theorem 2 by complex-step and central-difference derivatives, Proposition 5 on a fitted toy model and on the finance tagger, and Proposition 3 on every tagger's output.
+2. **A lowercased, templated corpus.** The corpus is synthetic and its tokenizer lowercases, which removes the cue real recognizers lean on; one case feature recovers most of the gap.
+3. **Pretraining saw the names.** The encoder was pretrained on text about all $24$ companies. Reading unseen words as [UNK] approximates names never seen anywhere, but the encoder's other weights still learned from contexts around the held-out names.
+4. **A small, frozen encoder.** The encoder has $d = 64$ and two layers and is never fine-tuned; whether fine-tuning closes the CRF-versus-softmax gap is not tested.
+5. **One prior, one rate.** Every tagger is fit once at $\lambda = 1/n$, and name dropout's $p = 0.5$ is fixed in advance; the sweep illustrates, it does not tune.
+6. **F1 of expectations.** Theorem 3 maximizes F1 of expected counts, which is expected F1 only asymptotically, and it is optimal for the model's own marginals, which the name shift miscalibrates.
+7. **Expressiveness versus estimation.** Proposition 2's strict gap needs token-local features. Every tagger here sees its neighbors, so its BIO and BIOES scores differ by estimation alone.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports `named_entity_recognition.py`, which owns every number on this page. It imports the sequence labeling topic's module for the chain recursions, the CRF objective and its L-BFGS fit, the finance BIO sentences, and the word features, and the fine-tuning topic's module for the masked-LM encoder, its fast forward pass, and its backward pass. Its harness checks:
+
+- Proposition 1's bijection, masks, and count, and Proposition 2's relabeling and counterexample, by enumeration;
+- Theorem 1's three parts and Proposition 4's span marginals against brute force on random chains in both schemes;
+- Theorem 2 by complex step on chains and by central differences through the encoder, and Corollary 1's unique optimum from two starts;
+- Theorem 3 against every combination of disjoint span subsets, and the $F^*/2$ threshold on disjoint candidates;
+- Proposition 3 on random span sets and on every tagger, and Proposition 5 on a toy fit and on the substitution-trained tagger;
+- every comparison this page states, on both test sets and both encoder readings.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

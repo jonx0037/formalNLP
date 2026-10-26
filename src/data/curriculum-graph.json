@@ -129,7 +129,7 @@
     {
       "id": "named-entity-recognition",
       "label": "Named Entity Recognition",
-      "status": "planned",
+      "status": "published",
       "domain": "extraction-knowledge-graphs"
     },
     {
