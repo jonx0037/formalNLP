@@ -355,6 +355,27 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   held out. Argument words or encoder entity-start states let DS memorize the KB (related co-mentions 0.813 seen vs
   0.304 unseen). An unbreakable inline-code module name in Implementation widened the mobile page to 395 px: name long
   modules in prose.
+- Knowledge-graph embeddings on corpus models (Topic 24). `fc.WORLD` is 114 entities, 10 relations, 254 triples; every
+  model scores a query as one point against every entity (distance γ − d for TransE/RotatE, inner product for
+  DistMult/ComplEx; head queries use the inverse map), so one backward pass serves all four, and training uses every
+  corruption (the exact expectation of uniform negative sampling, deterministic given the init). Skip the loss value
+  during training steps (two `log_expit` passes over the score matrix were most of a step: 1.0 → 0.3 s per 1,000).
+  Hidden facts are training negatives: on the full KB RotatE's phases solve Thm 1 to 3 decimals (COMPETES_WITH at
+  {0, π}, median 0.000), but with one direction of each competitor pair hidden they move off (0.485) and held-out
+  symmetry MRR is the worst of four (0.272), while DistMult, symmetric by construction, scores 1.000. An exact rotation
+  scores a pair and its reversal identically, so only phases off {0, π} can push the hidden twin down. DistMult's
+  f(h,r,t) and f(t,r,h) differ in the last bits (computed in different orders): direction accuracy read 0.514 until a
+  10⁻⁹ relative tie tolerance made it 0.5. Tune on another hiding averaged over 3 seeds (one seed picked RotatE γ = 3
+  at 500 steps, composition 0.731; three picked γ = 6 at 1,500, 0.912), read step counts off one run's checkpoints,
+  and expect picks at a grid edge (every step pick sat at an end of 250/500/1,000/1,500). COMPETES_WITH is N-to-N with
+  8 triangles (degrees 1 × 6, 2 × 10, 3 × 8), so Thm 2(c)'s odd-cycle collapse binds. "Inheritance" (subsidiaries share
+  the parent's sector) is no `closure` rule; TransE wins it (0.815) by N-to-1 collapse. TransE's best S₃ run in the plane
+  put all six entities at one point (ratio exactly 1). Halvorsen Industrial is the only parent with two subsidiaries
+  (Northgate Energy has one). At τ = 0.5, `extracted_kb()` leaves 28 WORLD facts about the 20 held-out entities missing
+  (26 COMPETES_WITH, 2 SUBSIDIARY_OF whose PARENT_OF was extracted at 0.688/0.685); every held-out entity has an extracted
+  fact. `tests/scaffold.test.ts` rejects the word "architectures" anywhere in a topic, references included. Topic 24's
+  harness runs 60–63 s (Topic 23's `extracted_kb()` is 25 s, training over 108 runs ~30 s): the 60 s rule was waived
+  for it by Jonathan, as for Topics 20 and 22.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -407,7 +428,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   it, inside `predicted_corpus`); `re_sentences`/`corpus`/`candidates`, `ds_labels`, `closure`, `ds_error_sources`,
   `lexical_features`, `soft_objective`/`fit_soft` (soft-label softmax LR), `mil_objective`/`mil_fit` (noisy-OR,
   complex-step safe), `witness_weights`, `identifiability`, `facts` (max or noisy-OR)/`fact_scores`, `kept_kb`
-  (pair-level SCAR), `link`, `predicted_corpus`, `pipeline`, and `extracted_kb` (Topic 24's input) are reusable.
+  (pair-level SCAR), `link`, `predicted_corpus`, `pipeline`, and `extracted_kb` (Topic 24's input) are reusable. Topic 24's
+  `fit(cfg, kg)` takes 0.2–0.4 s per 1,000 full-batch steps on the finance KB; `queries`/`query_vjp`/`score_matrix`/
+  `loss_grad` (four models, one backward pass), `realistic_rank` (Def 2), `evaluate` (batched filtered ranks),
+  `direction_accuracy`, `phase_residuals`, `abelian_ratio`, `s3_kg`/`dihedral_fit`, `pattern_split`, and
+  `completion_problem` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -417,6 +442,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   large sparse block matrices raise spurious FP flags — check such determinants block by block.
   Keep `_run_harness` and the `__main__` block last in the `.py`: Topic 21 appended sections after them, and an edit
   that truncated the file at `def _run_harness` deleted those sections silently (the next run failed on a NameError).
+  Scripted edits: assert the replaced text is non-empty and occurs once. In Topic 24 an `old = s[s.index(a):s.index(b)]`
+  came out empty because `b` also occurred earlier (inside `S3_SEEDS`), and `s.replace("", new)` inserted `new` between
+  every character (a 42 MB `.py`; stripping every copy of `new` recovered it).
 - Test a published bound's stated constant on adversarial instances before citing it (Chen et al.
   2023's PI bound fails as stated for d ≤ 128). Recompute a paper's headline from its printed parameters:
   Hoffmann et al.'s rounded Eq. 10 gives 32B at Gopher's budget, not their 40B (the unrounded values,
@@ -496,6 +524,19 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   - **Hoffmann et al. (2011), P11-1055.** 18.3% of matched Freebase facts overlap (§1); Φ_join is a deterministic OR
     (§3.2). Zeng et al. (2015, D15-1203, §3.5) train each bag on its most probable instance. Baldini Soares et al.'s
     entity-start state (P19-1279, §3.3) needs entity markers; the Anthology spells "Fitzgerald", the PDF "FitzGerald".
+  Topic 24 citation facts:
+  - **Sun et al. (2019), RotatE.** Lemmas 1–3 only say RotatE "can infer" each pattern (one-direction proofs, App. B–D);
+    the iff forms (rᵢ = ±1, r̄, r₁ ∘ r₂) are claims in §1. Footnote 2: the distance is L1 over complex moduli. Footnote 6
+    swaps the 1-to-N/N-to-1 labels relative to Bordes and Wang: do not copy it. No 1-to-N limitation is stated.
+  - **Bordes et al. (2013).** No DOI (cite papers.nips.cc); pages 2787–95 come from citing bibliographies. §2: entities
+    renormalized every iteration because otherwise the loss is minimized by inflating norms; relations once at init.
+    §4.2 introduces "raw" vs "filtered"; §4.3 the 1.5 threshold. Wang et al. (2014, TransH) say "reflexive" for symmetric.
+  - **Yang et al. (2015), DistMult** never mention symmetry; Kazemi and Poole (2018, §2, §5.1) assert it in one sentence
+    and credit TransE's non-full-expressiveness to Wang, Gemulla, and Li (2018). Trouillon et al. (2017, JMLR 18 (130))
+    add Dance as second author; expressiveness is Thm 2 + Cor 1, Cor 3 (sign-rank), Thm 4 (multi-relational).
+  - **Cai (2019)** is arXiv 1909.05100 v1, withdrawn in v2 (no venue): cite v1 and say so. Rotate3D's authors are Gao,
+    Sun, Shan, Lin, Wang (ACM 403: cite the abstract). Berrendorf et al.'s WI-IAT 2020 paper (371–74) is retitled on arXiv
+    (2002.06914, realistic rank §2.2 Eq. 3). Sun et al. (2020, ACL) has five authors ("Partha" is Talukdar's first name).
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -534,7 +575,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   formalML `kl-divergence` Prop 2 is Gibbs' inequality, formalStatistics `hidden-markov-models` Rem 16 states Fisher's
   identity (its `maximum-likelihood` only previews EM, Rem 10, and `model-selection-and-information-criteria`'s
   "Fisher identity" is J = K), formalML `convex-analysis` has no unique-minimizer theorem, and formalRAG
-  `graphrag-community-detection` builds its graph from co-occurrence and cosine, not extracted relations. The design's
+  `graphrag-community-detection` builds its graph from co-occurrence and cosine, not extracted relations. No sibling
+  covers TransE, RotatE, DistMult, ComplEx, link prediction, Hits@k, or filtered ranking (2026-10-26): formalRAG
+  `set-metrics-precision-recall-map-mrr` Def 3 is MRR, formalML `tensor-decompositions` Def 4 is CP, formalCalculus
+  `eigenvalues-eigenvectors` Rem 2 reads complex eigenvalues as rotations, and no sibling states Euler's formula as a
+  result; formalML `smooth-manifolds` covers matrix Lie groups only in prose (no numbered block). The design's
   watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
