@@ -117,7 +117,7 @@
     {
       "id": "fine-tuning-low-rank-adaptation",
       "label": "Fine-Tuning and Low-Rank Adaptation",
-      "status": "planned",
+      "status": "published",
       "domain": "classification-sentiment"
     },
     {
