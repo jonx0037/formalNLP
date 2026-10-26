@@ -141,7 +141,7 @@
     {
       "id": "knowledge-graph-embeddings",
       "label": "Knowledge-Graph Embeddings: TransE and RotatE",
-      "status": "planned",
+      "status": "published",
       "domain": "extraction-knowledge-graphs"
     },
     {

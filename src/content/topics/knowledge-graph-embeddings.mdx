@@ -1,0 +1,551 @@
+---
+title: "Knowledge-Graph Embeddings: TransE and RotatE"
+subtitle: "Relations as translations or rotations of entity space: which patterns each geometry satisfies exactly, what neither abelian group can represent, and what training on an incomplete knowledge base actually learns."
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "relation-extraction-distant-supervision"
+  - "glove-embedding-geometry"
+tags:
+  - "knowledge-graph-embeddings"
+  - "transe"
+  - "rotate"
+  - "distmult"
+  - "complex"
+  - "link-prediction"
+  - "group-actions"
+  - "relation-patterns"
+  - "knowledge-base-completion"
+  - "financial-text"
+domain: "extraction-knowledge-graphs"
+financeCaseStudy: true
+rigorFlag: "The pattern theorems concern exact satisfaction; trained models satisfy facts only within a margin, so 'cannot model' means 'cannot model at zero distance', and Theorems 2 and 3 bound what a margin buys. The trained numbers come from a 254-triple synthetic knowledge base, one hidden split tuned on another, three seeds, and one loss; at this scale the ranking of models moves with the hyperparameters, and every chosen step count sits at an end of its grid. Training treats every unknown triple as false, so held-out true facts are pushed down while the model fits, and filtered evaluation treats the knowledge base as complete. RotatE here uses the Euclidean norm where Sun et al. use the sum of moduli. Embeddings are transductive: an entity with no training fact keeps its random initialization."
+videoId: null
+notebookPath: "notebooks/knowledge-graph-embeddings/01_knowledge_graph_embeddings.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/knowledge-graph-embeddings.mdx"
+datePublished: 2026-10-26
+estimatedReadTime: 35
+abstract: "A knowledge-graph embedding places every entity at a point and makes every relation a map, so that a true triple is one whose head the map carries to its tail. TransE makes the map a translation, RotatE a rotation of complex coordinates. We prove what each geometry can satisfy exactly: translations invert and compose but represent a symmetric relation only by collapsing its pairs, while rotations represent symmetry with phases of zero or pi, inversion with negated phases, and composition with added ones. Both are actions of abelian groups by isometries, and that alone has consequences: facts that hold within epsilon pull the heads of a many-to-one relation within two epsilon of each other and collapse every odd cycle of a symmetric one, and on the Cayley graph of the symmetric group S3 no abelian model can keep a false triple more than five epsilon from its query, while the symmetries of a triangle fit it exactly. DistMult, by contrast, scores every relation symmetrically, and RotatE turns out to be ComplEx restricted to unit-modulus relations. On the finance knowledge base the trained rotations solve the phase equations to three decimals, until facts are hidden: a hidden fact is a negative during training, and the model that can represent antisymmetry learns the false antisymmetry the incomplete knowledge base teaches. Finally we embed the facts the relation-extraction topic extracted about six held-out companies and ask what the geometry adds."
+connections:
+  - topic: "word2vec-implicit-factorization"
+    relationship: "Every model here trains like skip-gram with negative sampling, a logistic loss on true pairs against corrupted ones; with every corruption scored, it is that topic's expected negative-sampling objective computed exactly."
+references:
+  - type: "paper"
+    title: "Translating Embeddings for Modeling Multi-relational Data"
+    authors: "Antoine Bordes, Nicolas Usunier, Alberto Garcia-Duran, Jason Weston, and Oksana Yakhnenko"
+    year: 2013
+    url: "https://papers.nips.cc/paper_files/paper/2013/hash/1cecc7a77928ca8133fa24680a88d2f9-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 26, 2787–95. TransE. Section 2, Eq. 1: the margin loss over corrupted heads or tails; entity embeddings renormalized to unit L2 norm every iteration, since otherwise training could minimize the loss by inflating their norms; Section 4.2: the raw and filtered settings; Section 4.3: relations sorted into 1-to-1, 1-to-many, many-to-1, and many-to-many at an average of 1.5"
+  - type: "paper"
+    title: "RotatE: Knowledge Graph Embedding by Relational Rotation in Complex Space"
+    authors: "Zhiqing Sun, Zhi-Hong Deng, Jian-Yun Nie, and Jian Tang"
+    year: 2019
+    url: "https://arxiv.org/abs/1902.10197"
+    note: "ICLR 2019. Definitions 1–3 (the patterns); Lemmas 1–3 state that RotatE can infer symmetry, inversion, and composition, proved in one direction in Appendices B–D; Eq. 3 and footnote 2: the distance is an L1 norm over complex moduli; Eqs. 4–6: the logistic loss with a fixed margin and self-adversarial weights; Table 2: which models support which patterns"
+  - type: "paper"
+    title: "Embedding Entities and Relations for Learning and Inference in Knowledge Bases"
+    authors: "Bishan Yang, Wen-tau Yih, Xiaodong He, Jianfeng Gao, and Li Deng"
+    year: 2015
+    url: "https://arxiv.org/abs/1412.6575"
+    note: "ICLR 2015. Section 3.2: the bilinear score with a diagonal relation matrix (DistMult)"
+  - type: "paper"
+    title: "Complex Embeddings for Simple Link Prediction"
+    authors: "Théo Trouillon, Johannes Welbl, Sebastian Riedel, Éric Gaussier, and Guillaume Bouchard"
+    year: 2016
+    url: "https://proceedings.mlr.press/v48/trouillon16.html"
+    note: "Proceedings of ICML 2016, PMLR 48: 2071–80. ComplEx, Eq. 9: the real part of a trilinear product with the object conjugated"
+  - type: "paper"
+    title: "Knowledge Graph Completion via Complex Tensor Factorization"
+    authors: "Théo Trouillon, Christopher R. Dance, Éric Gaussier, Johannes Welbl, Sebastian Riedel, and Guillaume Bouchard"
+    year: 2017
+    url: "https://jmlr.org/papers/v18/16-563.html"
+    note: "Journal of Machine Learning Research 18, no. 130: 1–38. Theorem 2 and Corollary 1: every real square matrix is the real part of a normal one, E W E* with E unitary and W diagonal; Corollary 3: a sign-rank bound on the dimension; Theorem 4: the multi-relational version"
+  - type: "paper"
+    title: "Knowledge Graph Embedding by Translating on Hyperplanes"
+    authors: "Zhen Wang, Jianwen Zhang, Jianlin Feng, and Zheng Chen"
+    year: 2014
+    url: "https://doi.org/10.1609/aaai.v28i1.8870"
+    note: "Proceedings of AAAI 2014, 1112–19. TransH. TransE's flaws on reflexive (in today's terms, symmetric), one-to-many, many-to-one, and many-to-many relations: a reflexive relation forces r = 0 and h = t, and a many-to-one relation forces its heads to coincide"
+  - type: "paper"
+    title: "SimplE Embedding for Link Prediction in Knowledge Graphs"
+    authors: "Seyed Mehran Kazemi and David Poole"
+    year: 2018
+    url: "https://proceedings.neurips.cc/paper_files/paper/2018/hash/b2ab001909a8a6f04b51920306046ce5-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 31. Sections 2 and 5.1: DistMult forces every relation to be symmetric; Proposition 2 and Corollary 1: translational models are not fully expressive"
+  - type: "paper"
+    title: "A Three-Way Model for Collective Learning on Multi-Relational Data"
+    authors: "Maximilian Nickel, Volker Tresp, and Hans-Peter Kriegel"
+    year: 2011
+    url: "https://icml.cc/2011/papers/438_icmlpaper.pdf"
+    note: "Proceedings of ICML 2011, 809–16. RESCAL, the full bilinear model that DistMult restricts to diagonal matrices"
+  - type: "paper"
+    title: "Group Representation Theory for Knowledge Graph Embedding"
+    authors: "Chen Cai"
+    year: 2019
+    url: "https://arxiv.org/abs/1909.05100v1"
+    note: "arXiv preprint 1909.05100, version 1; withdrawn in version 2. Section 4.3: relations as elements of a group acting on entity space, TransE as translations and RotatE as unit-modulus diagonal matrices, a symmetric relation as an element of order 2"
+  - type: "paper"
+    title: "NagE: Non-Abelian Group Embedding for Knowledge Graphs"
+    authors: "Tong Yang, Long Sha, and Pengyu Hong"
+    year: 2020
+    url: "https://doi.org/10.1145/3340531.3411875"
+    note: "Proceedings of CIKM 2020, 1735–42. Section 3.2: composition can be non-commutative (a mother's father is not a father's mother), so the group should in general be non-abelian"
+  - type: "paper"
+    title: "Quaternion Knowledge Graph Embeddings"
+    authors: "Shuai Zhang, Yi Tay, Lina Yao, and Qi Liu"
+    year: 2019
+    url: "https://proceedings.neurips.cc/paper_files/paper/2019/hash/d961e9f236177d65d21100592edb0769-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 32. QuatE: relations as rotations by unit quaternions"
+  - type: "paper"
+    title: "Rotate3D: Representing Relations as Rotations in Three-Dimensional Space for Knowledge Graph Embedding"
+    authors: "Chang Gao, Chengjie Sun, Lili Shan, Lei Lin, and Mingjiang Wang"
+    year: 2020
+    url: "https://doi.org/10.1145/3340531.3411889"
+    note: "Proceedings of CIKM 2020, 385–94. The abstract: most existing methods fail to model non-commutative composition; three-dimensional rotations do (cited from the abstract; the publisher's page refused our request)"
+  - type: "paper"
+    title: "Interpretable and Fair Comparison of Link Prediction or Entity Alignment Methods"
+    authors: "Max Berrendorf, Evgeniy Faerman, Laurent Vermue, and Volker Tresp"
+    year: 2020
+    url: "https://doi.org/10.1109/WIIAT50758.2020.00053"
+    note: "Proceedings of IEEE/WIC/ACM WI-IAT 2020, 371–74. The optimistic, pessimistic, and realistic ranks; we read their definitions in Section 2.2, Eqs. 1–3, of the longer arXiv version (2002.06914, retitled 'On the Ambiguity of Rank-Based Evaluation of Entity Alignment or Link Prediction Methods')"
+  - type: "paper"
+    title: "A Re-evaluation of Knowledge Graph Completion Methods"
+    authors: "Zhiqing Sun, Shikhar Vashishth, Soumya Sanyal, Partha Talukdar, and Yiming Yang"
+    year: 2020
+    url: "https://doi.org/10.18653/v1/2020.acl-main.489"
+    note: "Proceedings of ACL 2020, 5516–22. Section 4: placing the true answer at the top, bottom, or a random position among tied candidates; models that tie many candidates look better under the first"
+  - type: "paper"
+    title: "You CAN Teach an Old Dog New Tricks! On Training Knowledge Graph Embeddings"
+    authors: "Daniel Ruffinelli, Samuel Broscheit, and Rainer Gemulla"
+    year: 2020
+    url: "https://openreview.net/forum?id=BkxSmlBFvr"
+    note: "ICLR 2020. With appropriate training, the performance differences between models often shrink and sometimes reverse"
+formalmlPrereqs:
+  - topic: "tensor-decompositions"
+    site: "formalml"
+    relationship: "Its Definition 4 is the CP decomposition. DistMult is a CP model of the knowledge base's 0/1 tensor whose head and tail factor matrices are one matrix, and that tie is what makes it symmetric (Proposition 3)."
+formalcalculusPrereqs:
+  - topic: "eigenvalues-eigenvectors"
+    site: "formalcalculus"
+    relationship: "Its Remark 2 reads a complex eigenvalue a + bi of a real matrix as a rotation and scaling of a real plane; Lemma 1 here is the unit-modulus case, which RotatE applies coordinate by coordinate."
+  - topic: "linear-systems"
+    site: "formalcalculus"
+    relationship: "Its Example 5 and Remark 3 turn the eigenvalues plus or minus i omega of a rotation generator into cosine and sine terms, the same correspondence between multiplying by e to the i theta and rotating the plane that Lemma 1 proves."
+formalragPrereqs:
+  - topic: "set-metrics-precision-recall-map-mrr"
+    site: "formalrag"
+    relationship: "Its Definition 3 is the reciprocal rank and MRR; link prediction ranks every entity for a query with one held-out answer, after filtering the other known answers (Definition 2)."
+formalragConnections:
+  - topic: "negative-sampling-hard-negatives"
+    site: "formalrag"
+    relationship: "Its Proposition 2 says mined negatives carry false negatives; here every hidden true fact is a training negative, and the model that can represent antisymmetry learns it from them."
+  - topic: "cross-encoders-reranking"
+    site: "formalrag"
+    relationship: "Its Proposition 1 bounds the rank of a learned bilinear scorer; DistMult and ComplEx are bilinear scorers of the same kind, one diagonal matrix per relation."
+  - topic: "embedding-dimension-lower-bounds"
+    site: "formalrag"
+    relationship: "Its Theorem 1 shows a full-rank sign pattern of sign-rank three; ComplEx's expressiveness results (Trouillon et al. 2017) bound its dimension by exactly this sign-rank."
+  - topic: "graphrag-community-detection"
+    site: "formalrag"
+    relationship: "Its entity graph has untyped, weighted edges; a knowledge-graph embedding works with typed, directed edges and gives each type its own map."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import KnowledgeGraphEmbeddingLab from '../../components/viz/KnowledgeGraphEmbeddingLab.tsx';
+
+## Overview & Motivation
+
+The [relation extraction topic](/topics/relation-extraction-distant-supervision) read the filings of six companies its classifiers had never seen and returned $45$ facts with scores above one half, every one of them true. It also returned facts below the threshold. One of them, scored $0.401$, says that Granite Basin Midstream is a subsidiary of Northgate Energy. The extractor did find the other direction, Northgate Energy is the parent of Granite Basin Midstream, above the threshold. Anyone who knows what "parent" and "subsidiary" mean can fill in the missing fact. A knowledge-graph embedding is a way for a model to do the same: learn, from the facts it has, a geometry in which the missing fact is near the top.
+
+The idea is the one the [GloVe topic](/topics/glove-embedding-geometry) ended on. Its finance case study asked whether co-occurrence vectors make a relation a constant offset, *Texas* minus *Houston* equal to *Massachusetts* minus *Boston*, and found that no offset is constant. A knowledge-graph embedding stops hoping. It puts every entity at a point, makes every relation a map of the space, and trains the map to carry each fact's head to its tail. TransE makes the map a translation, RotatE a rotation. Which relations each geometry can represent, and what training on an incomplete knowledge base actually teaches it, is the subject of this page. In order:
+
+1. **Link prediction.** How a model is asked about a missing fact, and how its answers are scored.
+2. **Translation and rotation.** What each geometry represents exactly: inverses, compositions, and symmetric relations.
+3. **Relations as group actions.** What any isometric model must collapse, and what no abelian one can represent.
+4. **The bilinear foil.** DistMult and ComplEx, and RotatE as ComplEx on the unit circle.
+
+Then the finance case study: patterns held out from the finance knowledge base, where the most expressive model learns the wrong thing for an instructive reason, and the extracted facts about the held-out companies, completed.
+
+---
+
+## Link prediction
+
+The corpus's knowledge base, `WORLD`, has $114$ entities ($48$ people, $37$ organizations, $23$ places, $6$ sectors), ten relations, and $254$ facts. It was built so that its relations have the shapes embedding models are judged by. COMPETES_WITH is **symmetric**: if $A$ competes with $B$, $B$ competes with $A$. PARENT_OF and SUBSIDIARY_OF are **inverses**. BASED_IN is the **composition** of HQ_IN and LOCATED_IN: a company headquartered in Houston, which is in Texas, is based in Texas. IN_SECTOR is **many-to-one**: up to seven companies share a sector.
+
+<TheoremBlock type="definition" number={1} title="Knowledge graph and link prediction">
+
+A **knowledge graph** over entities $\mathcal E$ and relations $\mathcal R$ is a set $\mathcal K \subseteq \mathcal E \times \mathcal R \times \mathcal E$ of triples $(h, r, t)$, read "$r$ holds from head $h$ to tail $t$". A **scoring function** $f : \mathcal E \times \mathcal R \times \mathcal E \to \mathbb R$ ranks triples. A **tail query** $(h, r, ?)$ ranks every $t \in \mathcal E$ by $f(h, r, t)$; a **head query** $(?, r, t)$ ranks every $h$ by $f(h, r, t)$.
+
+</TheoremBlock>
+
+A held-out fact $(h, r, t)$ is tested twice, once as each query. The tail query (Halvorsen Industrial, PARENT_OF, ?) has two right answers, since Halvorsen has two subsidiaries in the knowledge base; ranking one of them second behind the other is not an error. Bordes et al. (2013) therefore drop the other known answers before ranking, the **filtered** setting.
+
+<TheoremBlock type="definition" number={2} title="Filtered rank, MRR, and Hits@k">
+
+For a test triple's tail query with answer $t$, the **candidates** are $t$ and every $t'$ with $(h, r, t')$ not a known fact. Let $a$ be the number of candidates scoring above $t$ and $b$ the number of other candidates tied with it. The **filtered rank** of $t$ is the realistic rank
+
+$$
+1 + a + \tfrac{b}{2},
+$$
+
+the mean of the optimistic rank $1 + a$ and the pessimistic rank $1 + a + b$, which is also the expected rank when ties are broken uniformly at random. Head queries are ranked the same way. Over the two queries of every test triple, the **mean reciprocal rank** (MRR) is the mean of $1/\text{rank}$, and **Hits@$k$** is the share of ranks at most $k$.
+
+</TheoremBlock>
+
+MRR here is the [formalRAG reciprocal rank](https://formalrag.com/topics/set-metrics-precision-recall-map-mrr) with exactly one relevant item per query. The tie rule is Berrendorf et al.'s (2020). It matters more than it looks: Sun, Vashishth, Sanyal, Talukdar, and Yang (2020) found published models whose scores were inflated by ranking the true answer first among many tied candidates. Ties will matter on this page too, for a different reason.
+
+---
+
+## Translation: TransE
+
+Give each entity $x$ a vector $\mathbf e_x \in \mathbb R^d$ and each relation a vector $\mathbf w_r$. A fact is true when the head, moved by the relation, lands on the tail.
+
+<TheoremBlock type="definition" number={3} title="TransE">
+
+Entity vectors have unit length, $\lVert \mathbf e_x \rVert = 1$, relation vectors are unconstrained, and
+
+$$
+f(h, r, t) = -\lVert \mathbf e_h + \mathbf w_r - \mathbf e_t \rVert .
+$$
+
+Bordes et al. train the margin loss $\sum \big[\gamma + d(h, r, t) - d(h', r, t')\big]_+$ over facts and their corruptions, where $d = -f$, a corruption replaces the head or the tail by another entity, and $[x]_+ = \max(x, 0)$.
+
+</TheoremBlock>
+
+Translations handle two of the four patterns at once.
+
+<TheoremBlock type="proposition" number={1} title="What translations represent exactly">
+
+**(a)** If $\mathbf e_t = \mathbf e_h + \mathbf w_1$ on every fact of $r_1$, then $\mathbf w_2 = -\mathbf w_1$ makes every reversed pair a fact of $r_2$ exactly. **(b)** If $r_1$ holds exactly from $h$ to $m$ and $r_2$ from $m$ to $t$, then $\mathbf w_3 = \mathbf w_1 + \mathbf w_2$ holds exactly from $h$ to $t$. **(c)** Both $(h, r, t)$ and $(t, r, h)$ hold exactly only if $\mathbf w_r = 0$ and $\mathbf e_h = \mathbf e_t$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) $\mathbf e_t - \mathbf w_1 = \mathbf e_h$. (b) $\mathbf e_t = \mathbf e_m + \mathbf w_2 = \mathbf e_h + \mathbf w_1 + \mathbf w_2$. (c) Adding $\mathbf e_t = \mathbf e_h + \mathbf w$ and $\mathbf e_h = \mathbf e_t + \mathbf w$ gives $2\mathbf w = 0$, so $\mathbf w = 0$ and $\mathbf e_h = \mathbf e_t$.
+
+</TheoremBlock>
+
+Wang, Zhang, Feng, and Chen (2014) made the point of (c), for what they called reflexive relations, as the motivation for TransH. A symmetric relation is a translation by zero, and every pair it relates is a single point. The **Translate or rotate** tab of the lab below shows it in the plane: two entities $a$ and $b = -a$, each related to the other. No translation brings the larger of the two residuals below $\lvert b - a \rvert = 2$, because the two residual vectors add up to twice the translation and subtract to twice $b - a$.
+
+The unit-length constraint in Definition 3 looks like a detail. It is not.
+
+<TheoremBlock type="proposition" number={2} title="The norm constraint is load-bearing">
+
+Multiply every entity and relation vector by $s \gt 0$. If an embedding separates every fact from its corruptions, so that $\Delta = d(h', r, t') - d(h, r, t) \gt 0$ for every pair, then the margin loss is nonincreasing in $s$ and equals $0$ for every $s \ge \gamma / \min \Delta$, while no rank changes.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Every distance scales by $s$, so each term becomes $[\gamma - s\Delta]_+$, which is nonincreasing in $s$ and vanishes once $s\Delta \ge \gamma$. Ranks compare distances, and multiplying all of them by the same $s$ preserves every comparison.
+
+</TheoremBlock>
+
+Without the constraint, the loss rewards making the space bigger, not making it better. Bordes et al. give this reason in one clause for renormalizing the entity vectors at every step; the proposition makes it exact. The harness checks it on a small knowledge graph read off a random embedding, where scaling by $\gamma/\min\Delta$ takes the loss to zero with every ranking unchanged. The models on this page all train with Sun et al.'s logistic loss instead (below), and TransE keeps the unit sphere.
+
+---
+
+## Rotation: RotatE
+
+A symmetric relation needs a map that undoes itself without being the identity. A translation cannot do that. A rotation by half a turn can.
+
+<TheoremBlock type="lemma" number={1} title="Multiplying by a unit complex number rotates">
+
+For real $a, b, \theta$,
+
+$$
+(a + ib)(\cos\theta + i\sin\theta) = (a\cos\theta - b\sin\theta) + i(a\sin\theta + b\cos\theta),
+$$
+
+which is the rotation matrix $\begin{pmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{pmatrix}$ applied to $(a, b)$. Writing $e^{i\theta} = \cos\theta + i\sin\theta$: $\lvert z e^{i\theta} \rvert = \lvert z \rvert$, and $e^{i\alpha} e^{i\beta} = e^{i(\alpha + \beta)}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Expand the product with $i^2 = -1$ and collect real and imaginary parts. A rotation matrix is orthogonal, so it preserves length. The product $e^{i\alpha}e^{i\beta}$ expands to $\cos\alpha\cos\beta - \sin\alpha\sin\beta + i(\sin\alpha\cos\beta + \cos\alpha\sin\beta)$, which the angle-addition formulas turn into $\cos(\alpha+\beta) + i\sin(\alpha+\beta)$.
+
+</TheoremBlock>
+
+This is the unit-modulus case of the [formalCalculus reading](https://formalcalculus.com/topics/eigenvalues-eigenvectors) of a complex eigenvalue as a rotation and scaling of a real plane.
+
+<TheoremBlock type="definition" number={4} title="RotatE">
+
+Entities are vectors $\mathbf h, \mathbf t \in \mathbb C^k$. A relation is a vector $\mathbf r \in \mathbb C^k$ of unit-modulus coordinates, $r_i = e^{i\theta_i}$, and
+
+$$
+f(h, r, t) = \gamma - \lVert \mathbf h \circ \mathbf r - \mathbf t \rVert ,
+$$
+
+where $\circ$ multiplies coordinate by coordinate and $\gamma$ is a fixed margin.
+
+</TheoremBlock>
+
+Each relation turns each complex coordinate of the head by its own angle. Sun, Deng, Nie, and Tang (2019) measure the distance as the sum of the coordinates' moduli; we use the Euclidean norm, which Proposition 5 below needs. Their Lemmas 1–3 state that RotatE can infer symmetric, inverse, and composed relations. Here is the exact statement, with both directions.
+
+<TheoremBlock type="theorem" number={1} title="Relation patterns are phase equations">
+
+Let $\mathbf h$ have every coordinate nonzero.
+
+**(a)** Both $(h, r, t)$ and $(t, r, h)$ hold exactly if and only if $\mathbf r \circ \mathbf r = \mathbf 1$, that is, $\theta_i \in \{0, \pi\}$ for every $i$. Then $\mathbf t = \mathbf h \circ \mathbf r$ differs from $\mathbf h$ on every coordinate with $\theta_i = \pi$.
+
+**(b)** $r_2$ holds exactly on the reversal of every fact of $r_1$ if and only if $\mathbf r_2 = \bar{\mathbf r}_1$, that is, $\theta_2 = -\theta_1$.
+
+**(c)** $r_3$ holds exactly across every path that takes $r_1$ and then $r_2$ if and only if $\mathbf r_3 = \mathbf r_1 \circ \mathbf r_2$, that is, $\theta_3 \equiv \theta_1 + \theta_2 \pmod{2\pi}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) If $\mathbf t = \mathbf h \circ \mathbf r$ and $\mathbf h = \mathbf t \circ \mathbf r$, then $\mathbf h = \mathbf h \circ \mathbf r \circ \mathbf r$, so $h_i (r_i^2 - 1) = 0$, and $h_i \ne 0$ gives $r_i^2 = 1$, which for a unit complex number means $r_i = \pm 1$. Conversely, if $\mathbf r \circ \mathbf r = \mathbf 1$ and $\mathbf t = \mathbf h \circ \mathbf r$, then $\mathbf t \circ \mathbf r = \mathbf h$. On a coordinate with $r_i = -1$, $t_i = -h_i \ne h_i$.
+
+(b) With $\mathbf t = \mathbf h \circ \mathbf r_1$, the reversed fact holds when $\mathbf t \circ \mathbf r_2 = \mathbf h$, that is, $\mathbf h \circ \mathbf r_1 \circ \mathbf r_2 = \mathbf h$, which for nonzero coordinates means $\mathbf r_1 \circ \mathbf r_2 = \mathbf 1$. For unit complex numbers the inverse is the conjugate.
+
+(c) With $\mathbf m = \mathbf h \circ \mathbf r_1$ and $\mathbf t = \mathbf m \circ \mathbf r_2 = \mathbf h \circ (\mathbf r_1 \circ \mathbf r_2)$, the triple $(h, r_3, t)$ holds when $\mathbf h \circ \mathbf r_3 = \mathbf h \circ (\mathbf r_1 \circ \mathbf r_2)$, which for nonzero coordinates means $\mathbf r_3 = \mathbf r_1 \circ \mathbf r_2$. By Lemma 1 the phases add.
+
+</TheoremBlock>
+
+Part (a) is the point of rotation. A phase of $\pi$ turns a coordinate half way round, and twice that is the identity, so the pair stays apart: in the lab's toy, rotating $a$ by $180°$ lands exactly on $b = -a$, and rotating $b$ lands back on $a$.
+
+Trained on the whole finance knowledge base, RotatE with $k = 16$ complex coordinates solves the three equations almost exactly. The median distance of COMPETES_WITH's sixteen phases from $\{0, \pi\}$ is $0.000$; the median of $\lvert \theta_{\text{PARENT\_OF}} + \theta_{\text{SUBSIDIARY\_OF}} \rvert$ is $0.000$; the median of $\lvert \theta_{\text{BASED\_IN}} - \theta_{\text{HQ\_IN}} - \theta_{\text{LOCATED\_IN}} \rvert$ (wrapped to $[-\pi, \pi)$) is $0.023$. Random phases would give $0.785$, $1.571$, and $1.571$. Even the implication ACQUIRED $\Rightarrow$ PARENT_OF shows: ACQUIRED holds on six of PARENT_OF's thirteen pairs, and the two relations' phases agree to a median of $0.056$. The **Relation phases** tab draws them on the unit circle.
+
+---
+
+## Relations as group actions
+
+Translations and rotations have more in common than either has with the other models. Both move the whole space rigidly, and both compose the way numbers add. That is enough to prove things about every such model at once.
+
+<TheoremBlock type="definition" number={5} title="A relation model as a group action">
+
+A group $G$ acts on entity space $X$ by **isometries** (maps preserving the distance $d$). Each relation is an element $g_r \in G$, and
+
+$$
+f(h, r, t) = \gamma - d(g_r \cdot \mathbf e_h, \mathbf e_t).
+$$
+
+TransE is the translation group $(\mathbb R^d, +)$ acting by $\mathbf w \cdot \mathbf e = \mathbf e + \mathbf w$. RotatE is the torus $U(1)^k$, the vectors of unit complex numbers under coordinatewise multiplication, acting by $\mathbf r \cdot \mathbf h = \mathbf h \circ \mathbf r$. Both groups are **abelian**: $g g' = g' g$.
+
+</TheoremBlock>
+
+Cai (2019) framed knowledge-graph embeddings this way, with a symmetric relation as an element of order two. A trained model never satisfies a fact exactly; the most one can say is that every fact of a relation sits within some distance $\varepsilon$. Isometry alone then forces three kinds of collapse.
+
+<TheoremBlock type="theorem" number={2} title="Isometries collapse what they cannot separate">
+
+Suppose every fact of $r$ satisfies $d(g_r \mathbf e_h, \mathbf e_t) \le \varepsilon$, and write $g = g_r$.
+
+**(a)** Two heads with a common tail satisfy $d(\mathbf e_h, \mathbf e_{h'}) \le 2\varepsilon$, and two tails of a common head satisfy $d(\mathbf e_t, \mathbf e_{t'}) \le 2\varepsilon$.
+
+**(b)** If $(h, r, t)$ and $(t, r, h)$ are both facts, then $d(g^2 \mathbf e_h, \mathbf e_h) \le 2\varepsilon$. For TransE this says $\lVert \mathbf w_r \rVert \le \varepsilon$ and $\lVert \mathbf e_h - \mathbf e_t \rVert \le 2\varepsilon$.
+
+**(c)** If entities $x_0, x_1, \ldots, x_{L-1}$ form a cycle of odd length $L$ in which each consecutive pair (including $x_{L-1}, x_0$) is related both ways, then consecutive entities satisfy $d(\mathbf e_{x_i}, \mathbf e_{x_{i+1}}) \le 2L\varepsilon$.
+
+At $\varepsilon = 0$ each statement says the entities coincide.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Every step uses that $g$ preserves distance, so $d(g\mathbf u, g\mathbf v) = d(\mathbf u, \mathbf v)$, and the triangle inequality.
+
+(a) $d(\mathbf e_h, \mathbf e_{h'}) = d(g\mathbf e_h, g\mathbf e_{h'}) \le d(g\mathbf e_h, \mathbf e_t) + d(\mathbf e_t, g\mathbf e_{h'}) \le 2\varepsilon$. For two tails, $d(\mathbf e_t, \mathbf e_{t'}) \le d(\mathbf e_t, g\mathbf e_h) + d(g\mathbf e_h, \mathbf e_{t'})$.
+
+(b) $d(g^2\mathbf e_h, \mathbf e_h) \le d(g^2\mathbf e_h, g\mathbf e_t) + d(g\mathbf e_t, \mathbf e_h) = d(g\mathbf e_h, \mathbf e_t) + d(g\mathbf e_t, \mathbf e_h) \le 2\varepsilon$. For TransE, $g^2\mathbf e = \mathbf e + 2\mathbf w$, so $\lVert 2\mathbf w \rVert \le 2\varepsilon$, and $\lVert \mathbf e_h - \mathbf e_t \rVert \le \lVert \mathbf e_h + \mathbf w - \mathbf e_t \rVert + \lVert \mathbf w \rVert \le 2\varepsilon$.
+
+(c) Write $\mathbf e_i$ for $\mathbf e_{x_i}$, with indices mod $L$. By induction on $j$, $d(g^j\mathbf e_0, \mathbf e_j) \le j\varepsilon$, since $d(g^{j+1}\mathbf e_0, \mathbf e_{j+1}) \le d(g^{j+1}\mathbf e_0, g\mathbf e_j) + d(g\mathbf e_j, \mathbf e_{j+1}) = d(g^j\mathbf e_0, \mathbf e_j) + d(g\mathbf e_j, \mathbf e_{j+1})$. Going all the way round, $d(g^L\mathbf e_0, \mathbf e_0) \le L\varepsilon$. Write $L = 2m + 1$. By (b), $d(g^2\mathbf e_0, \mathbf e_0) \le 2\varepsilon$, so
+
+$$
+d(g^{2m}\mathbf e_0, \mathbf e_0) \le \sum_{j=0}^{m-1} d(g^{2j+2}\mathbf e_0, g^{2j}\mathbf e_0) = m\, d(g^2\mathbf e_0, \mathbf e_0) \le 2m\varepsilon .
+$$
+
+Then $d(g\mathbf e_0, \mathbf e_0) \le d(g\mathbf e_0, g^L\mathbf e_0) + d(g^L\mathbf e_0, \mathbf e_0) = d(\mathbf e_0, g^{2m}\mathbf e_0) + d(g^L\mathbf e_0, \mathbf e_0) \le (2L - 1)\varepsilon$, and $d(\mathbf e_0, \mathbf e_1) \le d(\mathbf e_0, g\mathbf e_0) + d(g\mathbf e_0, \mathbf e_1) \le 2L\varepsilon$. Relabeling the cycle gives every consecutive pair.
+
+</TheoremBlock>
+
+Part (b) at $\varepsilon = 0$ says that $g_r^2$ fixes $\mathbf e_h$. A nonzero translation fixes no point, so TransE needs $g_r^2$ to be the identity, and $(\mathbb R^d, +)$ has no element of order two besides zero: that is Proposition 1(c) again. The torus $U(1)^k$ has $2^k - 1$ of them, the phase vectors in $\{0, \pi\}^k$ other than zero, which is Theorem 1(a). Parts (a) and (c) are where rotation runs out. A rotation is an isometry, so RotatE collapses a many-to-one relation's heads exactly as TransE does. And an odd cycle cannot alternate: on a coordinate with $\theta_i = \pi$ the entities around a triangle would have to be $u, -u, u$, and the third must also equal $-u$, so $u = 0$. "RotatE models symmetry" is exact only for a symmetric relation whose pairs are disjoint. The finance knowledge base's COMPETES_WITH relation is not one: its companies have one, two, or three competitors ($6$, $10$, and $8$ companies), and the competitor graph contains $8$ triangles. The lab's toy has a triangle too, and no angle zeroes its six residuals. The harness checks all three bounds on the trained full-KB TransE and RotatE, and part (c) on random odd cycles of lengths $3$, $5$, and $7$.
+
+Both groups are abelian, and that has a consequence of its own. In a family, a mother's father and a father's mother are different people (Yang, Sha, and Hong 2020 use the example). The smallest group in which order matters is $S_3$, the six permutations of three objects. Let $a$ swap the first two and $b$ cycle all three; then $ab \ne ba$.
+
+<TheoremBlock type="theorem" number={3} title="Abelian models cannot tell ab from ba">
+
+Make the Cayley graph of $S_3$ a knowledge graph: the six permutations are the entities, and relation $A$ takes $x$ to $xa$, relation $B$ takes $x$ to $xb$ ($12$ facts). If $G$ is abelian and every fact holds within $\varepsilon$, then for every $x$ the false triple $(xa, B, xba)$ satisfies
+
+$$
+d(g_B \mathbf e_{xa}, \mathbf e_{xba}) \le 5\varepsilon .
+$$
+
+So a model that keeps every corruption at distance at least $\gamma_{\min}$ from its query has $\gamma_{\min} \le 5\varepsilon$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The $B$ fact at $xa$ gives $d(g_B\mathbf e_{xa}, \mathbf e_{xab}) \le \varepsilon$, and by isometry $d(g_B\mathbf e_{xa}, g_Bg_A\mathbf e_x) = d(\mathbf e_{xa}, g_A\mathbf e_x) \le \varepsilon$ (the $A$ fact at $x$), so $d(\mathbf e_{xab}, g_Bg_A\mathbf e_x) \le 2\varepsilon$. In the same way, from the $B$ fact at $x$ and the $A$ fact at $xb$, $d(\mathbf e_{xba}, g_Ag_B\mathbf e_x) \le 2\varepsilon$. Since $g_Ag_B = g_Bg_A$, $d(\mathbf e_{xab}, \mathbf e_{xba}) \le 4\varepsilon$, and $d(g_B\mathbf e_{xa}, \mathbf e_{xba}) \le d(g_B\mathbf e_{xa}, \mathbf e_{xab}) + 4\varepsilon \le 5\varepsilon$. The triple is false because $B$ takes $xa$ only to $xab$, and $xab \ne xba$ because $ab \ne ba$.
+
+</TheoremBlock>
+
+However the margin is set, an abelian model keeps some false triple within five times its worst true one. Trained on the twelve facts, the best ratio $\gamma_{\min}/\varepsilon$ TransE reaches is $1.000$ in the plane, by collapsing all six entities to one point so that every fact and every corruption sits at the length of its relation vector, $2$; with $2$ and $8$ complex dimensions it reaches $0.899$ and $0.907$. RotatE reaches $0.519$, $0.995$, and $2.041$. Breaking the bound takes a group in which order matters.
+
+<TheoremBlock type="corollary" number={1} title="A non-abelian action fits the graph exactly">
+
+Let $M$ send each permutation of $S_3$ to the symmetry of an equilateral triangle that permutes its vertices the same way: transpositions become reflections and 3-cycles rotations by $\pm 2\pi/3$, so $M$ is an isomorphism onto the dihedral group $D_3 \subset O(2)$. For a point $\mathbf p$ on none of the triangle's three mirror lines, the embedding $\mathbf e_x = M(x^{-1})\mathbf p$ with $g_A = M(a)^{-1}$ and $g_B = M(b)^{-1}$ satisfies all twelve facts exactly, with six distinct entities.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\mathbf e_{xg} = M\big((xg)^{-1}\big)\mathbf p = M(g^{-1})M(x^{-1})\mathbf p = M(g)^{-1}\mathbf e_x$ for $g \in \{a, b\}$, which is the fact. Orthogonal matrices are isometries. The six points are distinct because the only element of $D_3$ that fixes $\mathbf p$ is the identity: each reflection fixes only its mirror line, and each nontrivial rotation only the center.
+
+</TheoremBlock>
+
+With $\mathbf p = (0.9, 0.3)$ the twelve facts hold to $4 \cdot 10^{-16}$, the nearest two entities are $0.600$ apart, and so is the nearest corruption: the ratio is unbounded. The **Non-commuting** tab draws the hexagon beside the trained abelian layouts. QuatE (Zhang et al. 2019), Rotate3D (Gao et al. 2020), and NagE (Yang, Sha, and Hong 2020) replace the torus with non-abelian rotation groups for exactly this reason.
+
+---
+
+## The bilinear foil
+
+A different family scores a triple by a product rather than a distance.
+
+<TheoremBlock type="definition" number={6} title="DistMult and ComplEx">
+
+**DistMult** (Yang et al. 2015) scores $f(h, r, t) = \langle \mathbf e_h, \mathbf w_r, \mathbf e_t \rangle = \sum_i h_i r_i t_i$ with real vectors. **ComplEx** (Trouillon et al. 2016) scores $f(h, r, t) = \mathrm{Re} \sum_i h_i r_i \bar t_i$ with complex vectors.
+
+</TheoremBlock>
+
+DistMult is a CP decomposition of the knowledge base's $0/1$ tensor ([formalML: tensor decompositions](https://formalml.com/topics/tensor-decompositions), Definition 4) in which the head factor matrix and the tail factor matrix are the same matrix. That tie costs it every asymmetric relation.
+
+<TheoremBlock type="proposition" number={3} title="DistMult is symmetric in every relation">
+
+$f(h, r, t) = f(t, r, h)$ for every relation and every pair of entities. On every fact of an antisymmetric relation, DistMult ties the reversal.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Multiplication of real numbers is commutative, so $h_i r_i t_i = t_i r_i h_i$ for every $i$.
+
+</TheoremBlock>
+
+Kazemi and Poole (2018) state this in one sentence. ComplEx keeps the product and breaks the tie with a conjugate.
+
+<TheoremBlock type="proposition" number={4} title="The antisymmetric part of ComplEx">
+
+With $z_i = h_i \bar t_i$,
+
+$$
+f(h, r, t) - f(t, r, h) = -2 \sum_i \mathrm{Im}\, r_i \; \mathrm{Im}\, z_i .
+$$
+
+So a ComplEx relation is symmetric for all entities if and only if every $r_i$ is real, and antisymmetric if and only if every $r_i$ is imaginary.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$f(t, r, h) = \mathrm{Re}\sum_i r_i t_i \bar h_i = \mathrm{Re}\sum_i r_i \bar z_i$. For each $i$, $\mathrm{Re}(r z) - \mathrm{Re}(r \bar z) = \mathrm{Re}\big(r (z - \bar z)\big) = \mathrm{Re}(2i\, r\, \mathrm{Im}\, z) = -2\, \mathrm{Im}\, r\, \mathrm{Im}\, z$, since $z - \bar z = 2i\,\mathrm{Im}\, z$ and $\mathrm{Re}(i r) = -\mathrm{Im}\, r$. The difference vanishes for all entities exactly when every $\mathrm{Im}\, r_i = 0$. The sum $f(h, r, t) + f(t, r, h) = 2\sum_i \mathrm{Re}\, r_i\, \mathrm{Re}\, z_i$ vanishes for all entities exactly when every $\mathrm{Re}\, r_i = 0$.
+
+</TheoremBlock>
+
+The two families meet at the unit circle.
+
+<TheoremBlock type="proposition" number={5} title="RotatE is ComplEx on the unit torus">
+
+If every $\lvert r_i \rvert = 1$, then
+
+$$
+\lVert \mathbf h \circ \mathbf r - \mathbf t \rVert^2 = \lVert \mathbf h \rVert^2 + \lVert \mathbf t \rVert^2 - 2\, \mathrm{Re} \sum_i h_i r_i \bar t_i .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For complex numbers, $\lvert u - v \rvert^2 = \lvert u \rvert^2 + \lvert v \rvert^2 - 2\,\mathrm{Re}(u \bar v)$. Apply it with $u = h_i r_i$ and $v = t_i$, use $\lvert h_i r_i \rvert = \lvert h_i \rvert$ (Lemma 1), and sum over $i$.
+
+</TheoremBlock>
+
+RotatE's squared distance is ComplEx's score with the relation pinned to the unit torus, minus a term for each entity's length. Restricting the relation to unit modulus is what turns a product into an isometric action, with everything Theorems 2 and 3 say about one.
+
+| pattern | TransE | RotatE | DistMult | ComplEx |
+|---|---|---|---|---|
+| symmetric | by collapse | $\theta \in \{0, \pi\}$, disjoint pairs | always | real $r$ |
+| antisymmetric | yes | yes | no | yes |
+| inverse | $-\mathbf w$ | $\bar{\mathbf r}$ | only as symmetric | $\bar{\mathbf r}$ |
+| composition | $\mathbf w_1 + \mathbf w_2$ | $\mathbf r_1 \circ \mathbf r_2$ | no | no |
+| order-dependent | no | no | no | no |
+| many-to-one | by collapse | by collapse | yes | yes |
+
+Read the table as exact satisfaction. Whether training finds these solutions is a separate question, and the case study answers it.
+
+---
+
+## Finance case study
+
+<FinanceCaseStudy title="Finance case study: what the geometry learns from an incomplete knowledge base">
+
+Every model here has $32$ real numbers per entity ($k = 16$ complex coordinates, or $32$ real ones for TransE and DistMult) and trains against **every** corruption of every training triple, head and tail, with each query's other known answers left out. That is the exact expectation of uniform negative sampling, so a run is deterministic given its initialization. The loss is Sun et al.'s logistic loss: $-\log\sigma(z)$ on a fact and the mean of $-\log\sigma(-z)$ over its corruptions, with $z = \gamma - d$ for the distance models and $z = f$ for the bilinear ones, which add an L2 penalty $\lambda$. It is the negative-sampling objective of the [word2vec topic](/topics/word2vec-implicit-factorization), computed exactly.
+
+**Patterns held out.** From the full knowledge base we hide facts that each pattern entails from what remains: one direction of each of the $25$ competitor pairs (**symmetry**); one fact of each of the $13$ parent–subsidiary pairs (**inverse**); $18$ of the $37$ BASED_IN facts, whose HQ_IN and LOCATED_IN facts stay (**composition**); and the sector of each of the $13$ subsidiaries (**inheritance**, a regularity of the world, since subsidiaries share their parent's sector, rather than a rule of the knowledge base). That leaves $185$ training facts. Margins, penalties, and step counts were chosen on a second, independent hiding, averaged over three seeds: TransE $\gamma = 1$ at $250$ steps, RotatE $\gamma = 6$ at $1{,}500$, DistMult $\lambda = 0.001$ at $1{,}500$, ComplEx $\lambda = 0.01$ at $250$. Filtered MRR on the hidden facts, averaged over three seeds:
+
+| model | symmetry | inverse | composition | inheritance | direction |
+|---|---|---|---|---|---|
+| TransE | $0.459$ | $0.694$ | $0.352$ | $\mathbf{0.815}$ | $0.997$ |
+| RotatE | $0.272$ | $0.676$ | $\mathbf{0.912}$ | $0.286$ | $0.992$ |
+| DistMult | $\mathbf{1.000}$ | $0.574$ | $0.807$ | $0.022$ | $0.500$ |
+| ComplEx | $0.502$ | $\mathbf{0.780}$ | $0.694$ | $0.068$ | $0.989$ |
+
+The last column is **direction accuracy**: on every fact of the nine antisymmetric relations, the share scored above its reversal, ties counting one half.
+
+**The model that can represent antisymmetry learns it from the missing facts.** RotatE is the only model that represents symmetry exactly without collapse, yet it is the worst at the symmetric facts, $0.272$. The reason is in how training treats a hidden fact. The direction $(a, \text{COMPETES\_WITH}, b)$ is hidden, so during training it is a *corruption*, a triple the loss pushes away, while its twin $(b, \text{COMPETES\_WITH}, a)$ is a fact the loss pulls in. At phases of exactly $0$ or $\pi$ a rotation scores the two identically: $\lVert \mathbf a \circ \mathbf r - \mathbf b \rVert = \lVert \mathbf a - \mathbf b \circ \bar{\mathbf r} \rVert = \lVert \mathbf b \circ \mathbf r - \mathbf a \rVert$, since $\bar{\mathbf r} = \mathbf r$ when $\mathbf r \circ \mathbf r = \mathbf 1$. So the only way to separate them is to move the phases off the symmetric solutions, and training does. With the facts hidden, the median distance of COMPETES_WITH's phases from $\{0, \pi\}$ is $0.485$, against $0.000$ on the full knowledge base, and the inverse equation is off by a median of $0.678$. RotatE has learned the false antisymmetry that an incomplete knowledge base teaches. DistMult cannot represent antisymmetry at all (Proposition 3), so it cannot learn it, and it ranks every hidden competitor first on all three seeds. The [relation extraction topic](/topics/relation-extraction-distant-supervision) met the same problem from the other side, as positive-unlabeled learning: a fact the knowledge base lacks is labeled false.
+
+**DistMult pays for its symmetry elsewhere.** Its direction accuracy is exactly $0.500$: it ties every reversal, as Proposition 3 says it must, so it cannot tell a parent from its subsidiary. Filtered MRR never asks it to, because a reversed fact is not a test triple. The computation needed care: the two scores are equal but computed in different orders, so they differed in the last bits, and before the tie tolerance of Definition 2 the accuracy read $0.514$.
+
+**Exact is not learned.** Translations compose exactly (Proposition 1), yet TransE is the worst at composition, $0.352$. RotatE, whose phases solve the composition equation to $0.023$ on the full knowledge base, is the best, $0.912$. TransE's win on inheritance is Theorem 2(a) at work: IN_SECTOR is many-to-one, so a sector's companies are pulled together, and a subsidiary that sits near its parent sits near the parent's sector. The bilinear models, which have no such pull, rank subsidiaries' sectors almost last ($0.022$ and $0.068$). The collapse that limits the distance models is a useful bias here.
+
+**At this scale the details move the numbers.** Tuned on one seed instead of three, RotatE picked $\gamma = 3$ at $500$ steps and scored $0.731$ on composition instead of $0.912$. Step count matters for the reason above: the longer a model fits, the harder it pushes the hidden facts down. Ruffinelli, Broscheit, and Gemulla (2020) found the same at scale: trained well, the models differ less than their papers suggest.
+
+**Completing what extraction found.** Now the scenario of the overview. The knowledge base knows the $188$ facts among the training roster's entities and the shared places and sectors; the six held-out companies, their subsidiaries, and their officers ($20$ entities) are known only through the relation extraction topic's facts. At a threshold of $0.5$ those are $45$ facts, all true, and every held-out entity appears in at least one, so each has an embedding to learn. Extraction missed $28$ facts about them: $26$ competitor facts with training-roster companies, and the $2$ SUBSIDIARY_OF facts whose PARENT_OF inverse it did extract.
+
+- **The inverse is recovered.** RotatE, DistMult, and ComplEx rank both missing subsidiary facts first on all three seeds, including (Granite Basin Midstream, SUBSIDIARY_OF, Northgate Energy), the overview's fact that extraction scored $0.401$. TransE reaches MRR $0.556$.
+- **Competitors are guessed by sector.** No extracted fact links a held-out company to a training-roster competitor, so the only evidence is its sector. Hits@10 is $0.833$ for TransE, $0.808$ for RotatE, $0.679$ for ComplEx, and $0.590$ for DistMult, but MRR is at most $0.332$: the embedding knows the neighborhood, not the neighbor.
+- **False facts cost the collapsing model most.** At a threshold of $0.1$ the knowledge base gains $19$ more facts, $17$ of them false, mostly reversed officer facts and swapped cities and regions. TransE's competitor Hits@10 falls from $0.833$ to $0.641$, RotatE's from $0.808$ to $0.744$, ComplEx's from $0.679$ to $0.603$, and DistMult's rises to $0.641$. With $52$ queries and three seeds, changes this size are within noise for the last three.
+
+</FinanceCaseStudy>
+
+<KnowledgeGraphEmbeddingLab client:visible />
+
+---
+
+## Where this sits
+
+The relation extraction topic turned sentences into scored facts. This page turns facts into geometry and asks what the geometry can and cannot hold. Translations and rotations satisfy inverses and compositions exactly, and rotations also satisfy symmetric relations, but only when their pairs are disjoint (Theorems 1 and 2). Both are actions of abelian groups by isometries, which collapses many-to-one relations and odd symmetric cycles and makes order-dependent composition impossible (Theorems 2 and 3), while the symmetries of a triangle fit what neither can (Corollary 1). DistMult is symmetric by construction, and RotatE is ComplEx with unit-modulus relations (Propositions 3–5). The capstone runs the whole thread on earnings-call text: tokenize, classify tone, extract entities and relations, and embed the knowledge base this page completes.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Lemma 1, Theorems 1–3, Corollary 1, and Propositions 1–5 are proved here in full. The harness checks Theorem 1, Proposition 1, and Corollary 1 on exact constructions; Theorem 2 on the trained models and on random odd cycles; Theorem 3 on $600$ random abelian embeddings and every trained run; Propositions 3–5 on random draws; Proposition 2 on a knowledge graph read off a random embedding; and Definition 2's rank against an enumeration of tie-breaking orders.
+2. **Exact versus trained.** The pattern theorems are about satisfying facts at zero distance. Trained models satisfy them within a margin, which is why Theorems 2 and 3 are stated with $\varepsilon$.
+3. **A small, synthetic knowledge base.** $254$ facts, one hidden split tuned on another, three seeds, and one loss. At this scale the ranking of models moves with the hyperparameters, and every model's chosen step count sits at an end of its grid.
+4. **The closed world.** Training treats every unknown triple as false, and filtered evaluation treats the knowledge base as complete. Both count a true fact the knowledge base lacks against the model.
+5. **Our norm.** RotatE uses the Euclidean norm, which Proposition 5 needs; Sun et al. sum the coordinates' moduli.
+6. **Transductive.** An entity with no training fact keeps its random initialization. Here every held-out entity has at least one extracted fact.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports the topic's Python module, which owns every number on this page. It imports the relation extraction topic's module for its rules and its extracted knowledge base, and through it the finance corpus and its knowledge base. All four models are written in NumPy with one backward pass: every query becomes a point, scored against every entity by a distance or an inner product. Its harness checks:
+
+- every gradient against central differences, and Definition 2's rank against brute force;
+- Propositions 1 and 2, Lemma 1, and Theorem 1 on exact constructions, and Theorem 1 on the trained phases, full and with facts hidden;
+- Theorem 2's three bounds on the trained models, Theorem 3 on random and trained abelian embeddings, and Corollary 1's exact fit;
+- Propositions 3–5 on random draws, and every comparison this page states.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
