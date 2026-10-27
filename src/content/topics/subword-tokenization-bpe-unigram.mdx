@@ -368,7 +368,13 @@ The piece probabilities are learned from data, and the segmentations are hidden.
 
 <TheoremBlock type="theorem" number={3} title="EM never lowers the likelihood">
 
-Fix $V$ and a Unigram LM $p$. For training words $x$ with counts $c_x$, let $q(\mathbf{t} \mid x)$ be the posterior over $\mathrm{Seg}_V(x)$ under $p$, and let $\bar c_u = \sum_x c_x\, \mathbb{E}_{q}\bigl[\text{number of times } u \text{ appears in } \mathbf{t}\bigr]$. Then the update $p'(u) = \bar c_u / \sum_v \bar c_v$ satisfies $\ell(p') \ge \ell(p)$, where $\ell(p) = \sum_x c_x \log P_p(x)$.
+Fix $V$ and a Unigram LM $p$. For training words $x$ with counts $c_x$, let $q(\mathbf{t} \mid x)$ be the posterior over $\mathrm{Seg}_V(x)$ under $p$, and let
+
+$$
+\bar c_u = \sum_x c_x\, \mathbb{E}_{q}\bigl[\text{number of times } u \text{ appears in } \mathbf{t}\bigr]
+$$
+
+be the expected count of piece $u$. Then the update $p'(u) = \bar c_u / \sum_v \bar c_v$ satisfies $\ell(p') \ge \ell(p)$, where $\ell(p) = \sum_x c_x \log P_p(x)$.
 
 </TheoremBlock>
 

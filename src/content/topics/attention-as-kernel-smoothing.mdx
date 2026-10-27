@@ -347,7 +347,7 @@ $$
 \sum_{m=0}^{n-1} e^{c\cos(2\pi m/n)} e^{2\pi i k m/n} = n \sum_{l \equiv -k} I_l(c) = n \sum_{l \equiv k} I_l(c),
 $$
 
-since $I_{-l} = I_l$. The normalizer $Z$ is the case $k = 0$, which gives (i)'s formula. For $c \gt 0$ every $I_l(c)$ is positive, so $\rho_k \gt 0$. Because $a$ is symmetric, $\rho_k = \sum_m a_m \cos(2\pi k m/n) \le \sum_m a_m = 1$, with equality only if $\cos(2\pi k m/n) = 1$ for every $m$, that is, $k \equiv 0$. At $c = 0$, $I_l(0) = 0$ for $l \ne 0$.
+since $I_{-l} = I_l$. The normalizer $Z$ is the case $k = 0$, which gives the formula in (i). For $c \gt 0$ every $I_l(c)$ is positive, so $\rho_k \gt 0$. Because $a$ is symmetric, $\rho_k = \sum_m a_m \cos(2\pi k m/n) \le \sum_m a_m = 1$, with equality only if $\cos(2\pi k m/n) = 1$ for every $m$, that is, $k \equiv 0$. At $c = 0$, $I_l(0) = 0$ for $l \ne 0$.
 
 For (ii), split the error into bias and noise. The mean output is $Af$, and in the Fourier basis $Af - f = \sum_k (\rho_k - 1) F_k e^{(k)}$. The vectors $e^{(k)}$ are orthogonal with squared norm $n$, so by the discrete form of Parseval's identity $\frac1n \lVert Af - f \rVert^2 = \sum_k (1 - \rho_k)^2 \lvert F_k \rvert^2$. The noise contributes $\frac1n E\lVert A\varepsilon \rVert^2 = \frac{\sigma^2}{n} \operatorname{tr}(A^\top A) = \sigma^2 \sum_m a_m^2$, since every row of $A$ is a rotation of $a$. Finally $\sum_m a_m^2 = Z^{-2} \sum_m e^{2c\cos(2\pi m/n)}$, which is the generating-function sum at $2c$ with $k = 0$.
 
@@ -506,7 +506,7 @@ The recurrent network of the neural-language-models topic reset its state at eve
 
 <TheoremBlock type="definition" number={3} title="Kernel cache">
 
-A document's predicted positions run across its sentences in the n-gram topic's order: each word, then each sentence's end marker. Position $t$ has the target $w_t$ and the preceding token $u_t$, which is the sentence-start marker at the start of a sentence. Its **key** $\hat e(u_t)$ is $u_t$'s unit vector in the distributional-semantics topic's truncated SVD (positive PMI shifted by $\log 5$, a two-word window, $d = 100$), with one extra coordinate for the sentence-start marker and one for each distinct out-of-vocabulary string. The **kernel cache** with inverse bandwidth $\beta \ge 0$ is
+A document's predicted positions run across its sentences in the n-gram topic's order: each word, then each sentence's end marker. Position $t$ has the target $w_t$ and the preceding token $u_t$, which is the sentence-start marker at the start of a sentence. Its **key** $\hat e(u_t)$ is the unit vector of $u_t$ in the distributional-semantics topic's truncated SVD (positive PMI shifted by $\log 5$, a two-word window, $d = 100$), with one extra coordinate for the sentence-start marker and one for each distinct out-of-vocabulary string. The **kernel cache** with inverse bandwidth $\beta \ge 0$ is
 
 $$
 p_\beta(w \mid t) = \sum_{i \lt t} \alpha_{ti}\, \mathbb{1}[w_i = w], \qquad \alpha_{ti} \propto \exp\bigl(\beta \langle \hat e(u_t), \hat e(u_i) \rangle\bigr),
@@ -584,7 +584,7 @@ A head's scores $QK^\top/\tau$ form a matrix of rank at most $d_k$. That limits 
 
 <TheoremBlock type="proposition" number={7} title="One head's rank bound">
 
-For one bidirectional head over $n$ positions, $\log A = QK^\top/\tau - \lambda \mathbf{1}^\top$, where $\lambda_i$ is row $i$'s log-sum-exp, so $\operatorname{rank} \log A \le d_k + 1$. A positive row-stochastic pattern $P$ is realizable by one head with key dimension $d_k$ if and only if some row shift $\log P - c \mathbf{1}^\top$ has rank at most $d_k$. The least Frobenius distance from $\log P$ to the set $\{S + c \mathbf{1}^\top : \operatorname{rank} S \le d_k\}$ is the norm of the singular values of $\log P\, J_n$ beyond the $d_k$-th, where $J_n = I - \mathbf{1}\mathbf{1}^\top/n$.
+For one bidirectional head over $n$ positions, $\log A = QK^\top/\tau - \lambda \mathbf{1}^\top$, where $\lambda_i$ is the log-sum-exp of row $i$, so $\operatorname{rank} \log A \le d_k + 1$. A positive row-stochastic pattern $P$ is realizable by one head with key dimension $d_k$ if and only if some row shift $\log P - c \mathbf{1}^\top$ has rank at most $d_k$. The least Frobenius distance from $\log P$ to the set $\{S + c \mathbf{1}^\top : \operatorname{rank} S \le d_k\}$ is the norm of the singular values of $\log P\, J_n$ beyond the $d_k$-th, where $J_n = I - \mathbf{1}\mathbf{1}^\top/n$.
 
 </TheoremBlock>
 

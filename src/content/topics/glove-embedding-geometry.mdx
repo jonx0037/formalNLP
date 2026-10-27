@@ -343,7 +343,7 @@ Negative sampling's local loss is GloVe's residual with the biases frozen at $b_
 
 <TheoremBlock type="proof">
 
-The Poisson row is Theorem 1. For negative sampling, the word2vec topic's Corollary 1 gives the local loss $\tfrac12 \frac{ab}{a + b}(x - x^\star)^2$ with $x^\star = \log a - \log b$ and $b = k\#(w)P_\alpha(c)$, and $x - x^\star$ is the stated residual. For the last claim: if a weight $w_1$ divided by a weight $w_2$ decreases with the count, then on every set $\{X \le t\}$ the share of $w_1$'s total exceeds the share of $w_2$'s.
+The Poisson row is Theorem 1. For negative sampling, the word2vec topic's Corollary 1 gives the local loss $\tfrac12 \frac{ab}{a + b}(x - x^\star)^2$ with $x^\star = \log a - \log b$ and $b = k\#(w)P_\alpha(c)$, and $x - x^\star$ is the stated residual. For the last claim: if a weight $w_1$ divided by a weight $w_2$ decreases with the count, then on every set $\{X \le t\}$ the share of the total of $w_1$ exceeds that of $w_2$.
 
 </TheoremBlock>
 
@@ -466,7 +466,7 @@ leaves every score $s_{ij}$, and so $J$, unchanged.
 
 <TheoremBlock type="proof">
 
-For part (i), $\langle A^\top \mathbf{w}, A^{-1}\mathbf{c} \rangle = \langle \mathbf{w}, \mathbf{c} \rangle$, and the cross terms $\langle A^\top \mathbf{w}_i, s \rangle + \langle t, A^{-1}\mathbf{c}_j \rangle + \langle t, s \rangle$ are exactly what the bias changes remove. For part (ii), write $\bar W = [W, b, \mathbf{1}]$ and $\bar C = [C, \mathbf{1}, \tilde b]$, so the score matrix is $\bar W \bar C^\top$. The word2vec topic's Proposition 3, applied to these augmented matrices, gives $\bar W' = \bar W G$ and $\bar C' = \bar C G^{-\top}$ for a unique invertible $G$. The last column of $\bar W$ is $\mathbf{1}$ on both sides, so $G e_{d+2} = e_{d+2}$; the $(d+1)$-th column of $\bar C$ is $\mathbf{1}$ on both sides, so $e_{d+1}^\top G = e_{d+1}^\top$. Such a $G$ has blocks $A$, $t$, $u$, and a scalar, and reading off $\bar W G = [WA + \mathbf{1}t^\top, Wu + b + \beta' \mathbf{1}, \mathbf{1}]$ gives part (i)'s substitution with $u = -As$. Part (iii): translations cancel in differences.
+For part (i), $\langle A^\top \mathbf{w}, A^{-1}\mathbf{c} \rangle = \langle \mathbf{w}, \mathbf{c} \rangle$, and the cross terms $\langle A^\top \mathbf{w}_i, s \rangle + \langle t, A^{-1}\mathbf{c}_j \rangle + \langle t, s \rangle$ are exactly what the bias changes remove. For part (ii), write $\bar W = [W, b, \mathbf{1}]$ and $\bar C = [C, \mathbf{1}, \tilde b]$, so the score matrix is $\bar W \bar C^\top$. The word2vec topic's Proposition 3, applied to these augmented matrices, gives $\bar W' = \bar W G$ and $\bar C' = \bar C G^{-\top}$ for a unique invertible $G$. The last column of $\bar W$ is $\mathbf{1}$ on both sides, so $G e_{d+2} = e_{d+2}$; the $(d+1)$-th column of $\bar C$ is $\mathbf{1}$ on both sides, so $e_{d+1}^\top G = e_{d+1}^\top$. Such a $G$ has blocks $A$, $t$, $u$, and a scalar, and reading off $\bar W G = [WA + \mathbf{1}t^\top, Wu + b + \beta' \mathbf{1}, \mathbf{1}]$ gives the substitution of part (i) with $u = -As$. Part (iii): translations cancel in differences.
 
 </TheoremBlock>
 

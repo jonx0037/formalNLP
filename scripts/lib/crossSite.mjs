@@ -10,7 +10,7 @@
 export const SELF = 'formalnlp';
 
 export const SITES = {
-  formalnlp: { label: 'formalNLP', url: 'https://formalnlp.com', envVar: null, defaultPath: '.' },
+  formalnlp: { label: 'formalNLP', url: 'https://www.formalnlp.com', envVar: null, defaultPath: '.' },
   formalml: { label: 'formalML', url: 'https://formalml.com', envVar: 'FORMAL_ML_PATH', defaultPath: '../formalML' },
   formalcalculus: { label: 'formalCalculus', url: 'https://formalcalculus.com', envVar: 'FORMAL_CALCULUS_PATH', defaultPath: '../formalCalculus' },
   formalstatistics: { label: 'formalStatistics', url: 'https://formalstatistics.com', envVar: 'FORMAL_STATISTICS_PATH', defaultPath: '../formalStatistics' },

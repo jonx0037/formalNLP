@@ -485,7 +485,7 @@ A model with this property is called **tight** (Du et al. 2023). Unbounded state
 
 <TheoremBlock type="corollary" number={3} title="Backpropagation through time">
 
-Unroll the recurrence over a sentence and apply Theorem 3. With $\delta_t$ the gradient at the pre-activation of step $t$ and $g_t$ the gradient arriving at $h_t$ from step $t$'s own loss,
+Unroll the recurrence over a sentence and apply Theorem 3. With $\delta_t$ the gradient at the pre-activation of step $t$ and $g_t$ the gradient arriving at $h_t$ from the loss at step $t$ itself,
 
 $$
 \delta_t = \bigl(g_t + \delta_{t+1} W_h^{\top}\bigr) \odot (1 - h_t^2),
