@@ -376,6 +376,30 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   fact. `tests/scaffold.test.ts` rejects the word "architectures" anywhere in a topic, references included. Topic 24's
   harness runs 60–63 s (Topic 23's `extracted_kb()` is 25 s, training over 108 runs ~30 s): the 60 s rule was waived
   for it by Jonathan, as for Topics 20 and 22.
+- Topic models on corpus models (Topic 25). Rebuild `fc._CorpusGen(0, None, fc.HEAPS_DISCOUNT)` for 300 + 100 documents
+  (training = `ds._generator_run()`'s text, held-out = `ng.continuation_run(100)`, both asserted) and read each word's
+  restaurant off the generator after all 400; words with one home agree with `ds.planted_labels()`. The restaurant
+  vocabulary is 2,908 words, 13,382 training tokens (3,735 held out); industrials covers 142 of 300 documents. Every
+  document draws its nouns ½ from its sector and ½ from the shared restaurant (`SECTOR_SHARE`), so R = E[θθᵀ] is rank 6
+  and the shared vocabulary is unidentifiable (Prop 4): score against the six ψ_s (each sector's documents' word
+  distribution), never the seven restaurants. Planted words have one home, so the vocabulary is separable, and
+  FastAnchorWords finds one anchor per sector and never a shared word. Deterministic optimizers stall here: CAVI from
+  scikit-learn's Gamma(100, 0.01) noise reaches sector NMI 0.186 (ELBO* −93,556) where the same updates warm-started from
+  Gibbs's counts reach 0.963 (−88,822), and MoU EM's best of 20 random starts has log-likelihood −80,675 vs −77,168 from
+  the gold sectors; diagnose a stall by warm-starting from another engine's answer and comparing the objective. The
+  E-step schedule changes which optimum CAVI reaches (a cap of 30 local steps moved finance NMI 0.16 → 0.40): use
+  scikit-learn's (per document, mean |Δγ| < 10⁻³, ≤ 100 steps) and vectorize it across documents with sparse scatter
+  matrices (exact block steps, so Cor 2 holds; it reproduces the per-document loop exactly). Check the closed-form bound
+  against `sk._approx_bound(X, sk.transform(X, normalize=False), False)` with `sk.components_` as λ (10⁻⁸ relative).
+  Collapsed Gibbs in pure Python costs 0.03–0.07 s per sweep on all 63k tokens: no vectorized substitute needed. The
+  prior ranks the engines (dense Dir(𝟏) world: Gibbs best at β = 1, CAVI at β = 0.01). Anchor-recovery worlds need dense
+  topics (sparse Dir(0.1) topics are already nearly separable, so a "no anchors" twin recovers as well) and an M-scaled
+  candidate threshold (words in ≥ 5% of documents; a fixed df ≥ 10 lets noisy rare rows win the farthest-point
+  search). An LP hull distance in V = 2,908 dimensions costs ~55 ms: read distances off RecoverL2's residuals. Over 128
+  enumerated states a sampler's total variation has a Monte Carlo floor ≈ 0.02 at 40k sweeps: test per-token
+  marginals. Thm 4(c)'s divergence test needs a document with one topic's anchors only (anchors of both make the
+  integral over [ε, 1] itself infinite), integrated over geometric segments (`quad` warns otherwise, fatal under
+  `-W error`). On all words LDA keys on company names (sector NMI 0.943) and never finds tone or document type (≤ 0.023).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -433,6 +457,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `loss_grad` (four models, one backward pass), `realistic_rank` (Def 2), `evaluate` (batched filtered ranks),
   `direction_accuracy`, `phase_residuals`, `abelian_ratio`, `s3_kg`/`dihedral_fit`, `pattern_split`, and
   `completion_problem` are reusable.
+  Topic 25's harness takes ≈ 45 s (one restaurant-vocabulary Gibbs run ~2.3 s, the all-words run at 150 sweeps ~5 s,
+  each CAVI run ~1 s on finance and ~10 s on the V = 400 world); `gibbs` (pure-Python collapsed sampler, `visit` hook),
+  `cavi`/`elbo`/`elbo_star`, `fold_in`, `completion` (plug-in document completion), `mixture_of_unigrams`/`mou_posterior`,
+  `cooccurrence`/`normalize_rows`/`fast_anchor_words`/`recover_l2`, `hull_distance` (LP), `align_topics` (Hungarian
+  on L1), `toy_marginals`, `nmi`, `umass_coherence`/`npmi_coherence`, and `fin_data` are reusable; `topic_mixtures(docs)`
+  is the capstone's topic stage (six sector-aligned proportions, held-out sector accuracy 0.930).
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -537,6 +567,22 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   - **Cai (2019)** is arXiv 1909.05100 v1, withdrawn in v2 (no venue): cite v1 and say so. Rotate3D's authors are Gao,
     Sun, Shan, Lin, Wang (ACM 403: cite the abstract). Berrendorf et al.'s WI-IAT 2020 paper (371–74) is retitled on arXiv
     (2002.06914, realistic rank §2.2 Eq. 3). Sun et al. (2020, ACL) has five authors ("Partha" is Talukdar's first name).
+  Topic 25 citation facts:
+  - **Blei, Ng, and Jordan (2003).** The variational updates are Eqs. (6)–(7), with the digamma form a separate Eq. (8),
+    derived in App. A.3; App. A.1's E[log θ] is an unnumbered display. §5.4 (Fig. 7) is smoothed LDA; Fig. 4 (§4.4) the
+    topic simplex in the word simplex; §4.3 pLSI. JMLR, no DOI.
+  - **Griffiths and Steyvers (2004).** Eq. 5 keeps the document denominator n_d − 1 + Tα (T topics, W words).
+  - **Arora, Ge, and Moitra (2012).** "Anchor word" is §1 prose; the numbered notion is Def. 1.1 (p-separable); Thm 1.4
+    needs a lower bound on R's ℓ1 condition number (Def. 2.1), never the word "nonsingular". Arora et al. (2013):
+    FastAnchorWords is Alg. 4, RecoverKL Alg. 3, RecoverL2 unnumbered (§3 prose); the convex-combination form is the
+    unnumbered text after Eqs. (1)–(2); the unbiased Q estimator is App. D.1 of arXiv 1212.4777.
+  - **Newton and Raftery (1994)** are pp. 3–26 (3–48 includes the discussion); the body is paywalled. Neal's discussion
+    never mentions infinite variance; his 2008 blog post ("Worst Monte Carlo Method Ever", radfordneal.wordpress.com)
+    does. Wallach et al. (2009): HM §4.2 Eq. 14, "wildly overestimated" §6.2, Chib-style Alg. 2, left-to-right Alg. 3.
+  - **Gaussier and Goutte (2005)** and Hofmann's SIGIR paper: ACM returns 403 (metadata only). Hofmann's UAI paper
+    (arXiv 1301.6705) §3.3, Fig. 2 has the sub-simplex and the KL reading for the joint table. Chang et al. (2009): use
+    the PDF's author order (the NeurIPS site differs). Bybee et al.'s JF 2024 article says "a topic model"; LDA is
+    confirmed only in NBER w26648 (2020, "The Structure of Economic News").
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -579,7 +625,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   covers TransE, RotatE, DistMult, ComplEx, link prediction, Hits@k, or filtered ranking (2026-10-26): formalRAG
   `set-metrics-precision-recall-map-mrr` Def 3 is MRR, formalML `tensor-decompositions` Def 4 is CP, formalCalculus
   `eigenvalues-eigenvectors` Rem 2 reads complex eigenvalues as rotations, and no sibling states Euler's formula as a
-  result; formalML `smooth-manifolds` covers matrix Lie groups only in prose (no numbered block). The design's
+  result; formalML `smooth-manifolds` covers matrix Lie groups only in prose (no numbered block). No sibling covers
+  pLSI, NMF, anchor words, LDA's own updates, or topic-model evaluation (2026-10-26): formalStatistics
+  `bayesian-computation-and-mcmc` Rem 10 names collapsed Gibbs for LDA without deriving it, formalML
+  `variational-inference` cites LDA only as a reference, and `multivariate-distributions` Thms 5–6 are the Dirichlet
+  moments and conjugacy. The design's
   watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
