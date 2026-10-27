@@ -435,7 +435,7 @@ Mobile: `scrollWidth === 375` in every tab. The grid scrolls inside a clipped co
   DOI 10.1162/coli_a_00322.
   - 284 correlations from 34 papers.
   - BLEU is supported only for diagnostic, system-level MT evaluation (§3, Figs. 4–5; §5).
-- **Mihalcea and Tarau (2004).** "TextRank: Bringing Order into Text." EMNLP 2004, 404–11, W04-3252. §4.1: the sentence
+- **Mihalcea and Tarau (2004).** "TextRank: Bringing Order into Texts" (the PDF; the Anthology says "Text"). EMNLP 2004, 404–11, W04-3252. §4.1: the sentence
   similarity, unnumbered.
 - **Freitag, Grangier, Tan, Liang (2022).** "High Quality Rather than High Model Probability: Minimum Bayes Risk Decoding
   with Neural Metrics." *TACL* 10: 811–25, DOI 10.1162/tacl_a_00491.
