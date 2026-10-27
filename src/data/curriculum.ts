@@ -82,7 +82,6 @@ export const tracks = [
     description:
       'Unsupervised structure in corpora: latent Dirichlet allocation as a Bayesian model, and collocations and keywords by likelihood ratios and random walks.',
     planned: [
-      'Topic Models: Latent Dirichlet Allocation',
       'Collocations and Keyword Extraction',
     ],
     dependsOnFormalML: true,

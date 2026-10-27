@@ -147,7 +147,7 @@
     {
       "id": "topic-models-lda",
       "label": "Topic Models: Latent Dirichlet Allocation",
-      "status": "planned",
+      "status": "published",
       "domain": "text-mining"
     },
     {

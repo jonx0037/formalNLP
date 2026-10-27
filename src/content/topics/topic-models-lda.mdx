@@ -1,0 +1,679 @@
+---
+title: "Topic Models: Latent Dirichlet Allocation"
+subtitle: "Documents as points in a polytope of topics: when the topics can be recovered, the two classical ways to infer them, and what a topic model finds in filings whose generator plants seven vocabularies but only six identifiable topics."
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "distributional-semantics-ppmi-svd"
+tags:
+  - "topic-models"
+  - "latent-dirichlet-allocation"
+  - "plsi"
+  - "anchor-words"
+  - "identifiability"
+  - "collapsed-gibbs-sampling"
+  - "variational-inference"
+  - "harmonic-mean-estimator"
+  - "topic-coherence"
+  - "financial-text"
+domain: "text-mining"
+financeCaseStudy: true
+rigorFlag: "Anchor recovery's guarantees assume separability and a nonsingular topic–topic matrix; the finance generator satisfies the first exactly and fails the second, so one of its seven planted vocabularies cannot be recovered from any amount of data. LDA's posterior is intractable: the collapsed sampler is exact only in the limit, and mean-field VI optimizes a bound by coordinate ascent that stalls in local optima. On the finance corpus CAVI from scikit-learn's noise start stops where its own bound is about 4,700 nats lower than at the sectors, and EM for the correctly specified single-membership model stalls the same way, so the engine comparisons measure optimizers as much as models, and their ranking moves with the topic prior. Held-out likelihood must be estimated, and the harmonic-mean estimator is biased upward with infinite variance under continuous proportions; the page compares models by plug-in document completion instead. Perplexity and human interpretability can disagree. The synthetic corpus has a known answer; real filings do not."
+videoId: null
+notebookPath: "notebooks/topic-models-lda/01_topic_models_lda.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/topic-models-lda.mdx"
+datePublished: 2026-10-26
+estimatedReadTime: 35
+abstract: "Latent Dirichlet allocation models a document as a mixture of topics, each a distribution over words. Geometrically, every document's expected word distribution is a point of the topic polytope, the convex hull of the topics inside the word simplex, and fitting a document's topic proportions is a KL projection onto it. We prove when the polytope can be recovered: never up to relabeling, not in general, and not at all for a topic that every document carries at the same weight; but under separability every row of the normalized word co-occurrence matrix is a convex combination of the anchor words' rows, and when the topic–topic matrix is nonsingular the anchors are exactly the vertices. We derive the two classical inference engines, the collapsed Gibbs sampler from Dirichlet–multinomial conjugacy and mean-field coordinate ascent from the digamma identity, and show that the harmonic-mean estimator of held-out likelihood overestimates in expectation and has infinite variance as soon as a document holds enough anchor tokens. On the finance corpus, whose generator draws every document's content nouns half from its sector's vocabulary and half from a shared one, the shared vocabulary is exactly the unidentifiable topic: the anchor search finds one anchor per sector and none for it. Collapsed Gibbs finds the sectors, while mean-field VI and EM for the correctly specified single-membership model both stall at optima their own objectives rank far below the sectors."
+connections:
+  - topic: "perplexity-cross-entropy"
+    relationship: "Document completion scores held-out tokens by their mean log-probability, the negative of that topic's cross-entropy, so −5.794 nats per token is a perplexity of about 328 over the content-noun vocabulary."
+  - topic: "linear-text-classifiers"
+    relationship: "The mixture of unigrams is that topic's multinomial naive Bayes with the class unobserved; started at the gold sectors, its EM keeps the supervised solution, and from random starts it stalls far below it."
+  - topic: "n-gram-models-smoothing"
+    relationship: "The finance corpus seats its content nouns in Pitman–Yor restaurants, the process that topic connects to Kneser–Ney; Proposition 6's point estimates are the same add-beta Dirichlet posterior means as its additive smoothing."
+references:
+  - type: "paper"
+    title: "Latent Dirichlet Allocation"
+    authors: "David M. Blei, Andrew Y. Ng, and Michael I. Jordan"
+    year: 2003
+    url: "https://www.jmlr.org/papers/v3/blei03a.html"
+    note: "Journal of Machine Learning Research 3: 993–1022. Section 4.3: pLSI; Section 4.4 and Figure 4: the topic simplex embedded in the word simplex; Section 5.2, Eqs. 6–8: the variational updates, derived in Appendix A.3; Appendix A.1: E[log θ_i] = Ψ(α_i) − Ψ(Σα_j) (an unnumbered display); Section 5.4 and Figure 7: smoothed LDA, with a Dirichlet prior on the topics"
+  - type: "paper"
+    title: "Finding Scientific Topics"
+    authors: "Thomas L. Griffiths and Mark Steyvers"
+    year: 2004
+    url: "https://doi.org/10.1073/pnas.0307752101"
+    note: "Proceedings of the National Academy of Sciences 101, suppl. 1: 5228–35. Eq. 5: the collapsed full conditional, written with the document-length denominator that Theorem 2 drops as a constant"
+  - type: "paper"
+    title: "Probabilistic Latent Semantic Analysis"
+    authors: "Thomas Hofmann"
+    year: 1999
+    url: "https://arxiv.org/abs/1301.6705"
+    note: "Proceedings of UAI 1999, 289–96. Section 3.3 and Figure 2: the aspect model's sub-simplex, and maximum likelihood as minimizing the KL divergence from the empirical distribution"
+  - type: "paper"
+    title: "Probabilistic Latent Semantic Indexing"
+    authors: "Thomas Hofmann"
+    year: 1999
+    url: "https://doi.org/10.1145/312624.312649"
+    note: "Proceedings of SIGIR 1999, 50–57 (cited from its metadata)"
+  - type: "paper"
+    title: "Learning Topic Models—Going beyond SVD"
+    authors: "Sanjeev Arora, Rong Ge, and Ankur Moitra"
+    year: 2012
+    url: "https://doi.org/10.1109/FOCS.2012.49"
+    note: "Proceedings of FOCS 2012, 1–10 (full version arXiv 1204.1956). Definition 1.1: p-separable topic matrices (anchor words are introduced in Section 1's prose); Definition 1.3: the topic–topic matrix R; Theorem 1.4: polynomial-time recovery under a lower bound on R's ℓ1 condition number (Definition 2.1)"
+  - type: "paper"
+    title: "A Practical Algorithm for Topic Modeling with Provable Guarantees"
+    authors: "Sanjeev Arora, Rong Ge, Yoni Halpern, David Mimno, Ankur Moitra, David Sontag, Yichen Wu, and Michael Zhu"
+    year: 2013
+    url: "https://proceedings.mlr.press/v28/arora13.html"
+    note: "Proceedings of ICML 2013, PMLR 28 (2): 280–88. Section 3, Eqs. 1–2 and the text after them: the rows of the normalized co-occurrence matrix as convex combinations of the anchor rows with coefficients p(z = k | w); Algorithm 4: FastAnchorWords; RecoverL2 is defined in Section 3's prose; Appendix D.1 of the full version (arXiv 1212.4777): the unbiased per-document co-occurrence estimator"
+  - type: "paper"
+    title: "When Does Non-Negative Matrix Factorization Give a Correct Decomposition into Parts?"
+    authors: "David Donoho and Victoria Stodden"
+    year: 2003
+    url: "https://papers.nips.cc/paper_files/paper/2003/hash/1843e35d41ccf6e63273495ba42df3c1-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 16. Section 5: the separability condition [R2] (Eq. 5) and Theorem 1, uniqueness of the factorization"
+  - type: "paper"
+    title: "Relation between PLSA and NMF and Implications"
+    authors: "Eric Gaussier and Cyril Goutte"
+    year: 2005
+    url: "https://doi.org/10.1145/1076034.1076148"
+    note: "Proceedings of SIGIR 2005, 601–2. PLSA solves non-negative matrix factorization under the generalized KL divergence (cited from its metadata; the publisher's page refused our request)"
+  - type: "paper"
+    title: "Evaluation Methods for Topic Models"
+    authors: "Hanna M. Wallach, Iain Murray, Ruslan Salakhutdinov, and David Mimno"
+    year: 2009
+    url: "https://doi.org/10.1145/1553374.1553515"
+    note: "Proceedings of ICML 2009, 1105–12. Section 4.2, Eq. 14: the harmonic mean method; Section 6.2: it wildly overestimated held-out likelihood; Algorithm 2: the Chib-style estimator; Algorithm 3: left-to-right evaluation"
+  - type: "paper"
+    title: "Approximate Bayesian Inference with the Weighted Likelihood Bootstrap"
+    authors: "Michael A. Newton and Adrian E. Raftery"
+    year: 1994
+    url: "https://doi.org/10.1111/j.2517-6161.1994.tb01956.x"
+    note: "Journal of the Royal Statistical Society, Series B 56 (1): 3–26. The harmonic-mean estimator of the marginal likelihood (Section 7, by Neal's discussion; the article itself is behind a paywall)"
+  - type: "blog"
+    title: "The Harmonic Mean of the Likelihood: Worst Monte Carlo Method Ever"
+    authors: "Radford M. Neal"
+    year: 2008
+    url: "https://radfordneal.wordpress.com/2008/08/17/the-harmonic-mean-of-the-likelihood-worst-monte-carlo-method-ever/"
+    note: "The estimator's infinite variance, which may go undetected because the sample variance stays small"
+  - type: "paper"
+    title: "Reading Tea Leaves: How Humans Interpret Topic Models"
+    authors: "Jonathan Chang, Jordan Boyd-Graber, Sean Gerrish, Chong Wang, and David M. Blei"
+    year: 2009
+    url: "https://papers.nips.cc/paper_files/paper/2009/hash/f92586a25bb3145facd64ab20fd554ff-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 22. Models that score better on held-out likelihood can infer less semantically meaningful topics (word and topic intrusion)"
+  - type: "paper"
+    title: "Optimizing Semantic Coherence in Topic Models"
+    authors: "David Mimno, Hanna M. Wallach, Edmund Talley, Miriam Leenders, and Andrew McCallum"
+    year: 2011
+    url: "https://aclanthology.org/D11-1024/"
+    note: "Proceedings of EMNLP 2011, 262–72. Section 4.2, Eq. 1: the coherence score from document co-occurrence counts"
+  - type: "paper"
+    title: "Automatic Evaluation of Topic Coherence"
+    authors: "David Newman, Jey Han Lau, Karl Grieser, and Timothy Baldwin"
+    year: 2010
+    url: "https://aclanthology.org/N10-1012/"
+    note: "Proceedings of NAACL-HLT 2010, 100–108. PMI between a topic's top words, from co-occurrence in an external corpus"
+  - type: "paper"
+    title: "Rethinking LDA: Why Priors Matter"
+    authors: "Hanna M. Wallach, David Mimno, and Andrew McCallum"
+    year: 2009
+    url: "https://papers.nips.cc/paper_files/paper/2009/hash/0d0871f0806eae32d30983b62252da50-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 22. An asymmetric prior on the documents' proportions helps; an asymmetric prior on the topics does not"
+  - type: "paper"
+    title: "A Collapsed Variational Bayesian Inference Algorithm for Latent Dirichlet Allocation"
+    authors: "Yee Whye Teh, David Newman, and Max Welling"
+    year: 2006
+    url: "https://papers.nips.cc/paper_files/paper/2006/hash/532b7cbe070a3579f424988a040752f2-Abstract.html"
+    note: "Advances in Neural Information Processing Systems 19 (MIT Press, 2007)"
+  - type: "paper"
+    title: "On Smoothing and Inference for Topic Models"
+    authors: "Arthur Asuncion, Max Welling, Padhraic Smyth, and Yee Whye Teh"
+    year: 2009
+    url: "https://arxiv.org/abs/1205.2662"
+    note: "Proceedings of UAI 2009, 27–34. Eq. 13: the CVB0 update, the collapsed sampler's conditional applied to expected counts; the main differences between inference algorithms are attributable to the amount of smoothing"
+  - type: "paper"
+    title: "The Structure of Economic News"
+    authors: "Leland Bybee, Bryan Kelly, Asaf Manela, and Dacheng Xiu"
+    year: 2020
+    url: "https://www.nber.org/papers/w26648"
+    note: "NBER Working Paper 26648. LDA fitted to the Wall Street Journal; published as 'Business News and Business Cycles,' Journal of Finance 79 (5): 3105–47 (2024), doi 10.1111/jofi.13377"
+formalstatisticsPrereqs:
+  - topic: "multivariate-distributions"
+    site: "formalstatistics"
+    relationship: "Its Theorem 5 gives the Dirichlet moments behind the topic–topic matrix R = E[θθᵀ], and its Theorem 6 is the Dirichlet–multinomial conjugacy that Lemma 1 integrates and Proposition 6 reads as posterior means."
+  - topic: "bayesian-computation-and-mcmc"
+    site: "formalstatistics"
+    relationship: "Its Theorem 2 says a Gibbs update is a Metropolis–Hastings step that always accepts, which gives Corollary 1's invariance; its Remark 10 names collapsed Gibbs for LDA, and Theorem 2 here derives the conditional it leaves implicit."
+  - topic: "exponential-families"
+    site: "formalstatistics"
+    relationship: "Its Theorem 1 proves that the log-partition function's derivative is the mean of the sufficient statistic in one dimension; Lemma 2 is the Dirichlet case, whose sufficient statistic is log θ, proved directly."
+formalmlPrereqs:
+  - topic: "variational-inference"
+    site: "formalml"
+    relationship: "Its Theorem 2 is the CAVI coordinate update and its Proposition 1 the conjugate case, the expected natural parameter; Theorem 3 here applies both to LDA's three blocks of factors."
+  - topic: "kl-divergence"
+    site: "formalml"
+    relationship: "Its Proposition 2, Gibbs' inequality, makes Proposition 2 here a projection: fitting a document's topic proportions minimizes the KL divergence from its word frequencies to the topic polytope."
+formalmlConnections:
+  - topic: "bayesian-nonparametrics"
+    site: "formalml"
+    relationship: "Its Definition 1 and Proposition 2 are the Dirichlet distribution and its conjugacy; its Chinese restaurant process is the K-free relative of the Pitman–Yor restaurants that seat the finance corpus's content nouns."
+formalragConnections:
+  - topic: "query-likelihood-language-models"
+    site: "formalrag"
+    relationship: "Its Theorem 1 reads Dirichlet smoothing as a posterior mean; Proposition 6's topic and proportion estimates are the same posterior mean, given one sample of the topic assignments."
+  - topic: "pca-dimensionality-reduction"
+    site: "formalrag"
+    relationship: "Latent semantic analysis projects documents onto a low-rank subspace in Euclidean norm, with coordinates of both signs; LDA projects them in KL divergence onto a polytope inside the word simplex (the remark after Proposition 2)."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import TopicModelLab from '../../components/viz/TopicModelLab.tsx';
+
+## Overview & Motivation
+
+The [distributional semantics topic](/topics/distributional-semantics-ppmi-svd) ended on a matrix. It took the finance corpus's frequent content nouns, counted which ones share a document, and found that the ratio matrix drops to the level of noise after its fifth singular value, as a mixture of six sector vocabularies predicts. It closed by observing that a topic model would find this structure more easily than an embedding would. This page takes that up.
+
+A topic model treats a document as a bag of words drawn from a few distributions over the vocabulary, its **topics**, mixed in proportions of its own. Picture the set of all distributions over $V$ words, a simplex with one corner per word. Each topic is a point in it, and so is each document's word distribution, which is a weighted average of the topic points and so lies inside their convex hull. Fitting a topic model means finding a few corners that hold the documents' points, and reading each document's proportions off its position.
+
+That picture organizes the page.
+
+1. **The generative model.** Latent Dirichlet allocation, the polytope its documents live in, and fitting a document's proportions as a projection.
+2. **Identifiability and anchor words.** When the corners are determined by the documents, and how the corners can be found by convex geometry alone.
+3. **Collapsed Gibbs sampling** and **mean-field variational inference**, the two classical ways to fit the model.
+4. **Evaluation.** Why held-out likelihood is hard to estimate, and how to compare models anyway.
+
+Then the finance case study. The corpus's generator plants seven vocabularies, one per sector and one shared, and every filing draws about half its content nouns from its sector's vocabulary and half from the shared one. We will see that only six of the seven can be recovered, and that the obstacles to recovering those six are optimizers rather than the model.
+
+---
+
+## The generative model
+
+Fix a vocabulary of $V$ words and write $\Delta^{V-1}$ for the simplex of distributions over it. A topic is a point $\varphi_k \in \Delta^{V-1}$, and we stack $K$ of them as the rows of a $K \times V$ matrix $\Phi$.
+
+<TheoremBlock type="definition" number={1} title="Latent Dirichlet allocation">
+
+Given $\alpha \in \mathbb R_{\gt 0}^K$ and $\beta \gt 0$, draw each topic $\varphi_k \sim \mathrm{Dir}(\beta \mathbf 1_V)$. For each document $d$, draw its **topic proportions** $\theta_d \sim \mathrm{Dir}(\alpha)$, and for each position $n = 1, \dots, n_d$ draw a topic $z_{dn} \sim \mathrm{Cat}(\theta_d)$ and then a word $w_{dn} \sim \mathrm{Cat}(\varphi_{z_{dn}})$. The **probabilistic latent semantic indexing** model (pLSI) is the same model with $\theta_d$ and $\Phi$ treated as free parameters, with no priors.
+
+</TheoremBlock>
+
+The Dirichlet distribution and its moments are covered on formalStatistics ([Multivariate Distributions](https://www.formalstatistics.com/topics/multivariate-distributions), Theorems 5 and 6). A small $\alpha$ puts most of its mass near the corners of $\Delta^{K-1}$, so documents concentrate on few topics; a large one puts it near the center.
+
+<TheoremBlock type="definition" number={2} title="Topic polytope">
+
+The **topic polytope** of $\Phi$ is the convex hull $T(\Phi) = \operatorname{conv}\lbrace \varphi_1, \dots, \varphi_K \rbrace \subseteq \Delta^{V-1}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={1} title="Documents live in the polytope">
+
+Given $\theta_d$ and $\Phi$, the words of document $d$ are independent and identically distributed with distribution
+
+$$
+p_d = \Phi^\top \theta_d \in T(\Phi),
+$$
+
+so its count vector $x_d$ satisfies $\mathbb E[x_d \mid \theta_d] = n_d\, p_d$. Stacking documents, the matrix of their word distributions is $P = \Theta \Phi$, a product of nonnegative matrices with inner dimension $K$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Summing out the topic of one position, $P(w_{dn} = w \mid \theta_d) = \sum_k \theta_{dk}\, \varphi_k(w) = (\Phi^\top\theta_d)_w$. Given $\theta_d$ the pairs $(z_{dn}, w_{dn})$ are independent across positions, so the words are too. Since $\theta_d$ is a probability vector, $p_d$ is a convex combination of the rows of $\Phi$.
+
+</TheoremBlock>
+
+Only the expected distribution $p_d$ lies in the polytope. The observed frequencies $\hat p_d = x_d / n_d$ scatter around it, often outside. In the lab's **Topic simplex** tab the vocabulary has three words, so the word simplex is a triangle, and three topics span a smaller triangle inside it. With $\alpha = 1$ and documents of $10$ words, $0.613$ of the documents' observed frequencies fall outside the topic triangle; at $160$ words, $0.150$ do. At $\alpha = 0.1$ the documents crowd the corners, where a little noise carries them out: $0.662$ are still outside at $160$ words.
+
+How do we place an observed document back in the polytope? By maximum likelihood, and the answer is a projection.
+
+<TheoremBlock type="proposition" number={2} title="Fitting a document's proportions is a KL projection">
+
+Fix $\Phi$ and a document with counts $x$, length $n$, and frequencies $\hat p = x/n$. For every $\theta \in \Delta^{K-1}$,
+
+$$
+\sum_w x_w \log\, (\Phi^\top\theta)_w = -n \left[ H(\hat p) + \mathrm{KL}\big(\hat p \,\Vert\, \Phi^\top\theta\big) \right],
+$$
+
+where $H$ is the entropy. So the maximum-likelihood $\theta$ places $\Phi^\top\theta$ at a point of $T(\Phi)$ nearest to $\hat p$ in KL divergence. If some point of $T(\Phi)$ gives every word of the document positive probability, a nearest point exists, and its probabilities on the document's words are unique.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+With $q = \Phi^\top\theta$, $\sum_w x_w \log q_w = n \sum_w \hat p_w \log \hat p_w - n \sum_w \hat p_w \log(\hat p_w / q_w)$, which is the identity. Maximizing the left side over $\theta$ therefore minimizes $\mathrm{KL}(\hat p \,\Vert\, q)$ over $q \in T(\Phi)$, which is nonnegative by Gibbs' inequality (formalML, [KL Divergence](https://www.formalml.com/topics/kl-divergence), Proposition 2). The function $q \mapsto -\sum_{w : \hat p_w \gt 0} \hat p_w \log q_w$ is continuous where it is finite and tends to $+\infty$ as any $q_w$ with $\hat p_w \gt 0$ tends to $0$; on the compact set $T(\Phi)$, where it is finite somewhere, it attains its minimum. It is strictly convex in the coordinates $(q_w)_{\hat p_w \gt 0}$, so two minimizers agree on them.
+
+</TheoremBlock>
+
+The projection is computed by an EM iteration in which each step raises the likelihood. pLSI fits $\Phi$ too, minimizing the total $\sum_d n_d\, \mathrm{KL}(\hat p_d \,\Vert\, T(\Phi))$ jointly. Hofmann (1999) described the aspect model's sub-simplex and its KL reading for the joint table of documents and words, and Gaussier and Goutte (2005) showed that pLSI solves non-negative matrix factorization under the generalized KL divergence.
+
+<TheoremBlock type="remark">
+
+**LSA's projection is Euclidean and signed.** The distributional semantics topic's truncated SVD (its Definition 3) projects the rows of a document–word matrix onto a $d$-dimensional subspace in Euclidean norm. A subspace of dimension $d \ge K$ has room for the polytope, but its coordinates take both signs. On the finance documents' word frequencies, LSA's rank-$6$ reconstruction has $0.283$ of its entries negative, which no mixture of distributions can produce. LDA keeps the simplex: a document's coordinates are proportions.
+
+</TheoremBlock>
+
+---
+
+## Identifiability and anchor words
+
+A factorization $P = \Theta\Phi$ is useful only if the documents determine it. They do not, in three ways.
+
+<TheoremBlock type="proposition" number={3} title="The factorization is not unique">
+
+**(a)** For every permutation matrix $\Pi$, the topics $\Pi\Phi$ with proportions $\Theta\Pi^\top$ give the same documents, and under a symmetric prior the same posterior density. The posterior therefore has $K!$ symmetric modes. **(b)** The polytope itself need not be determined. With $V = 3$, $K = 2$, $\varphi_1 = (0.6, 0.3, 0.1)$, $\varphi_2 = (0.1, 0.3, 0.6)$, and $t = 0.1$, the stretched topics
+
+$$
+\varphi_1' = \varphi_1 + t(\varphi_1 - \varphi_2), \qquad \varphi_2' = \varphi_2 + t(\varphi_2 - \varphi_1)
+$$
+
+lie in the simplex, and every document of $(\Phi, \Theta)$ has proportions $\theta' = M^\top\theta \ge 0$ under them, with the same $p_d$, where $M = \frac{1}{1 + 2t}\begin{pmatrix} 1 + t & t \\ t & 1 + t \end{pmatrix}$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) Relabeling topics is a bijection of the assignments $z$ that preserves the joint density of every quantity in Definition 1 when $\alpha$ is symmetric. (b) Solving the two definitions for $\varphi_1$ and $\varphi_2$ gives $\Phi = M\Phi'$, so $\Theta\Phi = (\Theta M)\Phi'$. The rows of $\Theta M$ are nonnegative and sum to one because $M$ is nonnegative with rows summing to one, and $\Phi' \ge 0$ for $t = 0.1$ by direct computation: $\varphi_1' = (0.65, 0.3, 0.05)$.
+
+</TheoremBlock>
+
+Part (a) means that topics are compared only after matching them, which the harness does by the assignment of least total $L^1$ distance. Part (b) means that some condition on $\Phi$ is needed. A third failure is the one the finance corpus has.
+
+<TheoremBlock type="proposition" number={4} title="A topic every document shares at one weight is unidentifiable">
+
+Suppose every document's proportions put weight $c \in (0, 1)$ on a shared topic $\varphi_0$ and $1 - c$ on one topic $\varphi_{s(d)}$ of its own, $s(d) \in \lbrace 1, \dots, S \rbrace$. Then each document's words are i.i.d. from
+
+$$
+\psi_s = (1 - c)\,\varphi_s + c\,\varphi_0 ,
+$$
+
+the same distribution as a single-membership model, a mixture of unigrams with $S$ topics. For every $c' \in [0, c]$, the shared topic $\varphi_0$ with weight $c'$ and the own topics $\varphi_s' = (\psi_s - c'\varphi_0)/(1 - c')$ give the same documents, and the topic–topic matrix $R = \mathbb E[\theta\theta^\top]$, of size $S + 1$, has rank at most $S$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+By Proposition 1 a document's words are i.i.d. from $\Phi^\top\theta_d = \psi_{s(d)}$, which depends on the topics only through the $\psi_s$. For $c' \le c$, $\varphi_s' = \big((1 - c)\varphi_s + (c - c')\varphi_0\big)/(1 - c')$ is a probability vector and $(1 - c')\varphi_s' + c'\varphi_0 = \psi_s$. Every $\theta_d$ is one of the $S$ vectors $v_s = (1 - c)e_s + c\, e_0$, so $R = \sum_s P(s(d) = s)\, v_s v_s^\top$ is a sum of $S$ rank-one matrices.
+
+</TheoremBlock>
+
+The cure for (b) is a condition borrowed from non-negative matrix factorization (Donoho and Stodden 2003).
+
+<TheoremBlock type="definition" number={3} title="Separability and anchor words">
+
+$\Phi$ is **separable** if every topic $k$ has an **anchor word** $a_k$ with $\varphi_k(a_k) \gt 0$ and $\varphi_j(a_k) = 0$ for $j \ne k$.
+
+</TheoremBlock>
+
+An anchor word is evidence of its topic and of nothing else. Anchors are found in a matrix the distributional semantics topic already built, the document-level co-occurrence matrix, provided it is estimated without counting a word with itself.
+
+<TheoremBlock type="proposition" number={5} title="The co-occurrence estimator is unbiased">
+
+For a document with $n_d \ge 2$, let
+
+$$
+\hat Q_d = \frac{x_d x_d^\top - \operatorname{diag}(x_d)}{n_d(n_d - 1)} .
+$$
+
+Then $\mathbb E[\hat Q_d \mid \theta_d] = \Phi^\top\theta_d\theta_d^\top\Phi$, and averaged over documents, $\mathbb E[\hat Q] = \Phi^\top R\, \Phi$ with $R = \mathbb E[\theta\theta^\top]$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$x_d x_d^\top - \operatorname{diag}(x_d) = \sum_{i \ne j} e_{w_{di}} e_{w_{dj}}^\top$ counts the $n_d(n_d - 1)$ ordered pairs of distinct positions. Given $\theta_d$ the words at two distinct positions are independent with distribution $p_d$ (Proposition 1), so each pair has expectation $p_d p_d^\top = \Phi^\top\theta_d\theta_d^\top\Phi$. Averaging over $\theta_d$ gives $\Phi^\top R\,\Phi$.
+
+</TheoremBlock>
+
+So $Q = \Phi^\top R\,\Phi$ is the joint distribution of the words at two distinct positions of a random document. Let $p = Q\mathbf 1$ be its word marginal and $\bar Q = \operatorname{diag}(p)^{-1} Q$, whose row $\bar Q_w$ is the distribution of the second word given that the first is $w$.
+
+<TheoremBlock type="theorem" number={1} title="Anchor rows are the vertices">
+
+Let $\Phi$ be separable with anchors $a_1, \dots, a_K$, and let $\pi = R\mathbf 1$ be the topics' marginal probabilities. For every word with $p(w) \gt 0$,
+
+$$
+\bar Q_w = \sum_k C_{wk}\, \bar Q_{a_k}, \qquad C_{wk} = P(z_1 = k \mid w_1 = w) = \frac{\varphi_k(w)\, \pi_k}{p(w)} ,
+$$
+
+so every row of $\bar Q$ lies in $\operatorname{conv}\lbrace \bar Q_{a_1}, \dots, \bar Q_{a_K} \rbrace$. If $R$ is nonsingular, the anchor rows are affinely independent, they are the vertices of the convex hull of all rows, a word's row is a vertex only if the word is an anchor, and $\Phi$ is recovered from $C$ and $p$:
+
+$$
+\varphi_k(w) = \frac{C_{wk}\, p(w)}{\sum_{u} C_{uk}\, p(u)} .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Let $z_1$ be the topic of the first position. Given $z_1$, the first word is independent of $\theta$, so $p(\theta \mid z_1, w_1) = p(\theta \mid z_1)$ and the second word is independent of the first given $z_1$. Hence
+
+$$
+\bar Q_w = \sum_k P(z_1 = k \mid w_1 = w)\; g_k, \qquad g_k = P(w_2 = \cdot \mid z_1 = k),
+$$
+
+and Bayes' rule gives $C_{wk} = \varphi_k(w)\pi_k / p(w)$. For an anchor, $C_{a_k k} = 1$, so $\bar Q_{a_k} = g_k$. This proves the first claim, since each row $C_w$ is a probability vector.
+
+Now $g_k = \sum_j P(z_2 = j \mid z_1 = k)\, \varphi_j$, that is, $g = \bar R \Phi$ with $\bar R = \operatorname{diag}(\pi)^{-1} R$. If $R$ is nonsingular then $\pi \gt 0$ and $\bar R$ is nonsingular. Separability makes the rows of $\Phi$ linearly independent, since its anchor columns form a diagonal matrix with positive diagonal. If $\sum_k \lambda_k g_k = 0$, then $\lambda^\top \bar R \Phi = 0$, so $\lambda^\top \bar R = 0$ and $\lambda = 0$. The $g_k$ are therefore linearly, hence affinely, independent, and their hull is a simplex with vertices $g_k$. Barycentric coordinates in a simplex are unique, so $\bar Q_w = g_k$ forces $C_w = e_k$, which means $\varphi_j(w) = 0$ for $j \ne k$: $w$ is an anchor of $k$. Finally $\sum_u C_{uk}\, p(u) = \pi_k$, so the last display is $C_{wk}p(w)/\pi_k = \varphi_k(w)$.
+
+</TheoremBlock>
+
+Arora, Ge, and Moitra (2012) introduced anchor words and proved polynomial-time recovery from finitely many documents (their Theorem 1.4) under a lower bound on the $\ell_1$ condition number of $R$, which implies nonsingularity. Arora et al. (2013, Section 3) gave the convex-combination form above. Theorem 1 is the exact, population-level core of those results, and nonsingularity is not a technicality. In Proposition 4's world, the shared topic's anchor row lies in the hull of the others: in the harness's four-topic example its linear-programming distance to that hull is $0$, and the anchor search below picks a non-anchor in its place.
+
+<TheoremBlock type="algorithm" number={1} title="Anchor finding and recovery">
+
+1. Estimate $\hat Q$ by Proposition 5 and normalize its rows to $\bar Q$.
+2. **FastAnchorWords.** Among candidate words that appear in at least $5\%$ of the documents, take the row of $\bar Q$ farthest from the origin; then, $K - 1$ times, take the row farthest from the affine span of the rows chosen so far (Gram–Schmidt on differences).
+3. **RecoverL2.** For every word, find the probability vector $C_w$ minimizing $\lVert \bar Q_w - C_w^\top \bar Q_S \rVert^2$, where $\bar Q_S$ holds the anchor rows.
+4. Set $\varphi_k(w) \propto C_{wk}\, \hat p(w)$, as in Theorem 1.
+
+</TheoremBlock>
+
+FastAnchorWords is Arora et al.'s Algorithm 4, and RecoverL2 is defined in their Section 3. The candidate threshold matters: with a fixed minimum count, rare words, whose sampled rows are mostly noise, win the farthest-point search. The lab's **Anchors** tab draws the rows of a three-topic world in the anchors' triangle, where Theorem 1 puts the population rows exactly, and the sampled rows scatter and tighten as the corpus grows. In a separable world of $400$ words and $5$ topics, the mean $L^1$ error per topic falls from $0.542$ at $250$ documents to $0.065$ at $16{,}000$, and the planted anchors are found from $4{,}000$ documents on. Without anchors the error stops at $0.190$, above the population floor of $0.169$ that no amount of data removes. (The topics there are dense, $\mathrm{Dir}(\mathbf 1)$ off the anchors. Sparse topics are already nearly separable: their frequent words carry almost all their mass in one topic, and the contrast disappears.)
+
+---
+
+## Collapsed Gibbs sampling
+
+The posterior $p(z, \theta, \Phi \mid w)$ has no closed form, but conjugacy lets us integrate out everything except the assignments.
+
+<TheoremBlock type="lemma" number={1} title="The Dirichlet–multinomial marginal">
+
+For $\theta \sim \mathrm{Dir}(a)$ and counts $n \in \mathbb N^K$,
+
+$$
+\mathbb E\Big[ \prod_k \theta_k^{n_k} \Big] = \frac{B(a + n)}{B(a)}, \qquad B(a) = \frac{\prod_k \Gamma(a_k)}{\Gamma\big(\sum_k a_k\big)} .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The integrand $\prod_k \theta_k^{n_k} \cdot \prod_k \theta_k^{a_k - 1}/B(a)$ is $B(a + n)/B(a)$ times the $\mathrm{Dir}(a + n)$ density, which integrates to one. This is the normalizing-constant step of the conjugacy in formalStatistics, [Multivariate Distributions](https://www.formalstatistics.com/topics/multivariate-distributions), Theorem 6.
+
+</TheoremBlock>
+
+Write $n_{dk}$ for the number of tokens of document $d$ assigned to topic $k$, $n_{kw}$ for the number of tokens of word $w$ assigned to $k$, and $n_k = \sum_w n_{kw}$. Applying Lemma 1 to every document and every topic,
+
+$$
+p(w, z) = \prod_d \frac{B(\alpha + n_{d\cdot})}{B(\alpha)} \prod_k \frac{B(\beta\mathbf 1 + n_{k\cdot})}{B(\beta\mathbf 1)} .
+$$
+
+<TheoremBlock type="theorem" number={2} title="The collapsed full conditional">
+
+For token $i$ of document $d$, with word $w$, and with every count computed without token $i$ (marked $^{-i}$),
+
+$$
+P(z_i = k \mid z_{-i}, w) \;\propto\; \big(n_{dk}^{-i} + \alpha_k\big)\, \frac{n_{kw}^{-i} + \beta}{n_k^{-i} + V\beta} .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Setting $z_i = k$ changes only two counts, each by one: the count of topic $k$ in document $d$, and the count of word $w$ in topic $k$. Every other factor of $p(w, z)$ is the same for all $k$, so $P(z_i = k \mid z_{-i}, w)$ is proportional to
+
+$$
+\frac{B(\alpha + n_{d\cdot}^{-i} + e_k)}{B(\alpha + n_{d\cdot}^{-i})} \cdot \frac{B(\beta\mathbf 1 + n_{k\cdot}^{-i} + e_w)}{B(\beta\mathbf 1 + n_{k\cdot}^{-i})} .
+$$
+
+For any $a$, $B(a + e_k)/B(a) = a_k / \sum_j a_j$, by $\Gamma(x + 1) = x\Gamma(x)$ applied in the numerator and in the denominator. The first ratio is $(n_{dk}^{-i} + \alpha_k)/(n_d - 1 + \sum_j\alpha_j)$, whose denominator does not depend on $k$; the second is $(n_{kw}^{-i} + \beta)/(n_k^{-i} + V\beta)$.
+
+</TheoremBlock>
+
+Griffiths and Steyvers (2004, Eq. 5) wrote the conditional with the document's denominator $n_d - 1 + K\alpha$, which we drop as a constant.
+
+<TheoremBlock type="algorithm" number={2} title="Collapsed Gibbs sampling">
+
+Assign every token a topic uniformly at random and tabulate the counts. Then sweep: for each token in turn, remove it from the counts, draw its new topic from Theorem 2's conditional, and add it back. After the sweeps, estimate the topics and proportions by Proposition 6.
+
+</TheoremBlock>
+
+<TheoremBlock type="corollary" number={1} title="The posterior is the sampler's limit">
+
+Each step of Algorithm 2 leaves $p(z \mid w)$ invariant. If $\alpha, \beta \gt 0$, one sweep can move from any assignment to any other with positive probability, so the chain is irreducible and aperiodic on its finite state space, and the distribution of $z$ after $t$ sweeps converges to $p(z \mid w)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+A step that redraws one coordinate from its exact conditional is a Metropolis–Hastings step that always accepts, so it leaves the target invariant (formalStatistics, [Bayesian Computation and MCMC](https://www.formalstatistics.com/topics/bayesian-computation-and-mcmc), Theorem 2), and so does a composition of such steps. Every factor of Theorem 2's conditional is positive, so each step can set its token to any topic, and a sweep can reach any assignment in one pass. A finite chain whose transition matrix is entrywise positive converges to its unique invariant distribution (ibid., Theorem 5).
+
+</TheoremBlock>
+
+The harness checks Corollary 1 exactly on a corpus of two documents and seven tokens, small enough to enumerate all $2^7 = 128$ assignments. The product of the seven single-token kernels is entrywise positive, and its invariant vector equals the enumerated posterior to $10^{-12}$; the sampler itself, run for $40{,}000$ sweeps, matches every token's posterior marginal to $0.01$.
+
+<TheoremBlock type="proposition" number={6} title="Point estimates from one sample">
+
+Given an assignment $z$,
+
+$$
+\mathbb E[\varphi_k(w) \mid z, w] = \frac{n_{kw} + \beta}{n_k + V\beta}, \qquad \mathbb E[\theta_{dk} \mid z] = \frac{n_{dk} + \alpha_k}{n_d + \sum_j\alpha_j} .
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Given $z$ and $w$, the topic $\varphi_k$ is $\mathrm{Dir}(\beta\mathbf 1 + n_{k\cdot})$ and $\theta_d$ is $\mathrm{Dir}(\alpha + n_{d\cdot})$, by conjugacy; these are their means.
+
+</TheoremBlock>
+
+These are the Dirichlet-smoothed estimates of formalRAG's [query-likelihood topic](https://www.formalrag.com/topics/query-likelihood-language-models) (its Theorem 1). Averaging them over the sweeps of one run is safe; averaging across runs is not, because of Proposition 3(a).
+
+---
+
+## Mean-field variational inference
+
+The other classical engine replaces the posterior with the closest member of a factorized family and climbs a lower bound on $\log p(w)$, the ELBO (formalML, [Variational Inference](https://www.formalml.com/topics/variational-inference), Definition 1). Its updates need one expectation.
+
+<TheoremBlock type="lemma" number={2} title="The Dirichlet log-moment">
+
+If $\theta \sim \mathrm{Dir}(\gamma)$, then $\mathbb E[\log\theta_k] = \psi(\gamma_k) - \psi\big(\sum_j\gamma_j\big)$, where $\psi = \Gamma'/\Gamma$ is the digamma function.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$B(\gamma) = \int_{\Delta^{K-1}} \prod_j \theta_j^{\gamma_j - 1}\, d\theta$. Differentiating under the integral in $\gamma_k$, which dominated convergence permits on a neighborhood of $\gamma$ where $\gamma_k \gt 0$, gives $\partial_k B(\gamma) = \int \log\theta_k \prod_j \theta_j^{\gamma_j - 1}\, d\theta$, so
+
+$$
+\mathbb E[\log\theta_k] = \partial_k \log B(\gamma) = \psi(\gamma_k) - \psi\Big(\sum_j\gamma_j\Big).
+$$
+
+This is the Dirichlet case, with sufficient statistic $\log\theta$, of the identity formalStatistics proves for one-parameter families ([Exponential Families](https://www.formalstatistics.com/topics/exponential-families), Theorem 1), and Blei, Ng, and Jordan (2003, Appendix A.1) derive it the same way.
+
+</TheoremBlock>
+
+<TheoremBlock type="theorem" number={3} title="Coordinate ascent for LDA">
+
+Under the mean-field family in which the topics, each document's proportions, and each token's topic are independent,
+
+$$
+q = \prod_k \mathrm{Dir}(\varphi_k; \lambda_k) \prod_d \Big[ \mathrm{Dir}(\theta_d; \gamma_d) \prod_n \mathrm{Cat}(z_{dn}; r_{dn}) \Big],
+$$
+
+the ELBO's optimal coordinate updates are
+
+$$
+r_{dnk} \propto \exp\big( \mathbb E_q\log\theta_{dk} + \mathbb E_q\log\varphi_k(w_{dn}) \big), \qquad \gamma_d = \alpha + \sum_n r_{dn},
+$$
+
+$$
+\lambda_{kw} = \beta + \sum_{d, n} r_{dnk}\, \mathbf 1[w_{dn} = w],
+$$
+
+with both expectations given by Lemma 2.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+formalML's Theorem 2 says the optimal factor for one block is proportional to the exponential of the expected log of that block's complete conditional. Given everything else, $\log p(z_{dn} = k \mid \cdot) = \log\theta_{dk} + \log\varphi_k(w_{dn}) + \text{const}$, which gives $r$. The complete conditional of $\theta_d$ is $\mathrm{Dir}(\alpha + \sum_n e_{z_{dn}})$ and that of $\varphi_k$ is $\mathrm{Dir}(\beta\mathbf 1 + \sum_{d,n} \mathbf 1[z_{dn} = k]\, e_{w_{dn}})$, both conjugate, so by formalML's Proposition 1 the optimal factors are Dirichlet with the expected natural parameters, which are $\gamma_d$ and $\lambda_k$.
+
+</TheoremBlock>
+
+These are Blei, Ng, and Jordan's Eqs. 6–8, derived in their Appendix A.3, with the Dirichlet prior on the topics of their smoothed model (Section 5.4).
+
+<TheoremBlock type="corollary" number={2} title="The ELBO never decreases">
+
+Each update of Theorem 3 maximizes the ELBO over its block, so alternating them never lowers it, and since the ELBO is bounded above by $\log p(w)$, its values converge.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Each update is the exact maximizer in its block (formalML, Theorem 2), so the ELBO after it is at least the ELBO before it; a monotone sequence bounded above converges.
+
+</TheoremBlock>
+
+The harness records the ELBO after every update of every run and checks that it never falls, and checks our closed form for the bound against scikit-learn's to $10^{-8}$ relative. Corollary 2 promises convergence of the ELBO's values, not to the best optimum, and the finance case study shows how far apart those can be.
+
+<TheoremBlock type="remark">
+
+**CVB0.** Replacing Theorem 2's counts with their expectations under $q$ turns the sampler's conditional into a deterministic update, CVB0 (Asuncion et al. 2009, Eq. 13; Teh, Newman, and Welling 2006 for the collapsed bound). Asuncion et al. found that the main differences between inference algorithms are attributable to the amount of smoothing, and largely vanish once the hyperparameters are tuned.
+
+</TheoremBlock>
+
+The lab's **Gibbs vs. VI** tab shows their point on one world. With the topic prior the world was drawn from, $\beta = 1$, collapsed Gibbs recovers the topics best, at mean $L^1$ error $0.293$ against $0.452$ for coordinate ascent and $0.439$ for the anchors. With a sparse, misspecified $\beta = 0.01$ the order reverses: $0.787$ for Gibbs and $0.461$ for coordinate ascent.
+
+---
+
+## Evaluating a topic model
+
+The natural score is the probability of held-out documents, but $p(w) = \sum_z p(w, z)$ sums over $K^N$ assignments.
+
+<TheoremBlock type="definition" number={4} title="Held-out likelihood and document completion">
+
+The **held-out log-likelihood per token** of documents $w$ is $\frac{1}{N} \log p(w \mid \hat\Phi, \alpha)$, where $N$ is their number of tokens. **Plug-in document completion** splits each held-out document into its even and odd positions, estimates $\hat\theta_d$ from the even positions with $\hat\Phi$ fixed, and scores the odd positions by their mean of $\log \sum_k \hat\theta_{dk}\, \hat\varphi_k(w)$.
+
+</TheoremBlock>
+
+Completion needs no marginal likelihood, and it scores a single-membership model by the same rule, with $\hat\theta_d$ its posterior over clusters. Estimating $p(w)$ itself is a trap.
+
+<TheoremBlock type="theorem" number={4} title="The harmonic-mean estimator">
+
+Let $z^{(1)}, \dots, z^{(S)}$ be draws from $p(z \mid w)$ and $\hat p_{\mathrm{HM}} = \big( \frac1S \sum_s 1/p(w \mid z^{(s)}) \big)^{-1}$.
+
+**(a)** $\mathbb E_{p(z \mid w)}\big[ 1/p(w \mid z) \big] = 1/p(w)$, so $\hat p_{\mathrm{HM}}$ is consistent.
+
+**(b)** $\mathbb E[\hat p_{\mathrm{HM}}] \ge p(w)$: it overestimates in expectation.
+
+**(c)** With $\Phi$ fixed and the proportions $\theta$ continuous, the variance of $1/p(w \mid \theta)$ under $p(\theta \mid w)$ is finite if and only if $\int p(\theta)/p(w \mid \theta)\, d\theta \lt \infty$. If $\Phi$ is separable and the document holds $c \ge \alpha_k$ tokens of anchor words of topic $k$, the integral diverges and the variance is infinite.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) $\sum_z p(z \mid w)/p(w \mid z) = \sum_z p(z)/p(w) = 1/p(w)$, and the average of the $1/p(w \mid z^{(s)})$ converges to it. (b) $x \mapsto 1/x$ is convex, so by Jensen's inequality $\mathbb E[\hat p_{\mathrm{HM}}] \ge 1/\mathbb E[\frac1S\sum_s 1/p(w \mid z^{(s)})] = p(w)$. (c) The second moment is
+
+$$
+\int \frac{p(\theta \mid w)}{p(w \mid \theta)^2}\, d\theta = \frac{1}{p(w)} \int \frac{p(\theta)}{p(w \mid \theta)}\, d\theta .
+$$
+
+Every factor of $p(w \mid \theta) = \prod_n (\Phi^\top\theta)_{w_n}$ is at most one, and an anchor token of topic $k$ contributes $(\Phi^\top\theta)_{a} = \theta_k\, \varphi_k(a)$. So $p(w \mid \theta) \le C\, \theta_k^{\,c}$ for a constant $C$, and the integral is at least $C^{-1}\, \mathbb E[\theta_k^{-c}]$, where $\theta_k \sim \mathrm{Beta}(\alpha_k, \alpha_0 - \alpha_k)$ with $\alpha_0 = \sum_j \alpha_j$. That expectation is $\int_0^1 t^{\alpha_k - c - 1}(1 - t)^{\alpha_0 - \alpha_k - 1}\, dt / B(\alpha_k, \alpha_0 - \alpha_k)$, which diverges at $0$ when $c \ge \alpha_k$.
+
+</TheoremBlock>
+
+With the common choice $\alpha_k = 0.1$, a single anchor token makes the variance infinite. Newton and Raftery (1994) proposed the estimator, Neal (2008) called it the worst Monte Carlo method ever because its infinite variance can hide behind a small sample variance, and Wallach et al. (2009, Section 6.2) found that it wildly overestimated topic models' held-out likelihood. The harness checks (a) exactly on the seven-token corpus ($\log p(w) = -9.015$), (b) by $4{,}000$ replicates of $20$ exact posterior draws, and (c) on a one-anchor document, whose tail integral over $[\varepsilon, 1]$ grows tenfold each time $\varepsilon$ shrinks a hundredfold, like $\varepsilon^{-1/2}$.
+
+<TheoremBlock type="proposition" number={7} title="Importance sampling from the prior is unbiased">
+
+For draws $z^{(s)} \sim p(z)$, the average $\frac1S \sum_s p(w \mid z^{(s)})$ is an unbiased estimator of $p(w)$ with finite variance, and its logarithm underestimates $\log p(w)$ in expectation.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$\mathbb E_{p(z)}[p(w \mid z)] = \sum_z p(z)\, p(w \mid z) = p(w)$, and $p(w \mid z) \le 1$ bounds the variance. Jensen's inequality for the concave logarithm gives the last claim.
+
+</TheoremBlock>
+
+Unbiased is not the same as useful. On one-document corpora of $4$, $8$, and $12$ tokens, a prior draw's relative variance is $0.387$, $3.033$, and $17.424$, growing quickly with length (measured, not proved), while the harmonic mean's is $0.250$, $0.613$, and $1.015$. On a finite collapsed state space the harmonic mean's variance is finite, and smaller; its defects are the bias of (b) and, with continuous proportions, the infinite variance of (c). Wallach et al. recommend Chib-style and left-to-right estimators (their Algorithms 2 and 3); we compare models by document completion instead.
+
+<TheoremBlock type="definition" number={5} title="Topic coherence">
+
+For a topic's top words $v_1, \dots, v_M$ and document frequencies $D(\cdot)$, the **UMass coherence** is
+
+$$
+\sum_{m = 2}^{M} \sum_{l = 1}^{m - 1} \log \frac{D(v_m, v_l) + 1}{D(v_l)} ,
+$$
+
+and the **NPMI coherence** is the mean over pairs of $\log\frac{P(v, v')}{P(v)P(v')} \big/ \big(-\log P(v, v')\big)$, with document-level probabilities.
+
+</TheoremBlock>
+
+UMass coherence is Mimno et al.'s (2011) Eq. 1, and the PMI form is Newman et al.'s (2010), here normalized to $[-1, 1]$; unnormalized, it is the distributional semantics topic's PMI (its Definition 2) between words. Coherence asks whether a topic's words occur together, which held-out likelihood does not: Chang et al. (2009) found models with better held-out likelihood whose topics people found less meaningful.
+
+---
+
+## Finance case study
+
+<FinanceCaseStudy title="Finance case study: seven planted vocabularies, six identifiable topics">
+
+The training text is the corpus of the distributional semantics topic, `generate_corpus(300, 0)`, rebuilt from its own generator so that the vocabulary every content noun was drawn from is visible, and run on for $100$ more documents that continue the same vocabularies, which we hold out. The generator seats content nouns in Pitman–Yor restaurants, six for the sectors and one shared, and draws each noun from the document's sector restaurant with probability $\frac12$ and from the shared one otherwise. We keep the $2{,}908$ words seated in exactly one restaurant: $13{,}382$ tokens in the training documents and $3{,}735$ in the held-out ones. Industrials covers $142$ of the $300$ training documents, technology $52$, banking $40$, retail $27$, energy $20$, and healthcare $19$. All models use $\alpha = \beta = 0.1$.
+
+**Seven restaurants, six topics.** Every document is Proposition 4's mixture with $c = \frac12$: the median share of a document's tokens from the shared restaurant is $0.489$. The identifiable truth is therefore six topics $\psi_s$, each the word distribution of one sector's documents, and the harness scores every model against them. The anchor search agrees. Asked for six anchors, FastAnchorWords returns one per sector: *outlevy* (industrials), *power* (energy), *merchandise* (retail), *cloud* (technology), *royaltyside* (banking), and *patients* (healthcare). Asked for seven, its seventh pick is *freight*, a second industrials word, and never a word of the shared vocabulary, as Theorem 1 leads us to expect when $R$ is singular. The pseudo-words are the generator's: past its seed nouns, each restaurant invents new ones.
+
+**The engines.** With $K = 6$ and three seeds each, mean $L^1$ error against the six $\psi_s$, plug-in completion on the held-out documents in nats per token, and the normalized mutual information between each document's dominant topic and its sector:
+
+| method | $L^1$ | completion | NMI |
+|---|---|---|---|
+| collapsed Gibbs | $0.548$ | $-5.794$ | $0.967$ |
+| coordinate ascent from noise | $1.033$ | $-6.185$ | $0.186$ |
+| coordinate ascent from Gibbs's counts | $0.576$ | $-5.840$ | $0.963$ |
+| anchors (Algorithm 1) | $0.590$ | | |
+| mixture of unigrams, best of 20 starts | $0.985$ | $-6.157$ | $0.270$ |
+| mixture of unigrams from the sectors | $0.279$ | $-5.734$ | $1.000$ |
+
+**The obstacle is the optimizer, not the model.** Collapsed Gibbs finds the sectors on every seed, with NMI from $0.944$ to $1.000$. Coordinate ascent started from scikit-learn's Gamma noise does not, and it is not because its bound prefers another answer. Started from Gibbs's topic counts, the same updates reach an ELBO averaging $-88{,}822$, while from noise they stop at $-93{,}556$, about $4{,}700$ nats lower. scikit-learn's own fit stops in between, at $-90{,}353$ and NMI $0.652$. The single-membership model, a mixture of unigrams, tells the same story more sharply. By Proposition 4 it is the correctly specified model here, and started at the gold sectors its EM keeps them and scores the best completion of all, $-5.734$. From $20$ random starts, the best run reaches a training log-likelihood of $-80{,}675$, against $-77{,}168$ for the run started at the sectors. Both deterministic coordinate-ascent methods stall at optima their own objectives rank far below the sectors, and the stochastic sampler escapes.
+
+**Anchors need no optimizer.** Algorithm 1, one co-occurrence matrix and one convex fit, recovers the six topics to $0.590$, close to the sampler's $0.548$.
+
+**What the templates do.** The analysis above keeps only the planted content nouns. Run on every word, a six-topic model gives one topic to the function words and keys the rest on company names, which carry the sector: NMI $0.943$ with the sector, $0.012$ with the document type (earnings call, MD&A, or 8-K), and $0.011$ with the tone. Restricted to words in $3$ to $90$ of the $300$ documents, $0.709$, $0.023$, and $0.015$. Tone and document type are carried by templates every document shares, and a topic model, which sees only which words occur together, never finds them.
+
+**The capstone's stage.** `topic_mixtures` folds any filing's content nouns into the headline Gibbs fit, whose topics are matched to the sectors, and returns its six proportions. On the $100$ held-out documents its dominant topic is the document's sector $0.930$ of the time.
+
+</FinanceCaseStudy>
+
+<TopicModelLab client:visible />
+
+---
+
+## Where this sits
+
+The distributional semantics topic found the corpus's sectors in the spectrum of a co-occurrence matrix. This page found them as the corners of a polytope. Documents live in the polytope of their topics (Proposition 1), and fitting a document's proportions is a KL projection onto it (Proposition 2). The corners are determined only up to relabeling, not at all in general, and not for a topic every document shares at one weight (Propositions 3 and 4). Under separability, and with a nonsingular topic–topic matrix, the anchor words are the corners of the co-occurrence rows and give the topics by convex geometry (Theorem 1). Conjugacy collapses the posterior to one conditional in three counts (Theorem 2), and the digamma identity gives the mean-field updates (Theorem 3). The harmonic-mean estimator is the wrong way to compare the results (Theorem 4).
+
+The capstone imports `topic_mixtures` as its topic stage, beside the [Loughran–McDonald lexicon](/topics/lexicon-sentiment-loughran-mcdonald) for tone and the [knowledge-graph embeddings](/topics/knowledge-graph-embeddings) for the facts. Its topics are sectors, which every filing already declares; on real filings, without a planted answer, the structure a topic model finds is harder to name.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Lemmas 1–2, Theorems 1–4, Corollaries 1–2, and Propositions 1–7 are proved here in full; the KL-NMF equivalence after Proposition 2 and the finite-sample rates of anchor recovery are cited. The harness checks Theorem 1, Propositions 3–5, and Corollary 1 exactly; Theorem 2 against ratios of the enumerated joint; Lemma 2 by quadrature and central differences; Theorem 3 against scikit-learn; Corollary 2 on every update of a run; and Theorem 4 by enumeration, simulation, and quadrature.
+2. **One planted vocabulary is unrecoverable.** The generator's shared restaurant enters every document at weight one half, so the topic–topic matrix is singular and Theorem 1's hypothesis fails. No amount of data recovers seven topics, and the page scores six.
+3. **Optimizers, not models.** Coordinate ascent and EM stop at local optima that their own objectives rank far below the sectors. The ranking of engines also moves with the topic prior. The comparisons measure fitted runs at one setting, with three seeds.
+4. **Estimated likelihoods.** Held-out likelihood can only be estimated. We compare by plug-in document completion, which scores an estimate of $\theta$ rather than integrating over it.
+5. **Interpretability is not likelihood.** Chang et al. (2009) found the two can disagree. On the finance corpus the topics are sectors; on real filings there is no planted answer to check them against.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports the topic's Python module, which owns every number on this page. It imports the distributional semantics topic's module for the corpus's generator and the linear text classifiers' module for its rounding, and through them the finance corpus. The collapsed sampler is pure Python, a few hundredths of a second per sweep over the corpus's $63{,}000$ tokens; coordinate ascent is NumPy, with every document's E-step done at once on scikit-learn's schedule. Its harness checks:
+
+- Theorem 2 and Corollary 1 by enumerating every assignment of a seven-token corpus, and the sampler against that posterior;
+- Theorem 1 at the population level, with and without a singular topic–topic matrix, and Algorithm 1 on sampled corpora;
+- Lemma 2, Theorem 3, and Corollary 2 against quadrature, scikit-learn, and every update of a run;
+- Theorem 4 and Proposition 7 exactly and by simulation, and every comparison this page states.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
