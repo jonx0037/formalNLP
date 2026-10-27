@@ -90,9 +90,7 @@ export const tracks = [
     layer: 'Evaluation',
     description:
       'Measuring language systems honestly: n-gram overlap metrics and their limits, and significance testing for paired NLP comparisons.',
-    planned: [
-      'Significance Testing for NLP',
-    ],
+    planned: [],
     dependsOnFormalML: false,
   },
 ] as const;
