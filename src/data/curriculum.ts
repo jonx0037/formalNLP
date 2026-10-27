@@ -91,7 +91,6 @@ export const tracks = [
     description:
       'Measuring language systems honestly: n-gram overlap metrics and their limits, and significance testing for paired NLP comparisons.',
     planned: [
-      'Overlap Metrics: BLEU and ROUGE',
       'Significance Testing for NLP',
     ],
     dependsOnFormalML: false,

@@ -159,7 +159,7 @@
     {
       "id": "overlap-metrics-bleu-rouge",
       "label": "Overlap Metrics: BLEU and ROUGE",
-      "status": "planned",
+      "status": "published",
       "domain": "nlp-evaluation"
     },
     {
