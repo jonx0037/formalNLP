@@ -111,7 +111,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   desktop width: `find` the lab's caption and `computer` `scroll_to` its ref, then check `ssr` is gone.
   At the mobile preset a stale `find` ref can `scroll_to` thousands of pixels off (Topic 20: the lab ended at
   top = −7,119): `window.scrollBy(0, lab.getBoundingClientRect().top − 300)` by script, then one real `computer`
-  scroll fires `client:visible`.
+  scroll fires `client:visible`. The app allows 5 preview servers per folder across chats; when `preview_start` refuses,
+  `lsof -nP -iTCP -sTCP:LISTEN` shows which ports (4329–4333) hold them (Topic 28's blocker was 13 h old), and the
+  built `dist/` HTML can meanwhile be checked for `.katex-error` and `‘` without a browser. In zsh a `$D` holding several
+  `--with` flags is not word-split (uv reads one argument): spell the flags out.
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
   stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
   two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
@@ -437,6 +440,29 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   effective_order=False)`; its "floor" smoothing differs from the obvious rule (0.035), so cross-check add-k and exp only;
   chrF averages P and R over the orders both strings reach (effective order) before one F. rouge-score 0.1.2's tokenizer
   agrees with `fc._tokens` text. Under `-W error`, ignore sacreBLEU's "effective_order" UserWarning by message.
+- Significance testing on corpus models (Topic 28). An exact A/A null: two of `om.sample_set(stream)`'s 64 trigram
+  samples per prompt are exchangeable, so pair sample j with j + 32; disjoint prompt blocks are independent experiments
+  (four streams: 2,304 of 10 prompts, enough to read a size to ±0.01). Randomization p-values on short blocks are
+  superuniform, not uniform (swaps of identical or empty outputs leave atoms): assert P(p ≤ α) ≤ α on an α grid, never
+  a KS test (it failed at D = 0.065). Share one swap draw across metrics within an experiment (7× fewer random numbers,
+  and the shopping dependence is the real one). Corpus BLEU is homogeneous of degree 0 in the pooled statistics, so
+  resample as `W @ S` (a B × n weight or swap matrix times the n × 10 statistics) and vectorize BLEU over rows. The
+  extractors pool 3–7 matched 4-grams over 90 filings: the delta method is off by 11%, and on 10 filings pooled m₄ = 0
+  makes BLEU 0 on most resamples (2δ rule p 0.0005 against AR 0.85); return nan from log-BLEU gradients at zero matches,
+  or `-W error` fails. Prop 3's kink: simulate the reduced form min(0, x̄) with local parameter h = √n μ, and put "far"
+  at h < 0 (h > 0 makes φ ≡ 0, and coverage trivially 1). The failure sits just on the linear side (basic interval
+  0.544 at h = −0.5, nominal 0.90), while at the kink both intervals over-cover; the bootstrap's atom P*(φ* = φ̂) keeps
+  an across-dataset sd of 0.38–0.39 at n = 100 and 400 (a random law). For scalar toys `x[rng.integers(0, n, (B, n))]`
+  beats multinomial counts. Flip-family systems share lengths, so BP cancels from their δ on every resample. Topic 19's
+  blind reader is right on exactly one aspect of every contrast sentence (ρ = −1, sentence-cluster DE 0.823); the ANOVA
+  ICC is meaningless with ≈ 1.1 rows per sentence (it gave −4): use the contrast-pair correlation. By documents, the
+  lexicon reader's accuracy has DE 1.555 but the paired difference 0.931. Thm 4: Topic 17's bursty world with fixed NB
+  α = 1 and LR λ = 10⁻², nested prefixes of one 1,024-document draw per training set; the rule-based crossover (n = 384,
+  mean gap −0.0006 ± 0.0013) needed a 32-document grid (a 256/512 grid missed it by 6 SE). Rejection grows with the test
+  set (0.175 at 3,000, 0.625 at 20,000), which is the theorem: show both. Exact McNemar power: sum n_d over a ±12σ
+  window (full sums to n = 200,000 took 7 s); at Connor's own n the exact power is 0.776–0.787. Pin a brief's narrated
+  counts in a test before writing them: "every flipped-vs-extractor pair disagrees in sign" was wrong (flipped vs
+  lead-3 both have fact F1 0, so it is BLEU-only).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -509,6 +535,13 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   add-k, exp), `envelope`, `lcs_table`/`lcs_path`, `rouge_n`/`rouge_l`, `chrf`, `soft_match`, `chunks`/`permutation_census`,
   `utility_matrix` (vectorized BLEU+1), `sample_set` (trigram ancestral samples), `doc_facts`/`render`/`fact_f1`,
   `textrank_sentences`, and `segment_tau`/`system_tau` are reusable.
+  Topic 28's harness takes ≈ 46 s (Topic 27's `finance_scores` ~4 s, Topic 17's four `fin_fit` ~7 s, Topic 19's rows
+  and blind reader ~5 s, four sample streams with BLEU statistics ~7 s, segment scores on two streams ~5 s, training
+  draws ~8 s); `stat_matrix`/`bleu_pooled`/`mean_pooled`/`weighted`, `boot_counts`/`bootstrap_deltas`/`swap_deltas`/
+  `full_group`, `mc_pvalue`/`group_pvalue`/`ar_test`, `mcnemar_exact`/`discordant`, `aa_data`/`aa_pvalues` (the exact
+  A/A null), `koehn_p`/`shift_p`/`order_stat`, `log_bleu_grad`/`influences`/`linearized_var`, `kink_coverage`,
+  `cluster_var`/`cluster_boot_var`/`icc_anova`/`contrast_pair_corr`, `training_draws`/`total_variance`,
+  `mcnemar_power`/`connor_n`, `holm_adjust`, and `pair_matrix`/`metric_verdicts` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -662,6 +695,23 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   - **MBR.** Kumar and Byrne (2004, N04-1022) Eq. (3), 0/1 loss gives MAP (Eqs. 5–6), loss 1 − unsmoothed sentence
     BLEU. Eikema and Aziz (2020, COLING, §7.4 Eq. 1) use METEOR, and fn. 9 rejects smoothed BLEU. Reiter (2018,
     CL 44 (3): 393–401): BLEU is supported only for system-level MT diagnostics.
+  Topic 28 citation facts:
+  - **Koehn (2004), W04-3250.** §6 is the paired bootstrap ("better with 95% statistical significance" if it wins 95%
+    of 1,000 resamples); never says one-sided. Riezler and Maxwell (2005, W05-0908): Fig. 1 AR swaps statistic tuples,
+    p = (c + 1)/(R + 1); Fig. 2 bootstrap uses Noreen's shift on |Δ|; §4.3 misdefines type I error and writes "0.15"
+    for .015. Noreen (1989) is unread: quote (nc + 1)/(nt + 1) via Yeh (2000, arXiv cs/0008005).
+  - **Berg-Kirkpatrick, Burkett, and Klein (2012), D12-1091.** Fig. 1 counts δ(x⁽ⁱ⁾) > 2δ(x) strictly, p ≈ s/b with no
+    +1; fn. 2 notes the δ < 0 count is equivalent under symmetry. sacreBLEU 2.6.0 follows neither: its paired bootstrap
+    is R&M's shift on |Δ|, its AR counts strictly (multeval) and returns (c + 1)/(n + 1), seeded by `SACREBLEU_SEED`
+    (default 12345), so no exact cross-check.
+  - **Power.** Connor (1987) is paywalled; Eq. 3 is one-sided z_{1−α} (verified via SAS PROC POWER, METHOD=CONNOR).
+    Card et al. (2020) estimate McNemar power by simulation and never cite Connor; their analytic survey is only in the
+    arXiv appendix. Dietterich (1998, §3.1) uses the continuity-corrected McNemar.
+  - **Bootstrap theory.** Bickel and Freedman (1981) is behind a Project Euclid bot check: cite without a theorem number.
+    Fang and Santos (2019) Thm 3.1 / Cor 3.1 are arXiv 1404.3763 v2 numbers. Andrews (2000) is pp. 399–405 per Crossref
+    (RePEc 399–406). Davison and Hinkley §3.8 is hierarchical data, §5.2 coins "basic" intervals (Efron and Tibshirani
+    never say "basic"). Phipson and Smyth (2010) §3: b/m inflates type I error; §4: (b + 1)/(m + 1).
+  - **Søgaard et al. (2014, W14-1601).** The PDF byline is "Hector Martinez"; the Anthology's "Héctor Martínez Alonso".
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -715,6 +765,13 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   No sibling covers BLEU, ROUGE, chrF, BERTScore, LCS, MBR decoding, or metric–judgment correlation (2026-10-27); cite
   formalRAG `rank-fusion-rrf` Def 2 (Kendall distance), formalStatistics `expectation-moments` Thm 13 and Example 7
   (Jensen, AM–GM), and formalCalculus `probability-and-union-bound` Thm 8 (uniform Hoeffding).
+  No sibling covers McNemar, approximate randomization, tests of non-decomposable metrics, bootstrap p-value
+  conventions, cluster bootstraps, or training variance (2026-10-27). formalStatistics `bootstrap` Thm 3
+  (Efron–Bickel–Freedman) and `central-limit-theorem` Thm 8 (delta method) are scalar, so prove the multivariate delta
+  step; formalML `rank-tests` Thm 3 is the full-group average only (the Monte Carlo (1 + b)/(B + 1) version is on no
+  sibling); formalRAG `significance-testing-calibration` covers the paired t and d_z (Def 1), pairing variance (Thm 1),
+  power-based n (Prop 1), and sign-flip permutation and recentered bootstrap on per-query means (Def 2), with
+  multiplicity in prose only.
   The design's watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
