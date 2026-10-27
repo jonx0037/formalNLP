@@ -70,9 +70,7 @@ export const tracks = [
     layer: 'Tasks',
     description:
       'From text to structure: sequence labeling with HMMs and CRFs, named entities, relation extraction under distant supervision, and knowledge-graph embeddings — closing with the earnings-call capstone.',
-    planned: [
-      'Capstone: An Earnings-Call NLP Pipeline',
-    ],
+    planned: [],
     dependsOnFormalML: false,
   },
   {

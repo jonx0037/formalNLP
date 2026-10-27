@@ -1,0 +1,466 @@
+---
+title: "Capstone: An Earnings-Call NLP Pipeline"
+subtitle: "Four published stages read earnings calls into a knowledge graph. Which stage costs what is a question about a lattice of oracle swaps, what one stage should hand the next is a question about garbling, and when the knowledge base can repair its own output is a question about total unimodularity."
+status: "published"
+difficulty: "advanced"
+prerequisites:
+  - "lexicon-sentiment-loughran-mcdonald"
+  - "knowledge-graph-embeddings"
+  - "topic-models-lda"
+tags:
+  - "pipelines"
+  - "error-attribution"
+  - "shapley-value"
+  - "cascading-errors"
+  - "joint-inference"
+  - "integer-programming"
+  - "knowledge-graphs"
+  - "earnings-calls"
+  - "financial-text"
+domain: "extraction-knowledge-graphs"
+financeCaseStudy: true
+rigorFlag: "The stages are published topics' models scored on the synthetic corpus they were built for, and the earnings calls are generated text, not transcripts. The aspect stage's zero share reflects a closed, exhaustive aspect vocabulary, not a solved problem. A Shapley share is defined by the oracle game the page chooses (the metric, how coarse each oracle is, and the call graph's mix of triples) and is not a causal error budget: tone's share includes error no reader can remove, since the aspect reader is already the Bayes rule here. With 22 companies the cluster-bootstrap intervals are wide, and entities cannot be ranked against relations. Soft handoffs win only after the downstream threshold is refit, here on the same run's filings; the F*/2 rule assumes calibrated scores and falls short. The functional constraints are read off the synthetic world's own degrees, and real knowledge bases have exceptions. That the LP with composition rules comes out integral is an observation on this corpus, not a theorem: Proposition 3 exhibits a fractional vertex. The fixed-noun topic stage repairs a generator artifact."
+videoId: null
+notebookPath: "notebooks/capstone-earnings-call-nlp/01_capstone_earnings_call_nlp.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/capstone-earnings-call-nlp.mdx"
+datePublished: 2026-10-27
+estimatedReadTime: 40
+abstract: "Four published stages read a synthetic earnings call: Topic 22's entity tagger with Topic 23's linker, Topic 23's relation reader, a tone reader (Topic 18's dictionary, Topic 17's logistic regression, or Topic 19's aspect reader), and an aspect stage. Their output is a call graph: the facts the calls state, and for every call its subject, tone, and aspect polarities. Replacing one stage's output by the gold one is that stage's oracle, and the sixteen ways of doing so form a Boolean lattice. A ceiling analysis climbs it along one path. We prove that each path credits a stage with the Harsanyi dividends of the coalitions it completes, so paths disagree exactly when stages interact, and that the Shapley value, the average over paths, is the only attribution that is efficient, symmetric, null on null players, and additive. On 126 calls tone takes the largest share and aspects exactly none, and the one sizable interaction is that entities and relations are complements. A stage that hands on its posterior instead of its argmax can only help a Bayes-optimal successor, because the argmax is a garbling; a fixed successor can lose, and on the calls span marginals raise fact AP from 0.744 to 0.851 but lower F1 at the hard pipeline's threshold, until the threshold is refit. With inverse and symmetric facts merged, a knowledge base's functional constraints form a totally unimodular system, so the LP relaxation computes the constrained MAP exactly; composition rules break total unimodularity, and on these calls they impose the closed world."
+connections:
+  - topic: "named-entity-recognition"
+    relationship: "Its headline tagger is this pipeline's entity stage; its span marginals and constrained chains are the soft handoffs of Theorem 2, and its F*/2 threshold is the refit that Theorem 2(b) calls for."
+  - topic: "relation-extraction-distant-supervision"
+    relationship: "Its MIL reader and noisy-OR aggregation are the relation stage, and its Proposition 5, that a triple needs both of its arguments, is the event A of Proposition 1 here."
+  - topic: "aspect-based-sentiment"
+    relationship: "Its bigram reader and its Bayes rule from aspects to tone are the aspect stage and the third tone reader; on these calls the reader is perfect and the stage is Corollary 1's null player."
+  - topic: "linear-text-classifiers"
+    relationship: "Its unigram logistic regression is the learned tone reader, and its Bayes ceiling of 0.890 bounds every tone reader of this text, which is why tone's Shapley share is mostly irreducible."
+  - topic: "significance-testing-for-nlp"
+    relationship: "Its McNemar test and approximate randomization compare the three tone readers on the same calls, and its pooled-statistics resampling is what Proposition 4 applies to the Shapley shares."
+references:
+  - type: "paper"
+    title: "A Value for n-Person Games"
+    authors: "Lloyd S. Shapley"
+    year: 1953
+    url: "https://doi.org/10.1515/9781400881970-018"
+    note: "In Contributions to the Theory of Games II, Annals of Mathematics Studies 28, 307–17. The value as the unique map satisfying symmetry, efficiency, and additivity on games with carriers"
+  - type: "paper"
+    title: "A Simplified Bargaining Model for the n-Person Cooperative Game"
+    authors: "John C. Harsanyi"
+    year: 1963
+    url: "https://doi.org/10.2307/2525487"
+    note: "International Economic Review 4 (2): 194–220. The dividends of coalitions, split equally among their members, as a reading of the Shapley value"
+  - type: "paper"
+    title: "Integral Boundary Points of Convex Polyhedra"
+    authors: "A. J. Hoffman and J. B. Kruskal"
+    year: 1956
+    url: "https://doi.org/10.1515/9781400881987-014"
+    note: "In Linear Inequalities and Related Systems, Annals of Mathematics Studies 38, 223–46: a totally unimodular constraint matrix gives an integral polyhedron for every integral right-hand side (Crossref dates the digitized volume 1957)"
+  - type: "paper"
+    title: "An Extension of a Theorem of Dantzig's"
+    authors: "I. Heller and C. B. Tompkins"
+    year: 1956
+    url: "https://doi.org/10.1515/9781400881987-015"
+    note: "Same volume, 247–54: a matrix whose columns have at most two nonzero entries is totally unimodular when its rows split into two classes as in Theorem 3's proof"
+  - type: "paper"
+    title: "Equivalent Comparisons of Experiments"
+    authors: "David Blackwell"
+    year: 1953
+    url: "https://doi.org/10.1214/aoms/1177729032"
+    note: "Annals of Mathematical Statistics 24 (2): 265–72. An experiment is more informative than another iff the other is a garbling of it iff it has lower Bayes risk in every decision problem; Theorem 2(a) is the easy direction"
+  - type: "paper"
+    title: "Solving the Problem of Cascading Errors: Approximate Bayesian Inference for Linguistic Annotation Pipelines"
+    authors: "Jenny Rose Finkel, Christopher D. Manning, and Andrew Y. Ng"
+    year: 2006
+    url: "https://aclanthology.org/W06-1673/"
+    note: "Proceedings of EMNLP 2006, 618–26. Each stage samples conditioned on the earlier stages' samples, and a majority vote over last-stage samples decides; k-best lists as the prior practice"
+  - type: "paper"
+    title: "A Linear Programming Formulation for Global Inference in Natural Language Tasks"
+    authors: "Dan Roth and Wen-tau Yih"
+    year: 2004
+    url: "https://aclanthology.org/W04-2401/"
+    note: "Proceedings of CoNLL 2004. Entities and relations decided jointly by an integer program; §3.3: the coefficient matrix is not unimodular, yet the LP relaxation returned integer solutions in all of their thousands of cases"
+  - type: "paper"
+    title: "On Gibbs Sampling for State Space Models"
+    authors: "C. K. Carter and R. Kohn"
+    year: 1994
+    url: "https://doi.org/10.1093/biomet/81.3.541"
+    note: "Biometrika 81 (3): 541–53. Forward filtering, backward sampling: exact joint draws from a chain's posterior"
+  - type: "paper"
+    title: "Optimal Thresholding of Classifiers to Maximize F1 Measure"
+    authors: "Zachary C. Lipton, Charles Elkan, and Balakrishnan Naryanaswamy"
+    year: 2014
+    url: "https://doi.org/10.1007/978-3-662-44851-9_15"
+    note: "ECML PKDD 2014, LNCS 8725, 225–39. Corollary 1: with calibrated scores, the F1-optimal threshold is half the optimal F1"
+formalmlPrereqs:
+  - topic: "shannon-entropy"
+    site: "formalml"
+    relationship: "Its Theorem 4, the data processing inequality, says processing cannot create information; Theorem 2(a) here is its decision-theoretic counterpart: a successor that receives the argmax instead of the posterior cannot have lower Bayes risk."
+  - topic: "bayesian-inference"
+    site: "formalml"
+    relationship: "Its Theorem 7.1, the Bayes-optimal decision rule, is the rule that Theorem 2(a) compares across the two inputs a pipeline stage can hand on, the posterior and its argmax."
+formalstatisticsPrereqs:
+  - topic: "sufficient-statistics"
+    site: "formalstatistics"
+    relationship: "Its Theorem 4, Rao–Blackwell, says conditioning on more information never increases risk; Theorem 2(a) is the same comparison run backward, from a richer input to a coarser function of it."
+  - topic: "bootstrap"
+    site: "formalstatistics"
+    relationship: "Its Theorem 3, Efron–Bickel–Freedman consistency, underlies Proposition 4's cluster bootstrap of the Shapley shares, which resamples the 22 companies and recomputes every coalition's F1 from pooled counts."
+formalcalculusPrereqs:
+  - topic: "probability-and-union-bound"
+    site: "formalcalculus"
+    relationship: "Its Corollary 1, Bonferroni's inequality, is the lower half of Proposition 1: the share of facts that survive both the entity and the relation stage is at least the sum of the two stage recalls minus one."
+formalragPrereqs:
+  - topic: "capstone-multimodal-financial-rag"
+    site: "formalrag"
+    relationship: "Its Theorem 1, the cascade product law exact under independence, and its Proposition 1, that positive dependence makes the product a lower bound, sit between the two bounds of Proposition 1 here, which adds the upper bound and the modularity condition."
+formalragConnections:
+  - topic: "cross-encoders-reranking"
+    site: "formalrag"
+    relationship: "Its Theorem 2, the recall pinch, says an oracle reranker can recover only what the pool holds: a one-stage ceiling analysis, which Theorem 1 here generalizes to every order of every stage."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import CapstonePipelineLab from '../../components/viz/CapstonePipelineLab.tsx';
+
+## Overview & Motivation
+
+Twenty-eight topics built models one at a time. This one runs four of them in sequence on earnings calls and asks what the composition does that no single model does.
+
+Take one synthetic call, the Marrow Freight quarterly results call from the seen-roster test run. Its first sentence is "Thank you for joining the Marrow Freight quarterly results call." Topic 22's tagger misses "Marrow Freight" there, so the pipeline never learns whose call it is. It misses the name again in "Marrow Freight operates in the industrials sector," so the relation reader never sees the pair, and the sector fact is lost. It tags only "Fenwick" in "Fenwick Logistics is headquartered in Houston, Texas," and the linker cannot place a bare "Fenwick," so the headquarters fact is lost too. The relation reader gets the three facts whose arguments survive. Topic 17's logistic regression calls the call positive; the generator made it neutral, and Topic 19's aspect reader agrees with the generator. Every error is local, but they all land in one place: the **call graph**, the facts the calls state plus each call's subject, tone, and aspect polarities. The lab's **Trace a call** tab shows this call sentence by sentence.
+
+Three questions follow, and each has a precise answer.
+
+1. **Who gets the blame?** Fix one stage at a time by giving it the gold answer, and see how much the graph improves. The answer depends on the order in which we fix them, and the Shapley value removes that dependence (Theorem 1). On 126 calls, tone takes the largest share, aspects exactly none (Corollary 1), and the only sizable interaction is that entities and relations are complements.
+2. **What should one stage hand the next?** A posterior instead of an argmax can only help a successor that acts optimally on it (Theorem 2(a)), and it can hurt one that does not (Theorem 2(b)). On the calls, span marginals raise fact AP from $0.744$ to $0.851$ and lower F1 at the hard pipeline's threshold.
+3. **Can the knowledge base repair the output?** Constraints such as "one headquarters city per company" turn fact selection into an integer program. With inverse and symmetric facts merged, its LP relaxation is exact (Theorem 3), and adding composition rules breaks that (Proposition 3).
+
+formalRAG's [capstone](https://www.formalrag.com/topics/capstone-multimodal-financial-rag) proved the product law for a retrieval cascade. That law reappears in Proposition 1, and the three results above are what a pipeline of *different* stages adds to it.
+
+---
+
+## The pipeline and its oracles
+
+The test documents are the [entity-recognition topic's](/topics/named-entity-recognition) two test runs of the synthetic finance corpus, one on the training roster ("seen") and one on six held-out companies ("unseen"). The pipeline reads their earnings calls, 66 and 60 of them, covering 16 and 6 companies.
+
+| stage | model | from |
+|---|---|---|
+| E, entities | CRF tagger on encoder states, then exact string linking | Topics 22, 23 |
+| R, relations | multiple-instance reader, facts by noisy-OR | Topic 23 |
+| T, tone | dictionary net tone, unigram LR, or aspects through the Bayes rule | Topics 18, 17, 19 |
+| A, aspects | a term matcher, then the bigram attention reader | Topic 19 |
+
+<TheoremBlock type="definition" number={1} title="Call graph and oracle">
+
+The pipeline's output on a set of calls is the **call graph** $\mathcal{G}$, a set of triples: every fact $(h, r, t)$ that a call states between linked entities, and for each call $c$ the triples $(c, \text{ABOUT}, s)$ with $s$ its subject, $(c, \text{TONE}, \tau)$ with $\tau \in \lbrace -1, 0, 1 \rbrace$, and $(c, \text{ASPECT:}a, \pm 1)$ for each aspect category $a$ whose polar mentions do not cancel. The **oracle** of stage $i$ replaces its output by the gold one, and later stages read the replacement. With predicted entities, the relation oracle returns the facts stated between the mentions the entity stage found, typed, and linked. The **gold graph** has every oracle in place.
+
+</TheoremBlock>
+
+The gold graph of the two runs has 478 and 356 triples, 115 and 45 of them facts. Every oracle reproduces its prerequisite's own gold reading: the aspect triples are the [overlap-metrics topic's](/topics/overlap-metrics-bleu-rouge) `doc_facts`, and the tone-bearing sentences are the [aspect topic's](/topics/aspect-based-sentiment) `tone_sentences`. A call's subject is its first linked organization mention, which is the covered company on every call when the mentions are gold.
+
+---
+
+## How errors compound
+
+A fact reaches the graph only if both stages succeed on it. For a gold fact $f$, let $A_f$ be the event that both of its arguments are found and linked, and $B_f$ the event that the relation reader recovers $f$ from gold mentions. Write $r_E$ for the share of gold facts in $A$ and $r_R$ for the share in $B$.
+
+<TheoremBlock type="proposition" number={1} title="Two-sided bounds and modularity">
+
+$\max(0,\ r_E + r_R - 1) \le P(A \cap B) \le \min(r_E, r_R)$. If $A$ and $B$ are independent, $P(A \cap B) = r_E r_R$, and if they are positively associated, $P(A \cap B) \ge r_E r_R$. If the pipeline is **modular**, meaning the reader recovers $f$ from predicted mentions exactly when $A_f \cap B_f$ holds, then end-to-end recall equals $P(A \cap B)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$P(A \cap B) = 1 - P(A^c \cup B^c) \ge 1 - P(A^c) - P(B^c) = r_E + r_R - 1$ by Bonferroni's inequality (formalCalculus, [Probability and the Union Bound](https://www.formalcalculus.com/topics/probability-and-union-bound), Corollary 1), and $P(A \cap B) \ge 0$. Since $A \cap B \subseteq A$ and $A \cap B \subseteq B$, $P(A \cap B) \le \min(r_E, r_R)$. Independence is the definition $P(A \cap B) = P(A)P(B)$; the positively associated case is formalRAG's Proposition 1 (Harris and FKG). Under modularity, a fact succeeds end to end exactly on $A \cap B$, so the two recalls coincide.
+
+</TheoremBlock>
+
+The product law in the middle is formalRAG's Theorem 1. On the calls:
+
+| calls | $r_E$ | $r_R$ | Bonferroni | product | $P(A \cap B)$ | end to end |
+|---|---|---|---|---|---|---|
+| seen | $0.843$ | $0.817$ | $0.661$ | $0.689$ | $0.739$ | $0.696$ |
+| unseen | $0.956$ | $0.867$ | $0.822$ | $0.828$ | $0.867$ | $0.867$ |
+
+$P(A \cap B)$ exceeds the product on both runs, so success at the two stages is positively associated. Both kinds of error cluster on the same rarely covered companies. On the unseen calls the pipeline is modular: end-to-end recall is exactly $P(A \cap B)$. On the seen calls it is not, and end-to-end recall falls $0.043$ below $P(A \cap B)$. When the tagger mis-tags a neighbor, the string between the two arguments changes, and the reader, which reads that string, can miss a fact whose arguments it was given correctly. Every end-to-end success still lies inside $A \cap B$, so the upper bound holds. Bounds like these presume that a stage behaves the same on predicted input as on gold input, and that presumption can be checked.
+
+---
+
+## Who gets the blame
+
+Fixing stages one at a time is called a **ceiling analysis**: give the first stage the gold answer and record the gain, then the second, and so on. With four stages there are $2^4 = 16$ sets of oracles, a Boolean lattice ordered by inclusion, and one ceiling analysis is one path from the bottom (no oracles) to the top (all of them). There are $4! = 24$ such paths, and they need not agree.
+
+<TheoremBlock type="definition" number={2} title="Oracle game, dividends, sequential shares">
+
+Let $N = \lbrace E, R, T, A \rbrace$. The **oracle game** is $v(S) = F_1(\mathcal{G}_S) - F_1(\mathcal{G}_\varnothing)$, where $\mathcal{G}_S$ is the call graph with the stages in $S$ replaced by their oracles and $F_1$ is micro F1 against the gold graph. The **error game** is $v_{\text{err}}(S) = \text{err}(\varnothing) - \text{err}(S)$, with err the number of false and missing triples. The **Harsanyi dividends** are
+
+$$
+d(T) = \sum_{S \subseteq T} (-1)^{|T| - |S|}\, v(S), \qquad \text{so that} \qquad v(S) = \sum_{T \subseteq S} d(T).
+$$
+
+In an order $\pi$ of $N$, the **sequential share** of stage $i$ is $v(P_\pi(i) \cup \lbrace i \rbrace) - v(P_\pi(i))$, where $P_\pi(i)$ is the set of stages before $i$.
+
+</TheoremBlock>
+
+The two formulas for $d$ and $v$ are Möbius inversion on the lattice. A dividend measures what a coalition achieves beyond what its sub-coalitions already explain: $d(\lbrace i \rbrace)$ is the gain of stage $i$ alone, and $d(\lbrace E, R \rbrace) = v(\lbrace E, R \rbrace) - v(\lbrace E \rbrace) - v(\lbrace R \rbrace)$ is what entities and relations do together beyond each alone.
+
+<TheoremBlock type="theorem" number={1} title="Ceiling analysis and the Shapley value">
+
+(a) In order $\pi$, the sequential share of stage $i$ is $\sum d(T)$ over the coalitions $T$ whose last member under $\pi$ is $i$.
+
+(b) Every order gives every stage the same share if and only if $d(T) = 0$ for every $T$ with $|T| \ge 2$.
+
+(c) The average share over all $|N|!$ orders is
+
+$$
+\phi_i = \sum_{T \ni i} \frac{d(T)}{|T|} = \sum_{S \subseteq N \setminus \lbrace i \rbrace} \frac{|S|!\,(|N| - |S| - 1)!}{|N|!} \big(v(S \cup \lbrace i \rbrace) - v(S)\big),
+$$
+
+the **Shapley value**, and it is the only map from games to attributions that is efficient ($\sum_i \phi_i = v(N)$), symmetric (interchangeable stages get equal shares), null on null players, and additive.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) With $P = P_\pi(i)$, $v(P \cup \lbrace i \rbrace) - v(P) = \sum_{T \subseteq P \cup \lbrace i \rbrace} d(T) - \sum_{T \subseteq P} d(T) = \sum d(T)$ over $T \subseteq P \cup \lbrace i \rbrace$ with $i \in T$. These are exactly the coalitions all of whose other members come before $i$, so $i$ is last among them.
+
+(b) If every dividend of two or more stages is $0$, (a) gives $i$ the share $d(\lbrace i \rbrace)$ in every order. Conversely, suppose all orders agree, and take $T \ni i$ with $|T| \ge 2$. Compare an order that lists $T \setminus \lbrace i \rbrace$ first and then $i$ with an order that starts with $i$. By (a) the first gives $i$ the dividends of all $T' \subseteq T$ containing $i$, and the second only $d(\lbrace i \rbrace)$, so $\sum_{T' \subseteq T,\ T' \ni i,\ |T'| \ge 2} d(T') = 0$. Induct on $|T|$: for $|T| = 2$ the sum is $d(T)$ itself, and for larger $T$ every smaller $T'$ in the sum has $d(T') = 0$ already, so $d(T) = 0$.
+
+(c) Under a uniformly random order, each member of $T$ is equally likely to come last, so by (a) the expected share of $i$ is $\sum_{T \ni i} d(T)/|T|$. The probability that the set of stages before $i$ is exactly $S$ is $|S|!\,(|N| - |S| - 1)!/|N|!$, which gives the second formula. The Shapley value satisfies the four properties: efficiency because $\sum_i \sum_{T \ni i} d(T)/|T| = \sum_T d(T) = v(N)$; symmetry and null players from the formula; additivity because it is linear in $v$. For uniqueness, write $v = \sum_{T \ne \varnothing} d(T)\, u_T$ with the unanimity games $u_T(S) = 1[T \subseteq S]$. For any real $c$, every stage outside $T$ is a null player in $c\,u_T$; the members of $T$ are interchangeable; and the total is $c$. So any map with the four properties gives $c\,u_T$ the attribution $c/|T|$ on $T$ and $0$ off it, and additivity over the $2^{|N|} - 1$ terms fixes it on $v$.
+
+</TheoremBlock>
+
+Shapley (1953) proved the uniqueness; Harsanyi (1963) read the value as dividends split equally. Part (b) is the practical content: a ceiling analysis is safe to report in one order exactly when no two stages interact. When they do, the dividend goes to whichever stage arrives last.
+
+<TheoremBlock type="corollary" number={1} title="Null players">
+
+If $v(S \cup \lbrace i \rbrace) = v(S)$ for every $S$, then every dividend containing $i$ is $0$, and the share of stage $i$ is $0$ in every order and under the Shapley value.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+For $T \ni i$, pair each $S \subseteq T \setminus \lbrace i \rbrace$ with $S \cup \lbrace i \rbrace$ in the sum defining $d(T)$. The two terms carry opposite signs and equal values, so they cancel, and $d(T) = 0$. Then (a) and (c) of Theorem 1 give $0$.
+
+</TheoremBlock>
+
+The aspect stage is such a player. The term matcher finds exactly the gold aspect spans, because the corpus's aspect vocabulary is closed and every mention of a term is annotated, and Topic 19's bigram reader reads all 1,209 of them correctly. Its oracle changes nothing, in either game, for every tone reader.
+
+Whether two stages interact depends on the metric as well as on the stages.
+
+<TheoremBlock type="proposition" number={2} title="Counts add, ratios couple">
+
+If the correctness of each triple $x$ depends on $S$ only through $S \cap W_x$, where $W_x$ is the set of stages whose output determines $x$, then $v_{\text{err}}(S) = \sum_x g_x(S \cap W_x)$, and $d_{\text{err}}(T) \ne 0$ only if $T \subseteq W_x$ for some triple $x$. Micro F1 is a ratio of sums of the same indicators, and its dividends are not confined in this way.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The error count is a sum over triples of an indicator that depends only on $S \cap W_x$, and the map from $v$ to its dividends is linear. A function of $S \cap W$ does not change when a stage $i \notin W$ joins, so by Corollary 1 its dividends vanish on every $T$ containing such an $i$, that is, on every $T \not\subseteq W$. F1 is $2\,\text{tp}/(\text{predicted} + \text{gold})$, and a stage that changes the number of predicted triples rescales the credit for every other stage's true positives.
+
+</TheoremBlock>
+
+Facts depend on $\lbrace E, R \rbrace$, subjects on $\lbrace E \rbrace$, tone triples on $\lbrace T \rbrace$ (for the document-level readers), and aspect triples on $\lbrace A \rbrace$. So the error game can have exactly one dividend of two stages, $d(\lbrace E, R \rbrace)$, and on all 126 calls it is $6$ errors. That dividend is positive: entities and relations are **complements**, each oracle worth more once the other is in place, because a fact needs both its arguments and its relation. The aspect reader's tone could depend on the entity stage, since a tone-bearing sentence names no company, but on these calls the entity stage's errors never move a sentence in or out, so that game is additive too.
+
+Shapley shares of F1, both runs, by tone reader:
+
+| tone reader | entities | relations | tone | aspects | $d(\lbrace E, R \rbrace)$ |
+|---|---|---|---|---|---|
+| dictionary | $0.0218$ | $0.0153$ | $0.0635$ | $0$ | $0.0033$ |
+| LR | $0.0215$ | $0.0152$ | $0.0403$ | $0$ | $0.0032$ |
+| aspects | $0.0214$ | $0.0151$ | $0.0220$ | $0$ | $0.0032$ |
+
+With the LR reader, a ceiling analysis that fixes entities first credits them $0.0203$, and one that fixes relations first credits them $0.0236$: the $0.0032$ dividend goes to whichever arrives second. The F1 game also has small negative dividends between tone and the other stages ($-0.0008$ and $-0.0005$), which Proposition 2 attributes to F1's denominator rather than to any interaction among the stages. Error counts give the same picture without them: $34$, $24$, $66$, and $0$ errors for entities, relations, tone, and aspects.
+
+Two readings of the table matter more than its digits. Tone's share is the largest, and most of it no reader could remove: the aspect reader outputs exactly the Bayes rule applied to the gold aspect polarities on every call, and the [classification topic's](/topics/linear-text-classifiers) Bayes ceiling is $0.890$. So of LR's $0.0403$, the $0.0220$ the aspect reader keeps is irreducible, and only the difference is fixable. An oracle's gain is not the same as fixable error. And entities matter far more on the seen run than on the unseen one ($0.0338$ against $0.0058$ with LR). The tagger reads the six held-out companies almost perfectly; the hard names are the training roster's rarely covered companies and cities. The lab's **Oracle lattice** tab draws the sixteen coalitions, highlights the path of any order you choose, and sets its shares beside Shapley's.
+
+---
+
+## What one stage should hand the next
+
+A pipeline stage usually passes on its best guess: the Viterbi span set, the argmax label. It could pass on its uncertainty instead.
+
+<TheoremBlock type="definition" number={3} title="Hard and soft handoffs">
+
+A stage with posterior $q(y \mid x)$ makes a **hard handoff** when it passes $\hat y = \arg\max_y q(y \mid x)$ and a **soft handoff** when it passes $q$ itself. For the entity stage, a **marginal** handoff passes every span with marginal probability $q \gt 10^{-3}$ (the entity topic's Proposition 4) and scales each candidate pair's relation probabilities by $q_{\text{head}}\, q_{\text{tail}}$. A **sampled** handoff draws $K = 64$ span sets per sentence from the constrained chain by forward filtering, backward sampling (Carter and Kohn 1994), runs the relation stage on each, and averages the 64 noisy-OR fact scores.
+
+</TheoremBlock>
+
+Finkel, Manning, and Ng (2006) proposed the sampled handoff for linguistic pipelines, with a majority vote over last-stage samples; we keep the averaged scores so that the facts can be ranked.
+
+<TheoremBlock type="theorem" number={2} title="The argmax is a garbling">
+
+(a) For every loss and every downstream decision, a Bayes-optimal successor that receives $q$ has risk no larger than one that receives $\arg\max q$.
+
+(b) A fixed successor can do worse with $q$: there are a loss and a decision rule $\delta$ with $R(\delta \circ q) \gt R(\delta \circ \arg\max q)$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) The argmax is a function $h$ of $q$, so every decision rule $\delta(h(q))$ that uses the argmax is also a rule that uses $q$. The Bayes risk minimizes over rules, and minimizing over a larger class cannot give a larger minimum.
+
+(b) Let a mention's span be right with probability $q = 0.6$, and let the reader state a fact from the right span with probability $p = 0.8$ and from a wrong one never, so the fact holds with probability $qp = 0.48$. A missed fact costs $3$ and a false one $1$, so the Bayes act asserts the fact whenever its probability exceeds $1/4$. Let $\delta$ be the hard pipeline's rule: assert when the score exceeds $1/2$. Hard, the span is kept ($q \gt 1/2$) and the score is $0.8$, so $\delta$ asserts, which is the Bayes act, at expected cost $0.52 \cdot 1 = 0.52$. Soft, the score is $0.48$, so $\delta$ withholds, at expected cost $0.48 \cdot 3 = 1.44$. Refitting the threshold to $1/4$ on the soft score restores $0.52$.
+
+</TheoremBlock>
+
+Part (a) is the easy direction of Blackwell's comparison of experiments (1953): an experiment is more informative than its garblings in every decision problem. It is a decision-theoretic counterpart of formalML's [data processing inequality](https://www.formalml.com/topics/shannon-entropy) (Theorem 4 there), and of [Rao–Blackwell](https://www.formalstatistics.com/topics/sufficient-statistics) (formalStatistics, Theorem 4). The harness checks (a) on 300 random finite worlds by exact enumeration; in 22 of them the inequality is strict. The proof of (b) shows what goes wrong: a soft score is closer to a probability than a hard one, and a threshold set for hard scores is set for the wrong quantity. The [entity topic's](/topics/named-entity-recognition) Theorem 3 gives the refit for F1: with calibrated scores, threshold at half the optimal F1 (Lipton, Elkan, and Naryanaswamy 2014, Corollary 1).
+
+On the calls, fact precision is $1.000$ for every handoff at $\tau = 0.5$, and the differences are all in recall:
+
+| seen calls | F1 at $0.5$ | AP | F1 at $F^*/2$ | F1, $\tau$ tuned on filings |
+|---|---|---|---|---|
+| hard | $0.821$ | $0.744$ | $0.838$ | $0.838$ |
+| marginal | $0.757$ | $0.851$ | $0.808$ | $0.880$ |
+| sampled | $0.763$ | $0.838$ | $0.808$ | $0.880$ |
+
+The seen run is where entity errors are common, and there the soft handoffs carry real information: of the 92 gold spans the hard tagger misses on the calls, 61 keep marginal mass above $0.1$, and average precision rises by more than $0.09$. At the hard pipeline's threshold they lose, as Theorem 2(b) predicts: scaling by $q_{\text{head}}\, q_{\text{tail}}$ pushes true facts below $0.5$. The $F^*/2$ rule, computed from the soft scores alone, recovers part of the loss; noisy-OR scores built from scaled mention probabilities are underconfident, so the rule's calibration assumption fails and it stays short. A threshold tuned on the same run's filings, which never enter the graph, gives the soft handoffs the best F1 on the calls, $0.880$ against $0.838$. On the unseen run the tagger is nearly right, the marginals add little (AP $0.918$ against $0.920$), and the tuned soft handoffs tie the hard one or trail it by $0.013$. The lab's **Hard vs. soft** tab moves the threshold.
+
+---
+
+## Letting the knowledge base check itself
+
+The extracted facts are scored one at a time, but the world they describe has structure: a company has one headquarters city and one CEO, and a subsidiary has one parent. Respecting that structure means choosing the facts jointly.
+
+<TheoremBlock type="definition" number={4} title="Constrained fact selection">
+
+Each scored fact $f$ gets an indicator $x_f \in \lbrace 0, 1 \rbrace$ and a weight $w_f = \operatorname{logit} s_f - \operatorname{logit} \tau$, so that with no constraints, maximizing $\sum_f w_f x_f$ keeps exactly the facts with $s_f \gt \tau$. A fact and its inverse ($\text{PARENT\_OF}(a, b)$ and $\text{SUBSIDIARY\_OF}(b, a)$), and a symmetric fact and its reverse ($\text{COMPETES\_WITH}$), are one variable, scored by the noisy-OR $1 - \prod (1 - s)$ over both directions. The **functional rows** are
+
+$$
+\sum_{t} x_{(h, r, t)} \le 1 \ \text{ for each head slot } (h, r), \qquad \sum_{h} x_{(h, r, t)} \le 1 \ \text{ for each tail slot } (r, t),
+$$
+
+the first for the relations a head has at most one of (HQ_IN, IN_SECTOR, BASED_IN, LOCATED_IN, SUBSIDIARY_OF, CEO_OF, CFO_OF, ACQUIRED), the second for those a tail has at most one of (CEO_OF, CFO_OF, ACQUIRED). Both lists are read off the knowledge base's own maximum degrees.
+
+</TheoremBlock>
+
+The merge is a modeling choice with consequences. Adding the two directions' log-odds instead of combining them by noisy-OR lets a reader that states only one direction veto it: Brightwater Analytics PARENT_OF Larch Data, scored $0.685$, was dropped at $\tau = 0.55$ for its inverse, scored $0.398$, when the harness first added them. Every mention of either direction is evidence for the one fact, and noisy-OR treats it so.
+
+<TheoremBlock type="theorem" number={3} title="Functional constraints are totally unimodular">
+
+(a) After merging, the matrix of functional rows is totally unimodular, so the LP relaxation of Definition 4 ($0 \le x \le 1$) has an integral optimum, and it is the constrained MAP.
+
+(b) If no tail-functional row binds, the MAP keeps each head slot's highest-weight fact when that weight is positive, and every positive-weight fact outside the functional relations. When rows of both families bind, the MAP is a maximum-weight bipartite matching.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(a) Each fact has one head slot and at most one tail slot, so every column has at most one $1$ among the head-slot rows and at most one among the tail-slot rows. Let $B$ be a square submatrix; we show $\det B \in \lbrace 0, \pm 1 \rbrace$ by induction on its size. If a column of $B$ is zero, $\det B = 0$. If a column has a single $1$, expanding along it gives $\pm$ the determinant of a smaller submatrix. Otherwise every column has exactly one $1$ in each family, so the sum of the head-slot rows of $B$ minus the sum of its tail-slot rows is the zero vector, and $\det B = 0$. This is Heller and Tompkins' criterion (1956). Appending the identity rows for $x \le 1$ keeps total unimodularity, since a determinant expanded along an identity row is $\pm$ a smaller one. With a totally unimodular matrix and an integral right-hand side, every vertex of the polytope is integral (Hoffman and Kruskal 1956), so the LP attains its optimum at an integral point, which is a feasible point of the integer program with the same value.
+
+(b) Without binding tail rows, the head-slot rows partition the variables into disjoint slots, and the LP separates into one problem per slot, $\max \sum_j w_j x_j$ subject to $\sum_j x_j \le 1$ and $0 \le x_j \le 1$. Its optimum puts weight $1$ on the largest $w_j$ if it is positive and nothing otherwise. With both families, the variables are the edges of a bipartite graph between head slots and tail slots, and the rows say each slot is used at most once.
+
+</TheoremBlock>
+
+On the calls, the per-slot rule of (b) agrees with the MAP except at $\tau \le 0.05$ on the unseen run, where a company has two plausible CEOs and the one-CEO-per-company rows bind. Composition rules are another matter. The knowledge base satisfies $\text{BASED\_IN} = \text{HQ\_IN} \circ \text{LOCATED\_IN}$: a company is based in the region of its headquarters city. As linear constraints, $x_{\text{hq}} + x_{\text{loc}} - x_{\text{based}} \le 1$ and $x_{\text{hq}} + x_{\text{based}} - x_{\text{loc}} \le 1$.
+
+<TheoremBlock type="proposition" number={3} title="Composition breaks total unimodularity">
+
+Take one company with two candidate headquarters cities in one country, variables $(x_{\text{hq}_1}, x_{\text{hq}_2}, x_{\text{loc}_1}, x_{\text{loc}_2}, x_{\text{based}})$, the row $x_{\text{hq}_1} + x_{\text{hq}_2} \le 1$, and the two rules for each city. The submatrix on the two rules of city 1 and the columns $(\text{hq}_1, \text{loc}_1)$ has determinant $-2$. With weights $w = (1, 1, -2, -2, 1)$ the LP optimum is $x = (\tfrac12, \tfrac12, 0, 0, \tfrac12)$, with value $\tfrac32$, while the best integer point is worth $1$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The two rows restricted to those columns are $(1, 1)$ and $(1, -1)$, with determinant $-2$. The point $x = (\tfrac12, \tfrac12, 0, 0, \tfrac12)$ satisfies $\tfrac12 + \tfrac12 \le 1$, $\tfrac12 + 0 - \tfrac12 = 0 \le 1$, and $\tfrac12 + \tfrac12 - 0 = 1 \le 1$ for each city, and its value is $\tfrac12 + \tfrac12 + \tfrac12 = \tfrac32$. At an integer point, $x_{\text{hq}_i} = 1$ forces $x_{\text{based}} = x_{\text{loc}_i}$ by the two rules, and the pair is worth $1 - 2 = -1$ or $0$. So the integer optimum is either a headquarters alone or BASED_IN alone, each worth $1$. The LP gains by splitting the headquarters between two cities, which no real knowledge base allows.
+
+</TheoremBlock>
+
+Roth and Yih (2004, §3.3) formulated entity and relation decisions as such a program and found that, although their matrix "is not unimodular," the LP relaxation returned integer solutions in every one of thousands of cases. So does ours: at all 19 thresholds of the lab's grid, on both runs, with gold or predicted mentions, with or without the rules, the LP is integral. Proposition 3 shows this is a property of the instances, not of the formulation.
+
+What the constraints do to F1 (both runs, predicted mentions):
+
+| run, $\tau$ | threshold | merged | functional | with rules |
+|---|---|---|---|---|
+| seen, $0.05$ | $0.806$ | $0.806$ | $0.826$ | $0.808$ |
+| seen, $0.5$ | $0.821$ | $0.821$ | $0.821$ | $0.814$ |
+| unseen, $0.05$ | $0.863$ | $0.863$ | $0.921$ | $0.921$ |
+| unseen, $0.5$ | $0.929$ | $0.929$ | $0.929$ | $0.929$ |
+
+Merging the inverse and symmetric facts never lowers F1 at $\tau \ge 0.4$, and at high thresholds it raises it (seen, $\tau = 0.8$: $0.598$ to $0.631$) by completing the direction a reader missed; at low $\tau$ it also completes the inverses of weak false facts. The functional rows never lower F1 against the merged threshold, and at low $\tau$ they raise it, and every fact they remove there is false: a second headquarters city, a region read as a city, a second CFO. The rules cut both ways. At $\tau = 0.5$ on the seen run they lower F1, by deleting true LOCATED_IN facts such as Chicago in Illinois and Denver in Colorado: no call states the BASED_IN fact that would complete the triangle, so its weight is strongly negative, and the rules let that unstated fact veto the stated one. This is the closed-world assumption the [embedding topic](/topics/knowledge-graph-embeddings) found in training, now acting at inference: an unstated fact counts as false. The lab's **Joint KB** tab lists which facts each step adds and removes at every threshold.
+
+---
+
+## How sure are the shares
+
+The shares above come from 22 companies, and calls of one company share a subject, a coverage rate, and its rare names. A share that cannot be separated from zero should not be reported as a ranking.
+
+<TheoremBlock type="proposition" number={4} title="One bootstrap serves every share">
+
+Charge each triple of the call graph to a company: a call triple to the call's company, a fact to the company of the first call that mentions both of its entities. Let $C_c(S) = (\text{tp}, \text{predicted}, \text{gold})$ be the counts of company $c$ under coalition $S$. Then $\phi = M v$, with $M$ the $|N| \times 2^{|N|}$ matrix of Theorem 1(c), and $v(S) = F_1\big(\sum_c C_c(S)\big) - F_1\big(\sum_c C_c(\varnothing)\big)$. Resampling companies with multiplicities $W$ gives every share's bootstrap replicate at once: $\phi^* = M\big(F_1(W C(S)) - F_1(W C(\varnothing))\big)_S$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Theorem 1(c) writes each $\phi_i$ as a fixed linear combination of the $2^{|N|}$ values $v(S)$, so $\phi = Mv$ for every game, including the game computed on a resample. Each company's triples are charged to it alone, so the pooled counts of a resample are $W C(S)$, and F1 is a function of pooled counts. F1 is homogeneous of degree $0$ in them, so multiplicities and normalized weights give the same value, the form the [significance topic](/topics/significance-testing-for-nlp) resamples in (its Definition 1).
+
+</TheoremBlock>
+
+Consistency is formalStatistics' [bootstrap](https://www.formalstatistics.com/topics/bootstrap) Theorem 3 for each pooled mean, carried to F1 by the delta method; 22 clusters is a small sample for it. With 2,000 resamples, both runs, LR reader, the 90% intervals are $[0.0097, 0.0389]$ for entities, $[0.0096, 0.0229]$ for relations, and $[0.0322, 0.0500]$ for tone. Tone's share is separated from zero and from the others, and the aspect share is exactly zero in every replicate. Entities and relations cannot be ordered: entities' replicate exceeds relations' in $0.744$ of the resamples. On the unseen run alone, entities' interval reaches zero. The lab's **Oracle lattice** tab draws these intervals as whiskers.
+
+---
+
+## Finance case study
+
+<FinanceCaseStudy title="Finance case study: earnings calls, end to end">
+
+**Three tone readers, side by side.** The [lexicon topic](/topics/lexicon-sentiment-loughran-mcdonald) promised this comparison. On the 126 calls, with every stage's output predicted:
+
+| pair | accuracies | $n_{10}$ / $n_{01}$ | McNemar p | companies swapped, p |
+|---|---|---|---|---|
+| LR vs. dictionary | $0.738$ / $0.587$ | 29 / 10 | $0.0034$ | $0.0355$ |
+| aspects vs. LR | $0.857$ / $0.738$ | 18 / 3 | $0.0015$ | $0.0014$ |
+| aspects vs. dictionary | $0.857$ / $0.587$ | 39 / 5 | $\lt 10^{-4}$ | $0.0021$ |
+
+The last column is approximate randomization that swaps all of a company's calls at once, the [significance topic's](/topics/significance-testing-for-nlp) answer to clustered segments. For LR against the dictionary it raises the p-value tenfold, because the two document-level readers make correlated errors on one company's calls; every gap survives. The aspect reader is the Bayes rule here, and the dictionary's $0.587$ on calls (against $0.637$ on the lexicon topic's test filings) reflects 126 calls: on the seen run alone it is $0.485$.
+
+**The topic stage across generator runs.** The [topic-model topic's](/topics/topic-models-lda) `topic_mixtures` folds a document into its Gibbs fit. On these calls its dominant topic is the call's sector only $0.273$ (seen) and $0.583$ (unseen) of the time. Each generator run invents its own pseudo-words, and on a fresh run they carry that run's sectors, so the fit trained on seed 0 reads them as noise with confident labels. Folding in only the 80 seeded sector and common nouns, which every run shares, raises the accuracy to $0.682$ and $0.750$.
+
+**The filings fill what the calls missed.** The unseen calls state six facts the pipeline misses, among them both directions of "Saltmarsh Capital, the parent company of Moorfield Advisors," a template the relation reader never learned. Four of the six are in the knowledge base that the [embedding topic](/topics/knowledge-graph-embeddings) completes, extracted from the same companies' filings, and the other two are inverses of filed facts, which Theorem 3's merged variables complete directly. RotatE ranks all six first in both query directions. A company's calls and filings are one body of evidence, and reading them jointly recovers what each misses.
+
+</FinanceCaseStudy>
+
+<CapstonePipelineLab client:visible />
+
+---
+
+## Where this sits
+
+Every earlier topic built one map from text to structure and studied it alone. Composing them raises three questions that no single topic raises. Blame is a cooperative game over a lattice of oracle swaps: a ceiling analysis is one path through it, paths disagree exactly when stages interact (Theorem 1), a stage whose oracle changes nothing gets nothing (Corollary 1), and whether stages interact depends on the metric (Proposition 2). Handoffs are a comparison of experiments: a posterior can only help a successor that acts on it optimally, and a fixed successor must be refit to benefit (Theorem 2). Repair is an integer program: functional constraints are totally unimodular, so the LP is exact (Theorem 3), and composition rules are not (Proposition 3). The cascade bounds (Proposition 1) and the bootstrap of shares (Proposition 4) say how much of this can be read from one test set.
+
+The capstone closes the [extraction and knowledge-graph](/paths) track and the curriculum. Its cascade law comes from formalRAG's [capstone](https://www.formalrag.com/topics/capstone-multimodal-financial-rag), and its one-stage special case is the recall pinch of formalRAG's [reranking topic](https://www.formalrag.com/topics/cross-encoders-reranking).
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Theorems 1–3, Corollary 1, and Propositions 1–4 are proved here; Theorem 3 cites Hoffman and Kruskal for integrality of totally unimodular polytopes, and Proposition 1 cites formalRAG for the positively associated case. The harness checks Theorem 1 on random games, Theorem 2 on random finite worlds, Theorem 3 by brute-force minors and LP integrality, Proposition 3 by exhaustive enumeration, and every number on this page.
+2. **Synthetic calls.** The stages are published topics' models on the corpus they were built for, and the calls are generated text, not transcripts. The aspect stage's zero share reflects a closed aspect vocabulary.
+3. **Shares are definitions.** A Shapley share depends on the metric, the coarseness of each oracle, and the call graph's mix of triples. It is not a causal error budget, and tone's share is mostly the Bayes floor.
+4. **Small samples.** With 22 companies the share intervals are wide, and entities cannot be ranked against relations.
+5. **Refit or lose.** Soft handoffs win only after the downstream threshold is refit; the $F^*/2$ rule assumes calibrated scores and falls short.
+6. **Observed integrality.** The functional constraints come from the synthetic world's own degrees. That the LP with composition rules is integral here is an observation on this corpus, not a theorem.
+7. **A repaired artifact.** The fixed-noun topic stage repairs a property of the generator, not of real filings.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports the topic's Python module, which owns every number on this page. The module imports the relation-extraction topic's module, and through it the entity and sequence-labeling topics, for the entity and relation stages; the aspect topic's module, and through it the lexicon and classification topics, for the tone readers and the aspect reader; the topic-model, embedding, and significance topics' modules for the topic stage, the completion ranks, and the reader tests. Its harness checks:
+
+- that every oracle reproduces its prerequisite's gold reading;
+- Theorem 1 and Corollary 1 on random games and on the corpus, and Proposition 2's dividends in both games;
+- Proposition 1's bounds and the modularity gap;
+- Theorem 2(a) on 300 random finite worlds, the counterexample of Theorem 2(b), and forward filtering, backward sampling against brute-force path probabilities;
+- Theorem 3 by brute-force minors on random fragments and LP integrality on every corpus problem, and Proposition 3 by exhaustive enumeration;
+- Proposition 4's linear map against the Shapley formula, and every finance number this page states.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

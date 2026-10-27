@@ -637,7 +637,7 @@ The training text is the corpus of the distributional semantics topic, `generate
 
 **What the templates do.** The analysis above keeps only the planted content nouns. Run on every word, a six-topic model gives one topic to the function words and keys the rest on company names, which carry the sector: NMI $0.943$ with the sector, $0.012$ with the document type (earnings call, MD&A, or 8-K), and $0.011$ with the tone. Restricted to words in $3$ to $90$ of the $300$ documents, $0.709$, $0.023$, and $0.015$. Tone and document type are carried by templates every document shares, and a topic model, which sees only which words occur together, never finds them.
 
-**The capstone's stage.** `topic_mixtures` folds any filing's content nouns into the headline Gibbs fit, whose topics are matched to the sectors, and returns its six proportions. On the $100$ held-out documents its dominant topic is the document's sector $0.930$ of the time.
+**The capstone's stage.** `topic_mixtures` folds any filing's content nouns into the headline Gibbs fit, whose topics are matched to the sectors, and returns its six proportions. On the $100$ held-out documents its dominant topic is the document's sector $0.930$ of the time. On a fresh generator run its pseudo-words carry this run's sectors, so the capstone folds in only the 80 seeded nouns.
 
 </FinanceCaseStudy>
 
