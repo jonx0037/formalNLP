@@ -115,6 +115,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `lsof -nP -iTCP -sTCP:LISTEN` shows which ports (4329–4333) hold them (Topic 28's blocker was 13 h old), and the
   built `dist/` HTML can meanwhile be checked for `.katex-error` and `‘` without a browser. In zsh a `$D` holding several
   `--with` flags is not word-split (uv reads one argument): spell the flags out.
+  To check every lab state against the payload in the page, copy the JSON into `dist/` (`cp … dist/__payload.json`;
+  the next build removes it) and `fetch` it from the script. A `.click()` sent before hydration does nothing, and a
+  screenshot taken right after a scripted tab switch can show the previous tab: assert on the DOM.
 - Round every number a lab displays to the page's precision inside `viz_payload()`: `toFixed(3)` on a
   stored `0.9005` renders `0.900` while the page says `0.901`. Derived values too: a lab that summed
   two rounded shares showed 0.297 where the page's rounded sum said 0.296 — put the rounded sum in
@@ -463,6 +466,28 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   window (full sums to n = 200,000 took 7 s); at Connor's own n the exact power is 0.776–0.787. Pin a brief's narrated
   counts in a test before writing them: "every flipped-vs-extractor pair disagrees in sign" was wrong (flipped vs
   lead-3 both have fact F1 0, so it is BLEU-only).
+- Capstone on corpus models (Topic 29). The test documents are Topic 22's two runs' earnings calls (66 seen / 60 unseen,
+  16 / 6 companies); the same runs' filings never enter the graph and serve as held-out tuning data. The stage APIs take
+  only named splits (`ner.split`, `ner.chains`, `rex.predicted_corpus`: "seen"/"unseen"; `ab.rows`: "train"/"dev"/"test"),
+  so build a pipeline on those splits, and map `rex.corpus` (it skips token-free sentences) back to doc sentences with a
+  (document, sentence) index. On synthetic text the aspect matcher (`ab._TERM_RE`) is exact and the bigram reader is
+  perfect (1,209 of 1,209), so aspects are a null player in any oracle game. Tone's oracle gain is mostly the Bayes floor
+  (the aspect reader outputs the Bayes tone of the gold polarities on every call): oracle gain is not fixable error.
+  Score an oracle game in F1 and in error counts. F1's denominator couples stages (small spurious dividends ET, RT);
+  error counts add exactly over stages that write disjoint triples. Report Shapley shares with the dividends, never one
+  ceiling-analysis order. The shares need a cluster bootstrap by company: Shapley is linear, so φ* = M f1(W C) from
+  pooled counts. Even so, 22 companies cannot order entities against relations (P(φ_E > φ_R) 0.744). Merge inverse
+  facts by noisy-OR over both directions, never by summed log-odds: a reader that states one direction vetoes it
+  (Brightwater PARENT_OF Larch Data, 0.685, dropped at τ = 0.55 for a 0.398 inverse). Horn composition rules are not TU
+  (a 5-variable half-HQ vertex), and they impose the closed world: they delete stated facts whose unstated third leg
+  carries a strong negative weight. Corpus LPs are integral anyway, as Roth and Yih found. Soft span handoffs (marginals
+  × noisy-OR) raise AP (seen 0.744 → 0.851) but lose F1 at the hard τ = 0.5. F*/2 needs calibrated scores, and noisy-OR
+  soft scores are underconfident: tune τ on the run's filings. `topic_mixtures` fails on a fresh generator run (seed-1
+  pseudo-words carry seed 0's sectors in the fit: 0.273 / 0.583); fold in only `fc.SECTOR_NOUNS` + `fc.COMMON_NOUNS`
+  (0.682 / 0.750). The seen calls are not modular: end-to-end recall is 0.696 against P(A ∩ B) 0.739, since mis-tagged
+  neighbors change the between string. Publishing the last node: empty `planned` lists are fine (`paths.astro` widens
+  the type, `/paths` says "Track complete"), and the graph keeps 42 edges (`curriculum.test.ts:48` pins the count, so
+  extra in-site dependencies go in `connections`).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -542,6 +567,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   A/A null), `koehn_p`/`shift_p`/`order_stat`, `log_bleu_grad`/`influences`/`linearized_var`, `kink_coverage`,
   `cluster_var`/`cluster_boot_var`/`icc_anova`/`contrast_pair_corr`, `training_draws`/`total_variance`,
   `mcnemar_power`/`connor_n`, `holm_adjust`, and `pair_matrix`/`metric_verdicts` are reusable.
+  Topic 29's harness takes ≈ 55 s (Topic 22's tagger with Topic 12's pretraining is ≈ 27 s of it, inside
+  `predicted_corpus`/`chains`; `game_counts` for 9 view × reader pairs ~10 s; `span_views` with 64 FFBS samples per
+  sentence ~1 s). Reusable: `shapley`/`dividends`/`sequential`/`shapley_matrix` (oracle games), `ffbs` (exact
+  constrained-chain samples), `span_views`/`soft_scores` (hard, marginal, and sampled handoffs), `f_star`,
+  `kb_problem`/`solve_kb`/`map_facts`/`slot_argmax` (constrained KB MAP by `scipy.optimize.milp`), `bayes_risks`, and
+  `max_abs_minor`.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -712,6 +743,14 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
     (RePEc 399–406). Davison and Hinkley §3.8 is hierarchical data, §5.2 coins "basic" intervals (Efron and Tibshirani
     never say "basic"). Phipson and Smyth (2010) §3: b/m inflates type I error; §4: (b + 1)/(m + 1).
   - **Søgaard et al. (2014, W14-1601).** The PDF byline is "Hector Martinez"; the Anthology's "Héctor Martínez Alonso".
+  Topic 29 citation facts:
+  - **Roth and Yih (2004, W04-2401), §3.3.** Their coefficient matrix "is not unimodular", yet the LP relaxation returned
+    integer solutions in all of thousands of cases. They cite Veinott–Dantzig (unimodularity of full-row-rank matrices).
+  - **Finkel, Manning, and Ng (2006, W06-1673).** Each stage samples conditioned on the earlier stages' samples, and a
+    majority vote of last-stage samples decides. Averaging fact scores instead is ours; say so.
+  - **Page ranges and dates.** Shapley (1953) is pp. 307–17; Crossref says 307–318. Hoffman–Kruskal and
+    Heller–Tompkins are in Annals of Mathematics Studies 38 (1956 in print; Crossref dates the digitized volume 1957).
+  - **Blackwell (1953)** is the equivalence; Thm 2(a)'s argmax-garbling bound is its easy direction, proved in one line.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -772,6 +811,12 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   sibling); formalRAG `significance-testing-calibration` covers the paired t and d_z (Def 1), pairing variance (Thm 1),
   power-based n (Prop 1), and sign-flip permutation and recentered bootstrap on per-query means (Def 2), with
   multiplicity in prose only.
+  No sibling covers Shapley attribution, ceiling analysis, Harsanyi dividends, Blackwell's comparison of experiments,
+  soft vs. hard pipeline handoffs, joint vs. pipeline inference, or total unimodularity (2026-10-27).
+  - formalRAG `capstone-multimodal-financial-rag` owns the cascade product law (Thm 1) and the FKG lower bound
+    (Prop 1).
+  - formalRAG `cross-encoders-reranking` Thm 2 (the recall pinch) is a one-stage ceiling analysis.
+  - formalML `shannon-entropy` Thm 4 is the DPI, and formalStatistics `sufficient-statistics` Thm 4 is Rao–Blackwell.
   The design's watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
