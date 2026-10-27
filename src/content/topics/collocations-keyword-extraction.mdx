@@ -1,0 +1,704 @@
+---
+title: "Collocations and Keyword Extraction"
+subtitle: "A word pair is a 2×2 table, a point in a tetrahedron. PMI, X², and Dunning's G² measure its distance from independence in different ways, only an exact test survives rare pairs, and testing only the pairs you saw makes every rare sighting significant. Then keywords: keyness compares corpora, and TextRank, which compares nothing, ranks by frequency."
+status: "published"
+difficulty: "intermediate"
+prerequisites:
+  - "zipf-heaps-vocabulary-statistics"
+  - "n-gram-models-smoothing"
+tags:
+  - "collocations"
+  - "pointwise-mutual-information"
+  - "log-likelihood-ratio"
+  - "chi-square-test"
+  - "fisher-exact-test"
+  - "multiple-testing"
+  - "keyness"
+  - "textrank"
+  - "pagerank"
+  - "financial-text"
+domain: "text-mining"
+financeCaseStudy: true
+rigorFlag: "The finance answer key is synthetic: templates make fixed phrases unusually easy to find, and real collocations are graded rather than a yes-or-no class. The t-score is not a t test, since its variance is estimated by the count itself. The χ² p-values of X² and G² are asymptotic; their exact sizes at small expected counts are computed here for one grid of margins, not bounded in general, and Fisher's exact test is valid but conservative. The null pairs are independent only up to the Pitman–Yor restaurants' reinforcement and the generator's rule against repeating a noun within a list. Benjamini–Hochberg's guarantee assumes independent or positively dependent p-values, which pairs sharing a word need not have; Bonferroni gives the same conclusion here. TextRank runs with a frequency stop list instead of a part-of-speech filter, on single words, and keywords are scored against planted sector nouns rather than human-assigned keyphrases."
+videoId: null
+notebookPath: "notebooks/collocations-keyword-extraction/01_collocations_keyword_extraction.ipynb"
+githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/collocations-keyword-extraction.mdx"
+datePublished: 2026-10-26
+estimatedReadTime: 35
+abstract: "A word pair splits a corpus's bigram positions into a 2×2 table, which divided by its size is a point of a tetrahedron, and the independent tables form a saddle surface inside it. The product of a table's margins is its KL projection onto the saddle, so Dunning's log-likelihood ratio G² is 2N times the empirical mutual information, while Pearson's X² is N times the squared correlation. Two words seen once each, and only together, get the largest PMI and the largest X² of any table, though the exact probability of that sighting is 1/N; among pairs that always occur together, PMI falls as the evidence rises. Conditioning on the margins makes the joint count hypergeometric, which gives Fisher's exact test; X² and G² converge to χ² with one degree of freedom, but at small expected counts their exact sizes are far from nominal, each in its own regime. Testing only the pairs one has seen is a selection: when a pair's chance of being seen at all is below the level, every sighting rejects. Keyness is the same test with the corpus as the second variable. TextRank is PageRank on a co-occurrence graph: we prove that a positive stochastic matrix has one stationary distribution, that power iteration contracts by the damping factor, and that as the damping factor tends to one TextRank ranks words by their edge weight, which is twice their frequency up to boundary terms. On the finance corpus, whose generator records where every word came from, G² and Fisher's test rank fixed phrases first while PMI's top is noise seen once; Benjamini–Hochberg over the observed pairs rejects most of the truly null ones and over all candidate pairs rejects none; keyness finds the planted sector vocabulary; and TextRank tracks frequency."
+connections:
+  - topic: "distributional-semantics-ppmi-svd"
+    relationship: "That topic's Proposition 3 found shuffled text carrying more PPMI mass than real text and named a significance test as the cure; Theorem 1 here puts PMI and G² on one table, and Proposition 5 shows which family of tests the cure must run on."
+  - topic: "topic-models-lda"
+    relationship: "Both topics find sector vocabularies in the same synthetic filings: a topic model from which words share documents, keyness from a two-corpus test against the other sectors, which needs the sector labels a topic model does without."
+  - topic: "perplexity-cross-entropy"
+    relationship: "G² is twice the log-likelihood gained by modeling a pair jointly instead of as independent, the same nats-per-token currency in which that topic compares language models."
+references:
+  - type: "paper"
+    title: "Accurate Methods for the Statistics of Surprise and Coincidence"
+    authors: "Ted Dunning"
+    year: 1993
+    url: "https://aclanthology.org/J93-1003/"
+    note: "Computational Linguistics 19 (1): 61–74. Equations are unnumbered. Section 5.2: the likelihood ratio and its asymptotic χ² distribution; Section 5.3: the binomial and multinomial forms; Section 6.1 and Tables 2–4: a 31,777-word bigram study, ranked by the log-likelihood and by X²; Section 7 suggests Fisher's exact method"
+  - type: "paper"
+    title: "Word Association Norms, Mutual Information, and Lexicography"
+    authors: "Kenneth Ward Church and Patrick Hanks"
+    year: 1990
+    url: "https://aclanthology.org/J90-1003/"
+    note: "Computational Linguistics 16 (1): 22–29. Section 4: the association ratio over ordered pairs within a window of five words, unstable for small counts, with pairs of frequency at most 5 set aside"
+  - type: "paper"
+    title: "On Log-Likelihood-Ratios and the Significance of Rare Events"
+    authors: "Robert C. Moore"
+    year: 2004
+    url: "https://aclanthology.org/W04-3243/"
+    note: "Proceedings of EMNLP 2004, 333–40. Section 2.1: when a pair seen only once is significant, counted against all possible singleton pairs; Section 3, Formula 5: G² as 2N times the mutual information; Section 6, Table 1: log-likelihood p-values understate noise for rare events; Section 7 recommends Fisher's exact test. The data are bilingual word pairs"
+  - type: "book"
+    title: "The Statistics of Word Cooccurrences: Word Pairs and Collocations"
+    authors: "Stefan Evert"
+    year: 2004
+    url: "https://elib.uni-stuttgart.de/handle/11682/2573"
+    note: "PhD dissertation, Universität Stuttgart (published 2005). Section 2.2: sampling models for the contingency table, including conditioning on the margins (2.2.4); Section 4.3.3: excluding pairs seen fewer than three times"
+  - type: "book"
+    title: "Foundations of Statistical Natural Language Processing"
+    authors: "Christopher D. Manning and Hinrich Schütze"
+    year: 1999
+    url: "https://nlp.stanford.edu/fsnlp/"
+    note: "MIT Press. Chapter 5, Collocations: Section 5.3.1 the t test, 5.3.3 Pearson's chi-square, 5.3.4 likelihood ratios, 5.4 pointwise mutual information and its failure for rare perfectly dependent pairs"
+  - type: "paper"
+    title: "The Logic of Inductive Inference"
+    authors: "R. A. Fisher"
+    year: 1935
+    url: "https://doi.org/10.2307/2342435"
+    note: "Journal of the Royal Statistical Society 98 (1): 39–82. Example 1, pp. 48–50: the exact test for a fourfold table, conditioning on its margins"
+  - type: "paper"
+    title: "On the Interpretation of χ² from Contingency Tables, and the Calculation of P"
+    authors: "R. A. Fisher"
+    year: 1922
+    url: "https://doi.org/10.2307/2340521"
+    note: "Journal of the Royal Statistical Society 85 (1): 87–94. A fourfold table with fixed margins has one degree of freedom"
+  - type: "paper"
+    title: "On the Criterion That a Given System of Deviations from the Probable in the Case of a Correlated System of Variables Is Such That It Can Be Reasonably Supposed to Have Arisen from Random Sampling"
+    authors: "Karl Pearson"
+    year: 1900
+    url: "https://doi.org/10.1080/14786440009463897"
+    note: "Philosophical Magazine, 5th series, 50 (302): 157–75"
+  - type: "paper"
+    title: "The Large-Sample Distribution of the Likelihood Ratio for Testing Composite Hypotheses"
+    authors: "S. S. Wilks"
+    year: 1938
+    url: "https://doi.org/10.1214/aoms/1177732360"
+    note: "Annals of Mathematical Statistics 9 (1): 60–62"
+  - type: "paper"
+    title: "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing"
+    authors: "Yoav Benjamini and Yosef Hochberg"
+    year: 1995
+    url: "https://doi.org/10.1111/j.2517-6161.1995.tb02031.x"
+    note: "Journal of the Royal Statistical Society, Series B 57 (1): 289–300"
+  - type: "paper"
+    title: "Comparing Corpora Using Frequency Profiling"
+    authors: "Paul Rayson and Roger Garside"
+    year: 2000
+    url: "https://doi.org/10.3115/1117729.1117730"
+    note: "Workshop on Comparing Corpora (ACL 2000), 1–6. Section 2 and Table 1: the log-likelihood over the word's row of the two-corpus table; words are sorted by it, with no χ² critical value"
+  - type: "paper"
+    title: "TextRank: Bringing Order into Texts"
+    authors: "Rada Mihalcea and Paul Tarau"
+    year: 2004
+    url: "https://aclanthology.org/W04-3252/"
+    note: "Proceedings of EMNLP 2004, 404–11. Section 2: the unnormalized PageRank update with d = 0.85 and threshold 0.0001; Section 3.1: keyword extraction on an undirected, unweighted graph over nouns and adjectives; Section 3.2 and Table 1: a window of 2 is best on Inspec"
+  - type: "paper"
+    title: "The PageRank Citation Ranking: Bringing Order to the Web"
+    authors: "Lawrence Page, Sergey Brin, Rajeev Motwani, and Terry Winograd"
+    year: 1999
+    url: "http://ilpubs.stanford.edu:8090/422/"
+    note: "Technical report, Stanford InfoLab. Section 2.4, Definition 1 and Eq. 1: PageRank with a source of rank E; Section 2.5: the random surfer"
+  - type: "paper"
+    title: "The Second Eigenvalue of the Google Matrix"
+    authors: "Taher H. Haveliwala and Sepandar D. Kamvar"
+    year: 2003
+    url: "http://ilpubs.stanford.edu:8090/582/"
+    note: "Technical report, Stanford InfoLab. Theorem 1: the second eigenvalue has modulus at most the damping factor; Theorem 2: equality when the chain has two irreducible closed subsets"
+  - type: "paper"
+    title: "A Note on the PageRank of Undirected Graphs"
+    authors: "Vince Grolmusz"
+    year: 2015
+    url: "https://doi.org/10.1016/j.ipl.2015.02.015"
+    note: "Information Processing Letters 115: 633–34 (arXiv 1205.1960). PageRank is proportional to degree for a degree-proportional personalization vector, and not exactly otherwise"
+  - type: "paper"
+    title: "A Comparison of Centrality Measures for Graph-Based Keyphrase Extraction"
+    authors: "Florian Boudin"
+    year: 2013
+    url: "https://aclanthology.org/I13-1102/"
+    note: "Proceedings of IJCNLP 2013, 834–38. Section 5 and Table 2: degree centrality performs as well as TextRank (F@10 of 32.2 for both on Inspec)"
+  - type: "paper"
+    title: "Improved Automatic Keyword Extraction Given More Linguistic Knowledge"
+    authors: "Anette Hulth"
+    year: 2003
+    url: "https://aclanthology.org/W03-1028/"
+    note: "Proceedings of EMNLP 2003, 216–23. The Inspec abstracts on which TextRank's keyword extraction was evaluated"
+formalstatisticsPrereqs:
+  - topic: "likelihood-ratio-tests-and-np"
+    site: "formalstatistics"
+    relationship: "Its Definitions 5 and 6 are the generalized likelihood ratio and its rejection rule, and its Theorem 4 is Wilks' theorem for a scalar parameter; its Remark 13 states the vector case without proof, and Theorem 2 here proves the 2×2 case directly."
+  - topic: "hypothesis-testing"
+    site: "formalstatistics"
+    relationship: "Its Definition 12 states Pearson's goodness-of-fit statistic and its χ² limit; Proposition 1 and Theorem 2 here prove that limit for the independence test of a 2×2 table."
+  - topic: "discrete-distributions"
+    site: "formalstatistics"
+    relationship: "Its Theorems 15–17 give the hypergeometric distribution's moments and binomial limit, and its Example 6 computes Fisher's exact test as a hypergeometric tail; Lemma 1 here is why that tail is the exact null distribution."
+  - topic: "modes-of-convergence"
+    site: "formalstatistics"
+    relationship: "Its Theorem 9, continuous mapping, and Theorem 10, Slutsky's theorem, carry Theorem 2's proof from the central limit theorem to the χ² limits of X² and G²."
+  - topic: "multiple-testing-and-false-discovery"
+    site: "formalstatistics"
+    relationship: "Its Theorem 1 (Bonferroni) and Theorem 5 (Benjamini–Hochberg) are the corrections Proposition 5 applies to the finance bigrams, once over the observed pairs and once over all candidate pairs."
+formalmlPrereqs:
+  - topic: "random-walks"
+    site: "formalml"
+    relationship: "Its Theorem 1 gives the stationary distribution of a walk on an undirected graph, proportional to degree, and its Theorem 3 the convergence of an ergodic walk; Proposition 7 here uses both, and Theorem 3 here proves the teleporting walk its PageRank remark describes."
+  - topic: "shannon-entropy"
+    site: "formalml"
+    relationship: "Its Definition 5 is mutual information and its Proposition 6 says it vanishes exactly under independence; Theorem 1 here shows G² is 2N times the empirical mutual information of a bigram's two indicators."
+formalcalculusPrereqs:
+  - topic: "metric-spaces"
+    site: "formalcalculus"
+    relationship: "Its Theorem 4, the Banach contraction mapping theorem, gives Theorem 3's unique stationary distribution once the Google matrix contracts the simplex in ℓ1, and its Example 14, the Bellman operator, is the same discounted form."
+formalragConnections:
+  - topic: "vector-space-model-tfidf"
+    site: "formalrag"
+    relationship: "Its Definition 4 and Theorem 1 weight a term inside one collection by its document frequency there; keyness instead tests a word's rate in one corpus against another, a different question the remark after Proposition 6 separates."
+  - topic: "set-metrics-precision-recall-map-mrr"
+    site: "formalrag"
+    relationship: "Its Definition 1, precision at a cutoff, is how the finance case study scores every ranking of bigrams and keywords against the generator's answer key."
+---
+
+import TheoremBlock from '../../components/ui/TheoremBlock.astro';
+import RigorFlag from '../../components/ui/RigorFlag.astro';
+import FinanceCaseStudy from '../../components/ui/FinanceCaseStudy.astro';
+import CollocationLab from '../../components/viz/CollocationLab.tsx';
+
+## Overview & Motivation
+
+The [distributional semantics topic](/topics/distributional-semantics-ppmi-svd) ran into a problem it did not solve. Its Proposition 3 found that positive PMI gives large values to pairs that occur once by chance, so that shuffled text, where every association is noise, carried more PPMI mass than the real text. It named the cure: a significance test, Dunning's in particular. The [n-gram topic](/topics/n-gram-models-smoothing) pointed here too, for association instead of prediction. This page builds that test and then finds a second problem the test alone does not solve.
+
+A **collocation** is a word pair that occurs together more often than its words' frequencies explain: "operating margin," "chief executive." Every association score for a pair $(w_1, w_2)$ starts from the same four counts. Of the $N$ bigram positions in a corpus, how many have $w_1$ first and $w_2$ second, $w_1$ first and something else second, and so on. Divided by $N$, those four numbers are a point of a tetrahedron, and the pairs whose words are independent form a saddle surface inside it. That picture organizes the first half of the page.
+
+1. **The table as a point.** PMI, the t-score, Pearson's $X^2$, and Dunning's $G^2$ measure a table's distance from the saddle in different ways.
+2. **Rare pairs.** The four scores disagree most where the counts are smallest, and we compute them in closed form there.
+3. **Tests and their sizes.** Conditioning on the margins gives an exact test; the two $\chi^2$ tests are right only asymptotically, and we compute how wrong they are before that.
+4. **Testing only what you saw.** A list of the bigrams that occur in a corpus is a selected family, and the selection alone makes every rare sighting significant.
+
+The second half turns from pairs to single words. **Keyness** asks which words a corpus uses more than another corpus does, with the same 2×2 test. **TextRank** ranks a text's words by PageRank on their co-occurrence graph, and we prove what that ranking converges to. The finance case study scores everything against an answer key the corpus's generator keeps: which words were drawn independently, which were fixed template text, and which vocabulary each came from.
+
+---
+
+## The 2×2 table as a point
+
+Fix an ordered pair $(w_1, w_2)$. Over the corpus's $N$ bigram positions (adjacent tokens within a sentence), let $a$ count the positions reading $w_1\, w_2$, let $r$ count those whose first token is $w_1$, and let $c$ count those whose second token is $w_2$.
+
+<TheoremBlock type="definition" number={1} title="The bigram's table">
+
+The **table** of $(w_1, w_2)$ is
+
+$$
+\begin{pmatrix} a & b \\ c' & d \end{pmatrix}, \qquad b = r - a, \quad c' = c - a, \quad d = N - r - c + a,
+$$
+
+with rows "the first token is $w_1$ or not" and columns "the second token is $w_2$ or not." Its **margins** are the row totals $(r, N - r)$ and the column totals $(c, N - c)$, and its **expected count** is $E = rc/N$. Divided by $N$ it is a point $\hat p$ of the simplex $\Delta^3$ of distributions on four cells.
+
+</TheoremBlock>
+
+Draw $\Delta^3$ as a regular tetrahedron with one corner per cell. A table whose row and column indicators are independent factors as the outer product of its margins.
+
+<TheoremBlock type="definition" number={2} title="The independence surface">
+
+The **independence surface** is $S = \lbrace q \in \Delta^3 : q_{11} q_{22} = q_{12} q_{21} \rbrace$.
+
+</TheoremBlock>
+
+A table $q$ has determinant zero exactly when its rank is at most one, and a nonnegative rank-one table summing to one is $u v^\top$ for distributions $u$ and $v$ on two points: its own margins. So $S$ is the set of product tables. Fixing $u$ and moving $v$ traces a straight segment, and so does fixing $v$, so $S$ is a doubly ruled saddle. Its boundary is four of the tetrahedron's six edges, those where $u$ or $v$ sits at a vertex. The lab's **Table geometry** tab draws it.
+
+<TheoremBlock type="definition" number={3} title="Association scores">
+
+For the table of Definition 1, with $E_{ij}$ the cells of the product of its margins ($E_{11} = E$):
+
+- **pointwise mutual information** $\mathrm{PMI} = \log \dfrac{aN}{rc}$;
+- the **t-score** $t = \dfrac{a - E}{\sqrt a}$;
+- **Pearson's statistic** $X^2 = \sum_{ij} \dfrac{(O_{ij} - E_{ij})^2}{E_{ij}}$;
+- **Dunning's log-likelihood ratio** $G^2 = 2 \sum_{ij} O_{ij} \log \dfrac{O_{ij}}{E_{ij}}$, with $0 \log 0 = 0$,
+
+where $O_{ij}$ are the table's four cells.
+
+</TheoremBlock>
+
+PMI is Definition 2 of the [distributional semantics topic](/topics/distributional-semantics-ppmi-svd), read off one cell. The t-score is a $z$-statistic whose variance is estimated by the count itself (Manning and Schütze 1999, §5.3.1; Church and Hanks 1990 suggested t-scores as a fix for PMI). The other two look at all four cells, and the next theorem says what $G^2$ measures.
+
+<TheoremBlock type="theorem" number={1} title="The product of the margins is the KL projection">
+
+Let $p \in \Delta^3$ have row margin $p_r$ and column margin $p_c$. For all distributions $u, v$ on two points,
+
+$$
+\mathrm{KL}\big(p \,\Vert\, u v^\top\big) = \mathrm{KL}\big(p \,\Vert\, p_r p_c^\top\big) + \mathrm{KL}(p_r \,\Vert\, u) + \mathrm{KL}(p_c \,\Vert\, v).
+$$
+
+So $p_r p_c^\top$ is the unique point of $S$ closest to $p$ in KL divergence, at distance $I(p)$, the mutual information of the row and column indicators. For a table,
+
+$$
+G^2 = 2N\, \mathrm{KL}\big(\hat p \,\Vert\, \hat p_r \hat p_c^\top\big) = 2N\, \hat I,
+$$
+
+and $G^2$ is the generalized likelihood ratio statistic for independence under multinomial sampling.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Write $p_{i\cdot}$ and $p_{\cdot j}$ for the margins. For every cell,
+
+$$
+\log \frac{p_{ij}}{u_i v_j} = \log \frac{p_{ij}}{p_{i\cdot}\, p_{\cdot j}} + \log \frac{p_{i\cdot}}{u_i} + \log \frac{p_{\cdot j}}{v_j}.
+$$
+
+Multiply by $p_{ij}$ and sum. The first term gives $\mathrm{KL}(p \,\Vert\, p_r p_c^\top)$; summing the second over $j$ first gives $\sum_i p_{i\cdot} \log (p_{i\cdot}/u_i) = \mathrm{KL}(p_r \,\Vert\, u)$, and the third likewise gives $\mathrm{KL}(p_c \,\Vert\, v)$. The last two are nonnegative and vanish only at $u = p_r$, $v = p_c$, by Gibbs' inequality, so the product of the margins is the unique minimizer. The minimum $\mathrm{KL}(p \,\Vert\, p_r p_c^\top)$ is the mutual information (formalML, [Shannon Entropy](https://www.formalml.com/topics/shannon-entropy), Definition 5). For a table, $O_{ij} = N \hat p_{ij}$ and $E_{ij} = N \hat p_{i\cdot} \hat p_{\cdot j}$, so $G^2 = 2N \sum \hat p_{ij} \log\big(\hat p_{ij} / (\hat p_{i\cdot} \hat p_{\cdot j})\big)$. Finally, the multinomial log-likelihood of a table $q$ is $\sum O_{ij} \log q_{ij} = -N\big[H(\hat p) + \mathrm{KL}(\hat p \,\Vert\, q)\big]$, maximized over all of $\Delta^3$ at $\hat p$ and over $S$ at $\hat p_r \hat p_c^\top$; twice the difference is $G^2$, the statistic of formalStatistics ([Likelihood-Ratio Tests](https://www.formalstatistics.com/topics/likelihood-ratio-tests-and-np), Definition 5).
+
+</TheoremBlock>
+
+Moore (2004, §3) gives $G^2$ as $2N$ times the mutual information. $X^2$ measures distance to the same point with a different divergence, and for a 2×2 table it collapses to a correlation.
+
+<TheoremBlock type="proposition" number={1} title="X² is N times the squared correlation">
+
+For a table with positive margins, all four differences $O_{ij} - E_{ij}$ equal $\pm(ad - bc')/N$, and
+
+$$
+X^2 = N\, \chi^2\big(\hat p \,\Vert\, \hat p_r \hat p_c^\top\big) = \frac{N\,(ad - bc')^2}{r(N-r)\,c(N-c)} = N \hat\varphi^2,
+$$
+
+where $\chi^2(p \,\Vert\, q) = \sum (p - q)^2/q$ and $\hat\varphi$ is the correlation of the two indicators. In particular $X^2 \le N$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+$a - rc/N = \big(a(a + b + c' + d) - (a + b)(a + c')\big)/N = (ad - bc')/N$, and the other three cells differ from their expectations by the same amount with alternating signs, since every row and column of $O - E$ sums to zero. Then
+
+$$
+\sum_{ij} \frac{1}{E_{ij}} = N\left[\frac{1}{rc} + \frac{1}{r(N-c)} + \frac{1}{(N-r)c} + \frac{1}{(N-r)(N-c)}\right] = \frac{N^3}{r(N-r)\,c(N-c)},
+$$
+
+which gives the middle formula. The correlation of the indicators is $(\hat p_{11} - \hat p_{1\cdot}\hat p_{\cdot 1}) \big/ \sqrt{\hat p_{1\cdot}(1 - \hat p_{1\cdot})\hat p_{\cdot 1}(1 - \hat p_{\cdot 1})}$, whose square times $N$ is the same expression, and a correlation has modulus at most one by Cauchy–Schwarz.
+
+</TheoremBlock>
+
+So all four scores ask how far the table sits from the saddle. PMI looks at one cell's log ratio, $X^2$ at a squared correlation, and $G^2$ at a KL divergence. Near the surface they agree to second order. The rest of the page is about where they do not.
+
+---
+
+## Rare pairs, in closed form
+
+Zipf's law (the [vocabulary statistics topic](/topics/zipf-heaps-vocabulary-statistics)) guarantees that most word types are rare, so most candidate pairs involve a rare word. The extreme case is a pair of words that each occur once, and only together.
+
+<TheoremBlock type="proposition" number={2} title="The hapax pair">
+
+For the table $\begin{pmatrix} 1 & 0 \\ 0 & N-1 \end{pmatrix}$:
+
+- $\mathrm{PMI} = \log N$, the largest PMI of any table with $a \ge 1$;
+- $X^2 = N$, the largest $X^2$ of any table;
+- $t = 1 - 1/N$;
+- $G^2 = 2\big[\log N - (N-1)\log(1 - 1/N)\big] = 2\log N + 2 - 1/N - O(N^{-2})$;
+- the exact probability, under independence with these margins, of a count at least this large is $1/N$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Substitute $a = r = c = 1$ into Definition 3 and Proposition 1. Since $a \le \min(r, c)$, $aN/(rc) \le N/\max(r, c) \le N$, with equality only at $a = r = c = 1$; and $X^2 = N\hat\varphi^2 \le N$. The expansion $-(N-1)\log(1 - 1/N) = 1 - \frac{1}{2N} - \frac{1}{6N^2} - \cdots$ gives the asymptotic form. The last claim is Lemma 1 below: with one row and one column of total one, $a$ is $1$ with probability $rc/N = 1/N$.
+
+</TheoremBlock>
+
+At the finance corpus's $N = 57{,}052$ bigram positions, the hapax pair has $\mathrm{PMI} = 10.952$ and $X^2 = 57{,}052$, the most extreme values either score can give, while $G^2 = 23.903$ and $t = 1.000$. Is the pair significant? Its exact probability is $1/N \approx 1.75 \times 10^{-5}$, so as one test it is. We will return to that "as one test."
+
+The hapax pair is the first member of a family that separates the scores cleanly: pairs whose words never occur apart.
+
+<TheoremBlock type="proposition" number={3} title="Perfect pairs: PMI falls as the evidence rises">
+
+For the table $\begin{pmatrix} k & 0 \\ 0 & N-k \end{pmatrix}$ with $1 \le k \lt N/3$:
+
+- $\mathrm{PMI} = \log(N/k)$, which decreases in $k$;
+- $X^2 = N$ for every $k$;
+- $t = \sqrt k\,(1 - k/N)$, which increases in $k$;
+- $G^2 = 2N\, H(k/N)$, with $H$ the binary entropy in nats, which increases in $k$;
+- the exact $p$-value is $1/\binom{N}{k}$, so $-\log p = \log \binom{N}{k}$, which increases in $k$ and equals the PMI at $k = 1$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Substitution, as before. For $G^2$: when the two indicators are equal, their mutual information is the entropy of either one, $H(k/N)$, and Theorem 1 applies. The derivative of $\sqrt k - k^{3/2}/N$ is positive for $k \lt N/3$, and $H(x)$ increases on $[0, \frac12]$. Given margins $(k, N - k)$ in both directions, $a = k$ is the largest possible count and the only table that large, with hypergeometric probability $1/\binom{N}{k}$ (Lemma 1).
+
+</TheoremBlock>
+
+Seen ten times, always together, a pair is far stronger evidence of association than one seen once, yet PMI ranks it lower. Manning and Schütze (1999, §5.4) make the point for PMI: for perfectly dependent pairs, "as they get rarer, their mutual information increases." And $X^2$ cannot tell the two apart at all. Dunning (1993, §6.1) found the same pattern in real text: ranked by $X^2$, "the overestimate of the significance of items that occur only a few times is dramatic." The lab's **Rare pairs** tab plots the five scores for $k = 1, \dots, 20$.
+
+---
+
+## Tests and their sizes
+
+A score becomes a test once we know its distribution when the words are independent. The cleanest route conditions on what the pair cannot tell us about association: how often each word occurs.
+
+<TheoremBlock type="lemma" number={1} title="Conditioning on the margins">
+
+Suppose the $N$ positions are independent and identically distributed, with independent row and column indicators of probabilities $\pi$ and $\rho$. Given the margins $(r, c)$, the count $a$ is hypergeometric:
+
+$$
+P(a \mid r, c) = \frac{\binom{r}{a}\binom{N - r}{c - a}}{\binom{N}{c}},
+$$
+
+whatever $\pi$ and $\rho$ are.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+The table is multinomial with cell probabilities $\pi\rho$, $\pi(1-\rho)$, $(1-\pi)\rho$, $(1-\pi)(1-\rho)$, so
+
+$$
+P(a, b, c', d) = \frac{N!}{a!\, b!\, c'!\, d!}\; \pi^{r} (1-\pi)^{N-r} \rho^{c} (1-\rho)^{N-c}.
+$$
+
+The row indicators and the column indicators are independent families, so $r \sim \mathrm{Bin}(N, \pi)$ and $c \sim \mathrm{Bin}(N, \rho)$ independently. Dividing, the powers of $\pi$ and $\rho$ cancel, and $\frac{N!}{a!\, b!\, c'!\, d!} = \binom{N}{r}\binom{r}{a}\binom{N-r}{c'}$ leaves the hypergeometric probability.
+
+</TheoremBlock>
+
+<TheoremBlock type="definition" number={4} title="Fisher's exact test">
+
+Given the margins, the one-sided **exact $p$-value** of a table is $p(a) = P(A \ge a \mid r, c)$ under Lemma 1, and the two-sided one is the total probability of the tables no more probable than the observed one.
+
+</TheoremBlock>
+
+formalStatistics computes this tail in an example ([Discrete Distributions](https://www.formalstatistics.com/topics/discrete-distributions), Example 6); Lemma 1 is why it is exact for every $\pi$ and $\rho$. The test is Fisher's (1935, Example 1), who conditioned on the margins of a fourfold table in just this way. Because $p$ is computed from the exact conditional law, $P(p \le \alpha \mid r, c) \le \alpha$ for every margin, and so unconditionally.
+
+The two $\chi^2$ tests replace the hypergeometric by a limit.
+
+<TheoremBlock type="theorem" number={2} title="The χ² limits, and G² ≈ X²">
+
+Under independence with fixed $0 \lt \pi, \rho \lt 1$:
+
+1. $\sqrt N\, \hat\varphi \Rightarrow \mathcal N(0, 1)$, so $X^2 = N\hat\varphi^2 \Rightarrow \chi^2_1$;
+2. $G^2 - X^2 = O_p(N^{-1/2})$, so $G^2 \Rightarrow \chi^2_1$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Write $X_i$ and $Y_i$ for the row and column indicators of position $i$. (1) The numerator of $\hat\varphi$ is
+
+$$
+\hat p_{11} - \hat p_{1\cdot}\hat p_{\cdot 1} = \frac1N \sum_i (X_i - \pi)(Y_i - \rho) - (\bar X - \pi)(\bar Y - \rho).
+$$
+
+Under independence the summands $(X_i - \pi)(Y_i - \rho)$ have mean zero and variance $\pi(1-\pi)\rho(1-\rho)$, so $\sqrt N$ times the first term converges to $\mathcal N\big(0, \pi(1-\pi)\rho(1-\rho)\big)$ by the central limit theorem. Each factor of the second term is $O_p(N^{-1/2})$, so $\sqrt N$ times it tends to zero. The denominator of $\hat\varphi$ converges almost surely to $\sqrt{\pi(1-\pi)\rho(1-\rho)}$. Slutsky's theorem and the continuous mapping theorem (formalStatistics, [Modes of Convergence](https://www.formalstatistics.com/topics/modes-of-convergence), Theorems 10 and 9) give both limits.
+
+(2) Put $q = \hat p_r \hat p_c^\top$. The function $f(x) = x\log(x/q) - (x - q)$ has $f(q) = f'(q) = 0$ and $f''(x) = 1/x$, and the terms $-(x - q)$ sum to zero over the cells, so by Taylor's theorem
+
+$$
+\mathrm{KL}(\hat p \,\Vert\, q) = \sum_{ij} \frac{(\hat p_{ij} - q_{ij})^2}{2\xi_{ij}}
+$$
+
+for some $\xi_{ij}$ between $\hat p_{ij}$ and $q_{ij}$. Comparing with $X^2 = N\sum (\hat p_{ij} - q_{ij})^2/q_{ij}$,
+
+$$
+\big|G^2 - X^2\big| \le N \sum_{ij} \frac{|\hat p_{ij} - q_{ij}|^3}{\xi_{ij}\, q_{ij}}.
+$$
+
+By Proposition 1, each $|\hat p_{ij} - q_{ij}| = |ad - bc'|/N^2$, which is $O_p(N^{-1/2})$ by part (1), and $\xi_{ij}, q_{ij}$ converge to positive limits. The bound is $N \cdot O_p(N^{-3/2})$.
+
+</TheoremBlock>
+
+formalStatistics proves Wilks' theorem for a scalar parameter and states the vector case, of which this is an instance, without proof ([Likelihood-Ratio Tests](https://www.formalstatistics.com/topics/likelihood-ratio-tests-and-np), Theorem 4 and Remark 13); Theorem 2 proves the 2×2 case directly. On $20{,}000$ independent tables per size with $\pi = 0.3$ and $\rho = 0.4$, the median of $|G^2 - X^2|$ is $0.00111$ at $N = 10^3$, $0.000362$ at $10^4$, and $0.000113$ at $10^5$, falling by about $\sqrt{10}$ per decade.
+
+The limit holds with $\pi$ and $\rho$ fixed. A word pair is the opposite regime: as the corpus grows, so does the vocabulary, and the expected count $E = rc/N$ of a typical pair stays small. How far off are the $\chi^2$ tests there?
+
+<TheoremBlock type="proposition" number={4} title="Exact sizes">
+
+Given the margins, the probability that a test rejects under independence is $\sum_{a \in R} P(a \mid r, c)$ over its rejection region $R$, so it can be computed exactly from Lemma 1. Fisher's test never exceeds its level.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Lemma 1 gives the conditional law of $a$, and a test's rejection region given the margins is a set of values of $a$. For Fisher's test, $p(a) \le \alpha$ on $R$, and the definition of $p$ as a tail probability under that same law makes $P(p(A) \le \alpha) \le \alpha$.
+
+</TheoremBlock>
+
+The lab's **Test size** tab plots the exact sizes at $N = 10{,}000$, with $r = c$ and $\alpha = 0.05$, against $E$. Each $\chi^2$ test fails in its own regime. The size of $X^2$ peaks at $0.162$ near $E = 0.18$, three times nominal. The size of $G^2$ peaks at $0.157$ near $E = 1.9$. Fisher's test stays at or below $0.05$ everywhere, and below $E \approx 0.05$ all three have the same size, the probability that the pair is seen at all. Dunning (1993, §4, Table 1) measured how badly the normal approximation behind $X^2$ overstates rare events. Moore (2004, §6) found that $G^2$ overstates them too, more mildly, and recommended Fisher's test.
+
+---
+
+## Testing only what you saw
+
+That last regime deserves its own statement. A pair with tiny margins is rarely seen, and when it is, the exact test calls it significant.
+
+<TheoremBlock type="proposition" number={5} title="Testing only what you saw">
+
+Fix the margins and the one-sided exact test at level $\alpha$, under independence.
+
+1. $P(\text{reject}) \le \alpha$.
+2. If $P(A \ge 1) \gt \alpha$, then $P(\text{reject} \mid A \ge 1) \le \alpha / P(A \ge 1)$.
+3. If $P(A \ge 1) \le \alpha$, then every $a \ge 1$ is rejected: $P(\text{reject} \mid A \ge 1) = 1$, while $P(\text{reject}) = P(A \ge 1) \le \alpha$.
+
+Hence in a family of independent pairs, every pair seen whose chance of being seen was at most $\alpha$ is a false rejection; a multiple-testing correction computed over the observed pairs alone does not control what it promises, and one computed over all candidate pairs, with $p = 1$ for the pairs never seen, does.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Part 1 is Proposition 4. A sighting is the event $A \ge 1$, and $p(1) = P(A \ge 1)$; since $p$ decreases in $a$, $p(a) \le p(1)$ for every $a \ge 1$. In part 3, $p(1) \le \alpha$, so every $a \ge 1$ rejects, and the rejection event is the sighting event. In part 2, rejecting requires $a \ge 1$ (as $p(0) = 1 \gt \alpha$), so $P(\text{reject} \mid A \ge 1) = P(\text{reject})/P(A \ge 1)$, and part 1 bounds the numerator. The family statement applies part 3 to each pair; a correction that counts only the observed pairs uses a smaller number of hypotheses than were at risk, while an unseen pair's $p$-value of one never rejects, so counting it costs nothing but the count.
+
+</TheoremBlock>
+
+Moore (2004, §2.1) made the family-wide point for pairs seen once: a pair of words each seen once and seen together has an exact $p$-value of $2 \times 10^{-6}$ in his data, but there were $391{,}236{,}048$ possible such pairs, so $782.5$ were expected by chance. Dunning's (1993, §6.1) own bigram study scored only the bigrams that occurred, using the statistic "as a measure." In the lab's **Test size** tab, at the finance stratum's $N = 4{,}182$ below, every sighting rejects exactly when $r = c \le 14$, that is $E \le 0.047$; at $r = c = 20$ a sighting rejects with probability $0.0428$.
+
+<TheoremBlock type="remark">
+
+**Many tests at once.** A vocabulary of $V$ types has $V^2$ candidate pairs. Bonferroni's correction (formalStatistics, [Multiple Testing](https://www.formalstatistics.com/topics/multiple-testing-and-false-discovery), Theorem 1) holds under any dependence. Benjamini–Hochberg's (Theorem 5) assumes independent or positively dependent $p$-values, which pairs sharing a word need not have. The field's practical response has been a frequency threshold: Church and Hanks (1990, §4) set aside pairs seen at most five times, and Evert (2004, §4.3.3) excludes pairs seen fewer than three times. A threshold fixed before looking shrinks the family to pairs whose chance of being seen is not negligible. The significance-testing topic later in the curriculum takes up testing for NLP systems.
+
+</TheoremBlock>
+
+---
+
+## Keyness
+
+Swap the second variable. Instead of "is the second token $w_2$," ask "is this token in corpus $T$ or corpus $R$."
+
+<TheoremBlock type="definition" number={5} title="Keyness">
+
+For a target corpus $T$ and a reference corpus $R$, with $N_T$ and $N_R$ tokens, and a word $w$ seen $a$ times in $T$ and $b$ times in $R$, the **keyness table** is
+
+$$
+\begin{pmatrix} a & N_T - a \\ b & N_R - b \end{pmatrix},
+$$
+
+rows the corpus and columns "the token is $w$ or not." The **keyness** of $w$ is its $G^2$, signed positive when $a/N_T \gt b/N_R$, and its **log ratio** is $\log_2 \dfrac{(a + \frac12)/N_T}{(b + \frac12)/N_R}$, an effect size.
+
+</TheoremBlock>
+
+<TheoremBlock type="proposition" number={6} title="Keyness is the same test">
+
+The keyness of $w$ is $2(N_T + N_R)\,\hat I$, where $\hat I$ is the empirical mutual information between the corpus indicator and the indicator of $w$, and transposing the table leaves it unchanged.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Theorem 1 with $N = N_T + N_R$; mutual information is symmetric in its two variables (formalML, [Shannon Entropy](https://www.formalml.com/topics/shannon-entropy), Proposition 5).
+
+</TheoremBlock>
+
+<TheoremBlock type="remark">
+
+**TF-IDF answers another question.** TF-IDF (formalRAG, [Vector Space Model and TF-IDF](https://www.formalrag.com/topics/vector-space-model-tfidf), Definition 4) weights a term inside one collection by how few of its documents contain it. Keyness compares a word's rate in two corpora, and it is a test.
+
+</TheoremBlock>
+
+<TheoremBlock type="remark">
+
+**Rayson and Garside's log-likelihood is one row of the table.** Rayson and Garside (2000, §2) compute keyness as $2\sum O \log(O/E)$ over the word's row only, the cells $a$ and $b$. The omitted row, the other words, contributes a nonnegative term, at most $2(a - E_1)^2\big[1/(N_T - E_1) + 1/(N_R - E_2)\big]$ with $E_1 = N_T(a + b)/(N_T + N_R)$ and $E_2 = N_R(a + b)/(N_T + N_R)$, because KL divergence is at most $\chi^2$ divergence. So their score sits just below $G^2$. On the finance sectors the largest relative gap is below $0.07$, and the two scores give the same top $25$ words in every sector. They sort by it and compare no critical value.
+
+</TheoremBlock>
+
+---
+
+## TextRank
+
+Keyness needs a second corpus. TextRank (Mihalcea and Tarau 2004) ranks the words of one text by how central they are in its co-occurrence graph, with nothing to compare against.
+
+<TheoremBlock type="definition" number={6} title="Co-occurrence graph">
+
+Remove a set of stop words from each sentence. Join two distinct words that occur within $W$ positions of each other in a filtered sentence, with **weight** the number of such co-occurrences (or $1$, for the **binary** graph). The nodes are the words with at least one edge; a word's **strength** $s(w)$ is the total weight of its edges.
+
+</TheoremBlock>
+
+<TheoremBlock type="definition" number={7} title="PageRank">
+
+Let $W$ be a nonnegative $n \times n$ weight matrix, $\tilde P$ the row-stochastic matrix $D^{-1} W$ with each row of zeros replaced by the uniform row, and $0 \le d \lt 1$. The **Google matrix** is
+
+$$
+G = \frac{1 - d}{n}\, \mathbf 1 \mathbf 1^\top + d\, \tilde P,
+$$
+
+and a **PageRank** vector is a row vector $\pi \in \Delta^{n-1}$ with $\pi G = \pi$. **TextRank** is PageRank on Definition 6's graph.
+
+</TheoremBlock>
+
+A random surfer follows an edge with probability $d$ and jumps to a uniform node otherwise (Page et al. 1999, §2.5). Mihalcea and Tarau write the update unnormalized, $S(V_i) = (1 - d) + d \sum_j S(V_j)/\lvert \mathrm{Out}(V_j) \rvert$, which is $n\pi$ when no row is empty, with $d = 0.85$; for keywords they use an undirected, unweighted graph over nouns and adjectives, and found a window of $W = 2$ best (§3). formalML describes this teleporting walk without proving that $\pi$ exists or is unique ([Random Walks](https://www.formalml.com/topics/random-walks), the remark on PageRank). We prove both, and the rate.
+
+<TheoremBlock type="theorem" number={3} title="Perron–Frobenius for positive stochastic matrices">
+
+Let $M$ be an $n \times n$ row-stochastic matrix with every entry at least $\delta \gt 0$. Then:
+
+1. $M$ has exactly one stationary distribution $\pi$;
+2. $\pi_i \ge \delta$ for every $i$;
+3. every eigenvalue $\lambda \ne 1$ of $M$ has $|\lambda| \le 1 - n\delta$.
+
+The Google matrix has $\delta = (1 - d)/n$ and $1 - n\delta = d$, and its PageRank vector is
+
+$$
+\pi = \frac{1 - d}{n}\, \mathbf 1^\top \sum_{t \ge 0} d^t \tilde P^t = \frac{1 - d}{n}\, \mathbf 1^\top (I - d\tilde P)^{-1}.
+$$
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Write $M = n\delta\, U + (1 - n\delta)\, Q$, where $U = \frac1n \mathbf 1 \mathbf 1^\top$ and $Q = (M - n\delta U)/(1 - n\delta)$ is nonnegative with rows summing to one (if $n\delta = 1$, $M = U$ and everything is immediate). For any row vector $y$, real or complex, $\lVert yQ \rVert_1 = \sum_j \lvert \sum_i y_i Q_{ij} \rvert \le \sum_i \lvert y_i \rvert \sum_j Q_{ij} = \lVert y \rVert_1$: a stochastic matrix does not expand $\ell_1$. If $y \mathbf 1 = 0$ then $yU = 0$, so $yM = (1 - n\delta)\, yQ$ and $\lVert yM \rVert_1 \le (1 - n\delta)\lVert y \rVert_1$.
+
+(1) For distributions $x, x'$, $x - x'$ sums to zero, so $x \mapsto xM$ is a contraction of the simplex in $\ell_1$ with factor $1 - n\delta \lt 1$. The simplex is closed in $\mathbb R^n$, hence complete, and the Banach contraction mapping theorem (formalCalculus, [Metric Spaces](https://www.formalcalculus.com/topics/metric-spaces), Theorem 4) gives exactly one fixed point. (2) $\pi_j = \sum_i \pi_i M_{ij} \ge \delta \sum_i \pi_i = \delta$. (3) If $yM = \lambda y$ with $y \ne 0$ and $\lambda \ne 1$, then $\lambda\, y\mathbf 1 = yM\mathbf 1 = y \mathbf 1$ forces $y \mathbf 1 = 0$, so $\lvert\lambda\rvert \lVert y \rVert_1 = \lVert yM \rVert_1 \le (1 - n\delta)\lVert y \rVert_1$. For the formula, $\pi G = \pi$ reads $\pi (I - d\tilde P) = \frac{1-d}{n}\mathbf 1^\top$, using $\pi\mathbf 1 = 1$. The rows of $d\tilde P$ sum to $d \lt 1$, so by the bound above every eigenvalue of $d\tilde P$ has modulus at most $d$, the Neumann series converges, and $I - d\tilde P$ is invertible.
+
+</TheoremBlock>
+
+Haveliwala and Kamvar (2003, Theorem 1) proved part 3 for the Google matrix, with equality when the link graph has two closed classes (Theorem 2). The contraction also gives the rate of the algorithm everyone uses.
+
+<TheoremBlock type="theorem" number={4} title="Power iteration converges geometrically">
+
+The iteration $x_{t+1} = x_t G$ from any $x_0 \in \Delta^{n-1}$ satisfies
+
+$$
+\lVert x_t - \pi \rVert_1 \le d^t \lVert x_0 - \pi \rVert_1 \le 2d^t, \qquad \lVert x_{t+1} - x_t \rVert_1 \le d^t \lVert x_1 - x_0 \rVert_1 .
+$$
+
+Stopping at the first step shorter than $\varepsilon$ leaves an error of at most $\varepsilon d/(1 - d)$, and happens within $\lceil \log(\varepsilon / \lVert x_1 - x_0 \rVert_1) / \log d \rceil + 1$ steps.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+Both inequalities apply Theorem 3's contraction $t$ times, to $x_t - \pi$ and to $x_{t+1} - x_t$, each of which sums to zero. After a step shorter than $\varepsilon$, the remaining steps are at most $\varepsilon d, \varepsilon d^2, \dots$, whose sum bounds the distance to the limit. The step count solves $d^t \lVert x_1 - x_0 \rVert_1 \lt \varepsilon$.
+
+</TheoremBlock>
+
+This is the argument that makes the Bellman operator a contraction (formalCalculus, [Metric Spaces](https://www.formalcalculus.com/topics/metric-spaces), Example 14), with the damping factor in place of the discount. What does TextRank converge to? On an undirected graph, the answer is close to something much simpler.
+
+<TheoremBlock type="proposition" number={7} title="Strength, and the limit d → 1">
+
+1. On the weighted graph with window $W = 2$, a word's strength is $s(w) = 2c(w) - e(w) - 2\sigma(w)$, where $c(w)$ counts its occurrences in the filtered text, $e(w)$ those at the first or last filtered position of a sentence (a one-word sentence counts twice), and $\sigma(w)$ its adjacent repeats.
+2. On an undirected graph with no isolated nodes and connected components $C_1, \dots, C_m$, every $d$ gives each component exactly mass $\lvert C_j \rvert / n$, and
+$$
+\lim_{d \to 1} \pi_d = \sum_j \frac{\lvert C_j \rvert}{n}\, \frac{s|_{C_j}}{\mathrm{vol}(C_j)}, \qquad \mathrm{vol}(C_j) = \sum_{w \in C_j} s(w).
+$$
+3. On a connected undirected graph, if the surfer jumps to node $w$ with probability $s(w)/\mathrm{vol}$ instead of uniformly, then $\pi_d = s/\mathrm{vol}$ for every $d$.
+
+</TheoremBlock>
+
+<TheoremBlock type="proof">
+
+(1) Each occurrence of $w$ is joined to the filtered tokens just before and after it, two unless it sits at an end of its sentence, and a neighbor equal to $w$ adds no edge; a repeat $w\,w$ removes one neighbor from each of the two occurrences.
+
+(2) No row is empty, so $\tilde P = D^{-1}W$, which never leaves a component. Summing $\pi_d = \frac{1-d}{n}\mathbf 1^\top + d\,\pi_d \tilde P$ over $C_j$ gives $\pi_d(C_j) = (1 - d)\lvert C_j \rvert/n + d\, \pi_d(C_j)$, so $\pi_d(C_j) = \lvert C_j \rvert / n$. Any limit point of $\pi_d$ as $d \to 1$ (they exist by compactness) satisfies $\pi = \pi\tilde P$, so its restriction to $C_j$ is a stationary measure of the walk on $C_j$ with mass $\lvert C_j\rvert/n$. The walk on a connected graph has stationary distribution $s/\mathrm{vol}$ (formalML, [Random Walks](https://www.formalml.com/topics/random-walks), Theorem 1), and only one: its lazy version $\frac12(I + \tilde P)$ has the same stationary distributions and is ergodic, so Theorem 3 there makes the distribution unique. Every limit point is therefore the stated one.
+
+(3) $s/\mathrm{vol}$ is stationary for $\tilde P$, so $(1 - d)\, s/\mathrm{vol} + d\, (s/\mathrm{vol})\tilde P = s/\mathrm{vol}$; by Theorem 3 (the same contraction, with any teleport distribution) it is the only solution.
+
+</TheoremBlock>
+
+So with weak damping, TextRank on the weighted window-2 graph ranks each component's words by strength, which is twice their frequency up to sentence-boundary terms. Grolmusz (2015) proves part 3 and notes that with uniform jumps PageRank is not exactly proportional to degree. Boudin (2013, §5) found plain degree centrality as good as TextRank for keyphrase extraction, with an F-score at ten of $32.2$ for both on Inspec.
+
+---
+
+## Finance case study
+
+<FinanceCaseStudy title="Finance case study: an answer key for every score">
+
+**The answer key.** The text is the training corpus of the [n-gram topic](/topics/n-gram-models-smoothing), `generate_corpus(300, 0)`, rebuilt from its own generator with every content-noun draw marked, so that stripping the marks gives the same text byte for byte. Each token is a word drawn from a Pitman–Yor restaurant (one per sector, one shared), a word inside an entity name, or template text. That sorts the $13{,}724$ bigram types over $N = 57{,}052$ positions into four classes:
+
+- **fixed** ($877$): only ever two template words or two words of one name, such as "broadly unchanged" or "halvorsen industrial";
+- **null** ($3{,}054$): only ever two adjacent draws, at least one from the shared vocabulary. Given the document's sector these are independent: no association exists;
+- **topical** ($1{,}000$): two adjacent draws planted in the same sector, associated only through the sector;
+- **boundary** ($8{,}793$): everything else, such as a template word next to a drawn noun.
+
+Adjacent draws come from noun compounds ("freight contracts") and, since the tokenizer drops commas, from neighbors in a list.
+
+**Ranking every bigram.** Precision at $k$ (formalRAG, [Set Metrics](https://www.formalrag.com/topics/set-metrics-precision-recall-map-mrr), Definition 1) against the fixed class, with ties broken at random in expectation:
+
+| measure | $k = 10$ | $k = 50$ | $k = 200$ | $k = 500$ |
+|---|---|---|---|---|
+| PMI | $0.052$ | $0.052$ | $0.057$ | $0.087$ |
+| t-score | $0.800$ | $0.900$ | $0.910$ | $0.822$ |
+| $X^2$ | $0.531$ | $0.531$ | $0.540$ | $0.398$ |
+| $G^2$ | $0.800$ | $0.940$ | $0.930$ | $0.898$ |
+| Fisher | $0.800$ | $0.940$ | $0.930$ | $0.896$ |
+| frequency | $0.700$ | $0.860$ | $0.880$ | $0.780$ |
+
+PMI's top $97$ pairs tie at $\log N$: they are Proposition 2's hapax pairs, $48$ null, $44$ topical, and $5$ fixed, so $0.948$ of PMI's top $50$ are pairs with no lexical association, seen once. $X^2$ ties its top $196$ at $N$, every pair whose words never occur apart (Proposition 3), and half of them are null or topical. $G^2$, the t-score, and Fisher's test put no null or topical pair in their top $500$. The top two by $G^2$, "percent in" and "for the," are counted as boundary because "percent" closes a percentage entity; they are fixed text in fact, so the class is conservative. Fisher's $p$-values must be computed in log space: for $46$ pairs the tail probability underflows to zero.
+
+**Testing them: the selection.** Inside the stratum of adjacent draws ($N = 4{,}182$ positions, $4{,}059$ observed types, $2{,}128{,}632$ candidate pairs), the null pairs are independent by construction, and $0.975$ of all observed pairs are seen exactly once. One-sided exact tests with Benjamini–Hochberg at $q = 0.05$:
+
+| family corrected over | null rejected | topical rejected |
+|---|---|---|
+| the observed pairs | $2{,}218$ of $3{,}055$ | $863$ of $1{,}000$ |
+| all candidate pairs | $0$ of $3{,}055$ | $0$ of $1{,}000$ |
+
+Over the observed pairs alone, most truly null pairs pass. That is Proposition 5 on real counts: each was seen once, and its chance of being seen was small. Over all candidate pairs nothing passes, and Bonferroni, valid under any dependence, agrees. At the uncorrected level $0.05$, $0.762$ of the observed null pairs reject. On the pooled table of every bigram the picture is the same: Benjamini–Hochberg over the observed bigrams rejects $2{,}416$ of the $3{,}054$ null pairs. The topical pairs are genuinely associated, but at one sighting each, no valid procedure can find them. The honest finding is that the corpus is too small to say.
+
+**Keyness by sector.** Each sector's documents against the other sectors', with entity words removed (company names would top every list trivially), scored by precision at $25$ against the nouns the generator planted in that sector:
+
+| sector | documents | $G^2$ | log ratio | frequency |
+|---|---|---|---|---|
+| industrials | $142$ | $1.00$ | $1.00$ | $0.08$ |
+| technology | $52$ | $1.00$ | $1.00$ | $0.08$ |
+| banking | $40$ | $0.96$ | $1.00$ | $0.08$ |
+| energy | $20$ | $0.80$ | $0.80$ | $0.12$ |
+| retail | $27$ | $1.00$ | $1.00$ | $0.08$ |
+| healthcare | $19$ | $1.00$ | $1.00$ | $0.12$ |
+
+Energy's misses are its own template: "Crude production averaged … thousand barrels per day" occurs only in energy filings, so "barrels," "averaged," and "day" are key words of the sector, correctly, though not planted nouns. Raw frequency finds template words. Against the three EDGAR excerpts as reference, the synthetic corpus's top key words are "percent," "in," "management," "across," "demand," "was," "million," and "halvorsen," and $0.76$ of its top $50$ are template-only words: a reference corpus finds what makes the target unusual, and what makes this corpus unusual is its templates.
+
+**TextRank.** Per sector, on the sector's own text with the $100$ most frequent words and all entity words stopped, window $2$, $d = 0.85$:
+
+| sector | TextRank | Spearman with frequency | frequency | keyness |
+|---|---|---|---|---|
+| industrials | $0.40$ | $0.849$ | $0.24$ | $1.00$ |
+| technology | $0.32$ | $0.850$ | $0.24$ | $1.00$ |
+| banking | $0.40$ | $0.837$ | $0.36$ | $0.96$ |
+| energy | $0.52$ | $0.850$ | $0.36$ | $0.80$ |
+| retail | $0.32$ | $0.832$ | $0.16$ | $1.00$ |
+| healthcare | $0.40$ | $0.805$ | $0.36$ | $1.00$ |
+
+The first, third, and fourth columns are precision at $25$ against the planted sector nouns, on the weighted graph. TextRank's ranking correlates with frequency at $0.80$ to $0.85$ and beats raw frequency only modestly; keyness, which has a reference corpus, beats both in every sector. As Proposition 7 predicts, raising $d$ moves TextRank toward frequency: in industrials the rank correlation is $0.790$ at $d = 0.5$ and $0.880$ at $d = 0.99$. Power iteration reached steps below $10^{-12}$ in $142$ to $150$ iterations, inside Theorem 4's bound of $176$.
+
+</FinanceCaseStudy>
+
+<CollocationLab client:visible />
+
+---
+
+## Where this sits
+
+A word pair is a 2×2 table, and every association score measures how far the table sits from the saddle of independent tables (Theorem 1, Proposition 1). The scores disagree on rare pairs, where PMI and $X^2$ reach their maxima on a pair seen once (Propositions 2 and 3). Conditioning on the margins gives the exact test (Lemma 1); the $\chi^2$ tests are right only in the limit (Theorem 2), and at small expected counts each fails in its own regime (Proposition 4). Then the step that is easy to miss: a list of observed bigrams is a selected family, and testing only its members makes every rare sighting significant (Proposition 5). Keyness is the same test across corpora (Proposition 6). TextRank's PageRank exists, is unique, and is reached geometrically fast (Theorems 3 and 4), and with weak damping it ranks words by frequency (Proposition 7).
+
+The [distributional semantics topic](/topics/distributional-semantics-ppmi-svd) built word vectors from PPMI, and Proposition 5 explains why its positive values on rare pairs were noise. The [topic models topic](/topics/topic-models-lda) found the same sector vocabularies that keyness finds here, without the sector labels keyness needs. The next topics turn to evaluation, starting with the overlap metrics used to score generated text.
+
+---
+
+## Honest caveats
+
+<RigorFlag>
+
+1. **Proved and checked.** Theorems 1–4, Lemma 1, and Propositions 1–7 are proved here in full. The harness checks Theorem 1 against a numerical KL projection, Proposition 1 and Definition 3 against SciPy's contingency tests, Lemma 1 by enumerating every table at $N = 7$, Fisher's test against SciPy, Theorem 2 on random tables, Proposition 4 by exact summation, Theorem 3 against a dense eigenvector, and Theorem 4 at every step of a run.
+2. **A synthetic answer key.** Templates make fixed phrases unusually easy to find, and real collocations are graded rather than a yes-or-no class. The null pairs are independent only up to the restaurants' reinforcement and the generator's rule against repeating a noun within a list.
+3. **Asymptotic and conservative tests.** The t-score is not a t test. The exact sizes of $X^2$ and $G^2$ are computed for one grid of margins, not bounded in general. Fisher's test is valid but, being discrete, conservative.
+4. **Multiple testing.** Benjamini–Hochberg assumes independent or positively dependent $p$-values, which pairs sharing a word need not have. Bonferroni, which needs no such assumption, reaches the same conclusion over all candidate pairs.
+5. **TextRank as run here.** It uses a frequency stop list instead of a part-of-speech filter, since the corpus has no tagger, and ranks single words. Keywords are scored against planted sector nouns, not human-assigned keyphrases.
+
+</RigorFlag>
+
+---
+
+## Implementation
+
+The companion notebook (`notebookPath`) imports the topic's Python module, which owns every number on this page. It imports the distributional semantics topic's module, and through it the n-gram and vocabulary-statistics modules and the finance corpus. The tagged generator subclasses the corpus generator and wraps each content-noun draw in marker characters without changing a single random call, and the harness asserts that the stripped text equals the corpus. Exact tails are log-sum-exp sums of hypergeometric probabilities. Its harness checks:
+
+- Theorem 1, Propositions 1–3, and Definition 3 at random tables and against SciPy;
+- Lemma 1 by enumeration, Theorem 2 by simulation, and Propositions 4 and 5 exactly, on random margins;
+- Theorems 3 and 4 and Proposition 7 on random directed and undirected graphs and on the finance text;
+- every finance number this page states.
+
+The laboratory reads its data from a JSON file that one of the harness's tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
