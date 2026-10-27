@@ -1,8 +1,8 @@
 # CLAUDE.md — formalNLP
 
 The mathematics of language. Fifth site in the **formal** series (formalCalculus,
-formalStatistics, formalML, formalRAG). Deploys to https://formalnlp.com — **live but `noindex`
-until launch**. General preferences (pnpm, uv, Chicago citations, American English,
+formalStatistics, formalML, formalRAG). Deploys from `main` to https://www.formalnlp.com,
+**launched 2026-10-27** (#58). www is canonical, and the apex 308s to it. General preferences (pnpm, uv, Chicago citations, American English,
 geometric-first, git workflow) live in `~/CLAUDE.md` — not repeated here.
 
 - Site design (approved): [`docs/plans/formalnlp-site-design.md`](docs/plans/formalnlp-site-design.md)
@@ -50,7 +50,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - A topic touches: `src/content/topics/<slug>.mdx`, `src/components/viz/<Name>Lab.tsx` and its
   `data/<name>-lab.json`, `notebooks/<slug>/` (`.py` + `.ipynb`), `docs/plans/formalnlp-<slug>-brief.md`,
   the node's `status` in `curriculum-graph.json`, and its title in `curriculum.ts`'s `planned`.
-- `src/lib/siteConfig.ts` — `PRELAUNCH` (the launch switch) and `SITE_URL`.
+- `src/lib/siteConfig.ts` — `PRELAUNCH` (false since launch; `true` restores site-wide noindex) and `SITE_URL`
+  (www, matching astro `site` and `crossSite.mjs`; `tests/robots.test.ts` pins all three).
 - `scripts/lib/crossSite.mjs` — the five sites, their paths/env vars, and cross-site field parsing.
 - `src/styles/global.css` — Marginalia tokens (light fixed by the design; dark checked for WCAG AA
   in `tests/contrast.test.ts`).
@@ -771,9 +772,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 
 ## Do NOT
 
-- Flip `PRELAUNCH` to `false` before all 29 nodes are published. Launch is its own plan.
-- Touch sibling repos (formalML, formalStatistics, formalCalculus, formalRAG) before launch —
-  reciprocal links are batched into one PR per sibling at launch.
+- Edit a sibling repo from this checkout. A sibling change is a PR in that repo, made from a worktree off its
+  `origin/main`, because the local sibling checkouts sit on in-progress topic branches. The launch reciprocals
+  were formalML#117, formalStatistics#61, formalCalculus#44, and formalRAG#91. A new formalNLP cross-site edge
+  needs its reciprocal in the sibling's next PR, and sibling links to formalNLP use `https://www.formalnlp.com`.
 - Commit the Loughran–McDonald dictionary, earnings-call transcripts, or any non-public text.
 - Cover ANN indexes, vector databases, quantization, or retrieval models (TF-IDF, BM25, dense
   retrieval, rerankers) — formalRAG owns them; cross-link instead.
