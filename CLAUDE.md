@@ -420,6 +420,23 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   day"). TextRank's Spearman with frequency is 0.80–0.85 and rises with d; a geometry preset with small margins puts every
   table in one corner of the tetrahedron, so lead with balanced ones ((100, 40, 50)). Contraction tests need a 10⁻¹³
   additive floor (‖xₜ − π‖ hits rounding at t ≈ 50, d = 0.5).
+- Overlap metrics on corpus models (Topic 27). Facts come straight from `doc.aspects` (no tagged generator): per
+  category, the sign of the summed polar polarities, ties dropped; 90 docs of `generate_corpus(100, 1)` (every type) state
+  ≥ 2 (3.62 each). Writers must use in-vocabulary words or the soft match has nothing to embed ("higher"/"lower" are not in
+  Topic 6's vocabulary): a direction verb (`fc._UP`/`_DOWN`) or a stand-in adjective pair (strong/weak, stronger/weaker,
+  favorable/unfavorable), so a flip is one substitution at a fixed index. In SGNS L2/25, cos(rose, fell) = 0.995 ("fell"
+  is the nearest neighbor of "rose"). Topic 14's `reference_lengths` dict keeps only lengths: rebuild it with the words
+  (188 prompts, 2.36 refs each). Run beam search once at k = 16 with `alphas=(0.0, 1.0)` (~1 s) instead of `beam_runs`
+  (all seven widths, ~7 s); greedy returns `None` on 53 looping prompts. MBR utility over (hyps × samples) by n-gram count
+  matrices and `np.minimum` broadcast: 0.5 s for 188 prompts × 64 samples, where scalar sentence BLEU took 10 s.
+  Callison-Burch chunk census: writer summaries split into 7.3 chunks (≈ 15,000 orders), so enumeration took 11 s per
+  summary; sample 200 orders per summary. Kendall τ-b of identical rankings reads 0.9999999999999999: compare with a
+  tolerance. "Same surface" systems rank perfectly on every metric; a short system (terse) breaks it through BP.
+  Cross-checks: sacreBLEU 2.6.0's `corpus_bleu` needs equal-count reference streams (pad with the first reference: the
+  max-count clip and the closest length are unchanged); sentence BLEU needs `BLEU(tokenize="none",
+  effective_order=False)`; its "floor" smoothing differs from the obvious rule (0.035), so cross-check add-k and exp only;
+  chrF averages P and R over the orders both strings reach (effective order) before one F. rouge-score 0.1.2's tokenizer
+  agrees with `fc._tokens` text. Under `-W error`, ignore sacreBLEU's "effective_order" UserWarning by message.
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's
   `train_sgns(CONTROLLED)` ~14 s; never call Topic 5's trained models (~50 s). Import its pure
   helpers (`complex_step_grad`, `log_softmax`) only. Topic 10's `train_head` takes ~1 s per head
@@ -488,6 +505,10 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `rayson_garside_ll`, `cooc_graph`, `pagerank` (any teleport vector), `google_matrix`/`pagerank_dense`,
   `strength_identity`, `_TaggedGen`/`tagged_documents` (provenance-labeled corpus), `fin_bigrams`, and
   `tie_blocks`/`expected_topk` (tie-averaged precision) are reusable.
+  Topic 27's harness takes ≈ 15 s (SGNS vectors ~3 s); `clipped`/`matching_size`, `bleu_stats`/`pool`/`bleu` (none,
+  add-k, exp), `envelope`, `lcs_table`/`lcs_path`, `rouge_n`/`rouge_l`, `chrf`, `soft_match`, `chunks`/`permutation_census`,
+  `utility_matrix` (vectorized BLEU+1), `sample_set` (trigram ancestral samples), `doc_facts`/`render`/`fact_f1`,
+  `textrank_sentences`, and `segment_tau`/`system_tau` are reusable.
 - Cached trainers (`@lru_cache`) take an explicit frozen config: `f()` and `f(CFG)` are separate
   cache keys and train twice, and so are `probe("pretrained")` and `probe("pretrained", False)` (Topic 20 refit a
   probe for 4 s): give cached helpers no defaults and call them positionally. Never seed a stream from `hash()` of a
@@ -627,6 +648,20 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
     PageRank ∝ degree only with degree-proportional teleportation (Grolmusz 2015, IPL 115: 633–34,
     doi 10.1016/j.ipl.2015.02.015). Haveliwala and Kamvar (2003): Thm 1 |λ₂| ≤ c, Thm 2 equality; ilpubs.stanford.edu's
     database is down, so read it and Page et al. (1999) via the Wayback Machine.
+  Topic 27 citation facts:
+  - **Papineni et al. (2002), P02-1040.** No numbered equations: §2.1 and fn. 2 clipping ("the" ×7 = 2/7), §2.2.2 best
+    match length and corpus-level BP, §2.3 BP and N = 4. The 0.99/0.96 human correlations (§5) rest on five systems.
+  - **Lin (2004), W04-1013.** Eq. (1) sums over references, but §2.1 scores several references by the max pairwise
+    score, then jackknifes ("argmax" there is a typo). ROUGE-L is §3.1 Eqs. (2)–(4) with β; ROUGE-S §5.
+  - **Callison-Burch et al. (2006), E06-1032.** §3.1 already says permutation "will not reduce" matches; Eq. (1)'s
+    (k − b)! is a *lower* bound; fn. 2 concedes a raise. Don't frame a "never lower" result as a correction.
+  - **Smoothing.** Lin and Och (2004, C04-1072, §4) add one for n > 1 only; Chen and Cherry (2014, W14-3346, §2.2) call it
+    Smoothing 2, and Smoothing 3 (NIST) gives the k-th zero-match order a *count* of 1/2^k.
+  - **chrF.** Popović (2015, W15-3049) proposed β = 3 as preliminary; β = 2 (sacreBLEU's default) is Popović (2016,
+    W16-2341, §3). BERTScore (Zhang et al. 2020) and TextRank number no equations: cite sections.
+  - **MBR.** Kumar and Byrne (2004, N04-1022) Eq. (3), 0/1 loss gives MAP (Eqs. 5–6), loss 1 − unsmoothed sentence
+    BLEU. Eikema and Aziz (2020, COLING, §7.4 Eq. 1) use METEOR, and fn. 9 rejects smoothed BLEU. Reiter (2018,
+    CL 44 (3): 393–401): BLEU is supported only for system-level MT diagnostics.
 - Write excess losses near an optimum in `expm1`/`log1p` form: computed term by term, the Poisson
   excess at x = 250 gives −5·10⁻¹² where the exact value is 0.
 - `jupyter execute` the `.ipynb` in place from the repo root (it writes no outputs); a copy elsewhere
@@ -677,6 +712,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   formalML `random-walks` has PageRank only as a remark (Perron–Frobenius cited, no rate proved); formalStatistics
   `likelihood-ratio-tests-and-np` proves scalar Wilks (Thm 4) and only states the vector case (Rem 13),
   `hypothesis-testing` Def 12 states Pearson's limit, and Fisher's test is only `discrete-distributions` Example 6.
+  No sibling covers BLEU, ROUGE, chrF, BERTScore, LCS, MBR decoding, or metric–judgment correlation (2026-10-27); cite
+  formalRAG `rank-fusion-rrf` Def 2 (Kendall distance), formalStatistics `expectation-moments` Thm 13 and Example 7
+  (Jensen, AM–GM), and formalCalculus `probability-and-union-bound` Thm 8 (uniform Hoeffding).
   The design's watch-list is not complete: grep each sibling's `main` for the topic's key terms (`git grep -l -i`
   over `src/content/topics`). Topic 16 found formalML `uncertainty-quantification` already covering
   binary calibration, ECE, strict properness, Murphy's decomposition, and temperature scaling, so the
