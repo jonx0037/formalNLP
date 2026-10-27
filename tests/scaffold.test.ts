@@ -24,6 +24,6 @@ test('no copied source references pipelineStage, modality, or the architectures 
   assert.deepEqual(execGrep(/pipelineStage|modality|PipelineDiagram|architectures/, 'src'), []);
 });
 
-test('astro site points at formalnlp.com', () => {
-  assert.match(readFileSync('astro.config.mjs', 'utf8'), /site: 'https:\/\/formalnlp\.com'/);
+test('astro site points at www.formalnlp.com', () => {
+  assert.match(readFileSync('astro.config.mjs', 'utf8'), /site: 'https:\/\/www\.formalnlp\.com'/);
 });

@@ -126,7 +126,7 @@ references:
     authors: "Ali Rahimi and Benjamin Recht"
     year: 2007
     url: "https://papers.nips.cc/paper_files/paper/2007/hash/013a006f03dbc5392effeb8f18fda755-Abstract.html"
-    note: "NeurIPS 20. A stationary kernel as an average of sinusoids at random frequencies, Theorem 1 (i)'s reading"
+    note: "NeurIPS 20. A stationary kernel as an average of sinusoids at random frequencies, the reading of Theorem 1 (i)"
 formalmlPrereqs:
   - topic: "gaussian-processes"
     site: "formalml"
@@ -209,7 +209,7 @@ The attention topic's Proposition 3 says bidirectional attention is permutation-
 
 <TheoremBlock type="proof">
 
-For (i), equal scores make the weights uniform over the $t + 1$ positions $0, \dots, t$, and only position $0$'s value is nonzero. For (ii), the attention topic's Proposition 3 (ii) gives the dependence on the multiset, and the number of its elements is a function of it.
+For (i), equal scores make the weights uniform over the $t + 1$ positions $0, \dots, t$, and only the value at position $0$ is nonzero. For (ii), the attention topic's Proposition 3 (ii) gives the dependence on the multiset, and the number of its elements is a function of it.
 
 </TheoremBlock>
 
@@ -415,7 +415,7 @@ $$
 s(\Delta) = \sum_j \rho_j \cos(\Delta\theta_j + \varphi_j),
 $$
 
-with amplitudes $\rho_j = \lVert q_j \rVert\, \lVert k_j \rVert$ and phases $\varphi_j$ the angle from $q$'s component in plane $j$ to $k$'s.
+with amplitudes $\rho_j = \lVert q_j \rVert\, \lVert k_j \rVert$ and phases $\varphi_j$ the angle from the component of $q$ in plane $j$ to that of $k$.
 
 </TheoremBlock>
 
@@ -511,7 +511,7 @@ To read a head trained at length $L$ on length $L' = \kappa L$:
 
 <TheoremBlock type="theorem" number={5} title="Wavelength census and rescalings">
 
-Let $\lambda_j = 2\pi/\theta_j$ be plane $j$'s wavelength.
+Let $\lambda_j = 2\pi/\theta_j$ be the wavelength of plane $j$.
 
 **(i)** Over the training offsets $0, \dots, L - 1$, plane $j$ turns through a whole circle exactly when $(L - 1)\theta_j \ge 2\pi$. Any other plane sees only the arc $[0, (L - 1)\theta_j]$, and past $L$ it produces angles the head never saw.
 

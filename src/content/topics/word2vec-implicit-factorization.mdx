@@ -494,7 +494,7 @@ The distributional-semantics topic built a benchmark with a known answer: $227$ 
 
 On the test nouns, negative sampling trails the SVD by $0.087$ in AUC, with a jackknife standard error of $0.017$, and by $0.113$ in nearest-neighbor accuracy, with a paired standard error of $0.034$. Averaging word and context vectors changes nothing here ($0.886$ either way). The $396$ rarer sector nouns, seen two to four times and never used for any choice, give the same verdict: AUC $0.652$ for negative sampling against $0.728$ for the SVD, and nearest-neighbor accuracy $0.593$ against $0.657$.
 
-Corollary 1 predicts the direction. On the benchmark nouns' rows, pairs seen at most four times are $92.3\%$ of the observed pairs, and they carry $98.7\%$ of $\operatorname{SPPMI}_5$'s squared mass, which the SVD fits with equal weight. They carry only $54.8\%$ of negative sampling's weight $ab/(a + b)$. A noun's sector shows mostly in rare pairs with other sector words, and negative sampling, by design, trusts rare pairs less. Training longer helps: the same model after $20$ epochs scores $0.859$.
+Corollary 1 predicts the direction. On the benchmark nouns' rows, pairs seen at most four times are $92.3\%$ of the observed pairs, and they carry $98.7\%$ of the squared mass of $\operatorname{SPPMI}_5$, which the SVD fits with equal weight. They carry only $54.8\%$ of negative sampling's weight $ab/(a + b)$. A noun's sector shows mostly in rare pairs with other sector words, and negative sampling, by design, trusts rare pairs less. Training longer helps: the same model after $20$ epochs scores $0.859$.
 
 A small grid gives negative sampling its own choice of window and dimension, selected on dev nouns by the same rule as before, with $20$ epochs each.
 

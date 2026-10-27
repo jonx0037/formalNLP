@@ -267,6 +267,7 @@ export default function CurriculumGraph({ nodes, edges }: CurriculumGraphProps) 
     (d) => d !== 'formalcalculus' && d !== 'formalstatistics'
   );
   const hasExternal = nodes.some((n) => n.external);
+  const hasPlanned = nodes.some((n) => !n.external && n.status !== 'published');
 
   return (
     <div ref={containerRef} className="relative">
@@ -312,13 +313,15 @@ export default function CurriculumGraph({ nodes, edges }: CurriculumGraphProps) 
             />
             Published
           </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full border border-current"
-              style={{ background: 'transparent' }}
-            />
-            Planned
-          </span>
+          {hasPlanned && (
+            <span className="flex items-center gap-1.5">
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full border border-current"
+                style={{ background: 'transparent' }}
+              />
+              Planned
+            </span>
+          )}
           {hasExternal && (
             <span className="flex items-center gap-1.5">
               <span
