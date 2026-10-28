@@ -15,7 +15,7 @@ tags:
   - "morphology"
 domain: "text-as-data"
 financeCaseStudy: true
-rigorFlag: "BPE is a greedy heuristic for an objective — token count, itself only a proxy for what a model needs — whose optimum is NP-hard and APX-complete to approximate; its 1/3 approximation guarantee and the hardness results are cited, not proved, and checked only on tiny strings. WordPiece is described differently across papers and implementations; the criterion here is the exact unigram likelihood gain. The Unigram LM's EM only guarantees that the likelihood never decreases, not a global optimum, and its vocabulary pruning is SentencePiece's heuristic loss. The two-part code's optimum depends on the lexicon code we chose. Nothing here shows that any tokenizer improves a downstream model; and compression is not morphology — on a corpus with planted morphemes, the tokenizer that compresses best is not always the one whose boundaries are right."
+rigorFlag: "BPE is a greedy heuristic for an objective — token count, itself only a proxy for what a model needs — whose optimum is NP-hard and APX-complete to approximate; its 1/3 approximation guarantee and the hardness results are cited, not proved, and only the 1/3 guarantee is checked, on tiny strings. WordPiece is described differently across papers and implementations; the criterion here is the exact unigram likelihood gain. The Unigram LM's EM only guarantees that the likelihood never decreases, not a global optimum, and its vocabulary pruning is SentencePiece's heuristic loss. The two-part code's optimum depends on the lexicon code we chose. Nothing here shows that any tokenizer improves a downstream model; and compression is not morphology — on a corpus with planted morphemes, the tokenizer that compresses best is not always the one whose boundaries are right."
 videoId: null
 notebookPath: "notebooks/subword-tokenization-bpe-unigram/01_subword_tokenization_bpe_unigram.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/subword-tokenization-bpe-unigram.mdx"
@@ -255,7 +255,7 @@ BPE is greedy: it never revisits a merge. Is the most frequent pair always the b
 
 </TheoremBlock>
 
-We do not prove these results here; their proofs are reductions and submodularity arguments well outside this topic. What we can do is exhibit the failure. Exhaustive search over all strings of length at most nine on alphabets of size at most three finds the smallest string on which *every* greedy run — however ties are broken — loses:
+We do not prove these results here; their proofs are reductions and submodularity arguments well outside this topic. What we can do is exhibit the failure. Exhaustive search over all strings of length at most nine on alphabets of size at most three finds the shortest strings on which *every* greedy run — however ties are broken — loses. They have nine letters, and up to renaming the letters there are two, $\texttt{aaaabaaab}$ and $\texttt{aaabaaaab}$; here is the first:
 
 <TheoremBlock type="example" number={1} title="aaaabaaab with three merges">
 
@@ -304,7 +304,7 @@ Now $g(0) = 0$, $g'(x) = -\log(1 - x) \ge 0$, and $g''(x) = 1/(1 - x)$, so $0 \l
 
 </TheoremBlock>
 
-The leading term reads $m\,\bigl[\mathrm{PMI}(a, b) - 1\bigr]$, where $\mathrm{PMI}(a, b) = \log \frac{c_{ab} N}{c_a c_b}$ is the pointwise mutual information of the pair and $c_{ab} = m$. BPE ranks by $m$ alone; WordPiece weights $m$ by how much more often $a$ and $b$ occur together than independence would predict. It prefers **cohesive** pairs, whose parts rarely occur apart. On the finance corpus the two agree on *in* and *an*, then split at the third merge: BPE takes $(e, r)$, with count $7{,}663$; WordPiece takes $(an, d)$, with a gain of $7{,}355.4$ nats, because *an* is followed by *d* far more often than chance. The harness checks the exact formula against a recount for the first $40$ WordPiece merges and the remainder bound on $2{,}000$ random instances.
+The leading term reads $m\,\bigl[\mathrm{PMI}(a, b) - 1\bigr]$, where $\mathrm{PMI}(a, b) = \log \frac{c_{ab} N}{c_a c_b}$ is the pointwise mutual information of the pair and $c_{ab} = m$. BPE ranks by $m$ alone; WordPiece weights $m$ by how much more often $a$ and $b$ occur together than independence would predict. It prefers **cohesive** pairs, whose parts occur together far more often than chance. On the finance corpus the two agree on *in* and *an*, then split at the third merge: BPE takes $(e, r)$, with count $7{,}663$; WordPiece takes $(an, d)$, with a gain of $7{,}355.4$ nats, because *an* is followed by *d* far more often than chance. The harness checks the exact formula against a recount for the first $40$ WordPiece merges and the remainder bound on $2{,}000$ random instances.
 
 The tokenizers also differ in how they *encode*. BPE replays its merges. WordPiece's encoder, MaxMatch, repeatedly takes the longest vocabulary piece that starts the remaining text. The Unigram LM of the next section takes the most probable segmentation. Given the same vocabulary these are three different functions: with WordPiece's $200$-piece vocabulary, *acquisition* comes out as `a c qu i s it ion` under MaxMatch but `a c qu i s i tion` under replay.
 
@@ -391,7 +391,7 @@ with equality when $p' = p$, because then the ratio inside is the constant $P_p(
 
 </TheoremBlock>
 
-EM climbs; it does not promise the top. The vocabulary itself is chosen by a heuristic. Starting from the $26$ letters and the $2{,}000$ most frequent substrings (scored by count times length), training alternates two EM steps with **pruning**: drop the quarter of the non-letter pieces whose removal costs the least likelihood, estimated by SentencePiece's rule of reassigning each piece's Viterbi frequency to its best alternative spelling (Kudo and Richardson 2018). Letters are never pruned, so Proposition 1 always applies. We stop at $|V| \in \{800, 400, 200, 100, 50\}$. Our M-step is the plain maximum-likelihood update of Theorem 3; SentencePiece itself uses a smoothed variant. As a check that our decoder is the standard one, we train SentencePiece on the same text and feed its piece scores to our Viterbi: it reproduces SentencePiece's own spelling of every held-out word.
+EM climbs; it does not promise the top. The vocabulary itself is chosen by a heuristic. Starting from the $26$ letters and the $2{,}000$ most frequent substrings (scored by count times length), training alternates two EM steps with **pruning**: drop the non-letter pieces whose removal costs the least likelihood, estimated by SentencePiece's rule of reassigning each piece's Viterbi frequency to its best alternative spelling (Kudo and Richardson 2018). Each round drops a quarter of the current vocabulary's size, letters included in the count, or fewer if that would overshoot the next target size. Letters are never pruned, so Proposition 1 always applies. We stop at $|V| \in \{800, 400, 200, 100, 50\}$. Our M-step is the plain maximum-likelihood update of Theorem 3; SentencePiece itself uses a smoothed variant. As a check that our decoder is the standard one, we train SentencePiece on the same text and feed its piece scores to our Viterbi: it reproduces SentencePiece's own spelling of every held-out word.
 
 ---
 
@@ -443,9 +443,9 @@ The open vocabulary of the previous topic is now closed in the useful sense. Of 
 
 <FinanceCaseStudy title="Finance case study: a morphology we planted">
 
-The shared finance corpus invents its rare content words. Each one is built by the generator from English-like morphemes: a prefix and a root, optionally a plural *s* (*co·levy·s*, *non·royalty·s*), or an optional prefix, a root, and a suffix (*cross·fleet*, *supplier·ers*), with the usual dropped *e* (*lease* + *ing* → *leasing*). So the right segmentation of these words is known. We rebuild the training corpus with the generator's inventions recorded — $2{,}830$ of its $3{,}425$ word types, in a rebuild that is token-for-token identical to the published corpus — and parse each invented word back into its morphemes. Every parse turns out to be unique, and all $79$ unseen held-out words parse too.
+The shared finance corpus invents its rare content words. Each one is built by the generator from English-like morphemes: a prefix and a root, optionally a plural *s* (*co·levy·s*, *non·royalty·s*, *cross·fleet*), or an optional prefix, a root, and a suffix (*supplier·ers*), with the usual dropped *e* (*lease* + *ing* → *leasing*). So the right segmentation of these words is known. We rebuild the training corpus with the generator's inventions recorded — $2{,}830$ of its $3{,}425$ word types, in a rebuild that is token-for-token identical to the published corpus — and parse each invented word back into its morphemes. Every parse turns out to be unique, and all $79$ unseen held-out words parse too.
 
-We score each tokenizer by **boundary F1**: a predicted piece boundary is correct if the generator joined two morphemes there. Recall is the share of planted boundaries the tokenizer splits at; precision is the share of its splits that are planted.
+We score each tokenizer by **boundary F1**: a predicted piece boundary is correct if the generator joined two morphemes there. Recall is the share of planted boundaries the tokenizer splits at; precision is the share of its splits that are planted. BPE and WordPiece both encode by rank replay of their merges (Definition 2), and the Unigram LM by Viterbi. For WordPiece this is not its usual MaxMatch encoder, so its row scores WordPiece's vocabulary under BPE's encoder.
 
 | boundary F1, training words | $\lvert V\rvert = 50$ | $100$ | $200$ | $400$ | $800$ |
 |---|---|---|---|---|---|
@@ -455,11 +455,11 @@ We score each tokenizer by **boundary F1**: a predicted piece boundary is correc
 
 The story has three beats.
 
-**1. Small vocabularies find no morphology.** With pieces close to letters, almost every planted boundary is split (recall near $1$), but so is almost everything else: precision is $0.17$ to $0.23$.
+**1. Small vocabularies find no morphology.** With pieces close to letters, almost every planted boundary is split (recall above $0.9$), but so is almost everything else: precision is $0.16$ to $0.23$.
 
 **2. At $|V| = 200$ to $400$ the Unigram LM pulls away** — by $0.17$ and $0.27$ in F1 on training words, and by $0.24$ and $0.29$ on the unseen held-out words. Part of that is compression: at the same $|V|$ the Unigram LM spells a held-out word in fewer pieces ($1.847$ against BPE's $2.257$ at $|V| = 400$), and fewer splits mean higher precision. But it is not only compression. Interpolating BPE's F1 to the Unigram LM's tokens per word gives about $0.47$ against $0.582$ at $|V| = 200$, and about $0.64$ against $0.780$ at $|V| = 400$. At $|V| = 400$ the Unigram LM's precision is $0.658$ against BPE's $0.375$. This reproduces, on a corpus where the answer is known, Bostrom and Durrett's (2020) finding that Unigram LM pieces align better with morphology than BPE's.
 
-**3. By $|V| = 800$ the gap closes** — all three tokenizers lie within $0.08$ of one another, and WordPiece scores highest. Once the vocabulary holds most of the roots, compression and morphology agree.
+**3. By $|V| = 800$ the gap closes** — all three tokenizers lie within $0.08$ of one another, and WordPiece scores highest. That band holds for the replay encoding: under MaxMatch, WordPiece would score higher still and fall outside it. Once the vocabulary holds most of the roots, compression and morphology agree.
 
 Panel A of the laboratory shows the difference directly. At $|V| = 400$ BPE spells the unseen *nonroyaltys* as *non · ro · yalty · s* and *supplierers* as *sup · p · li · er · ers*; the Unigram LM gives *non · royalty · s* and *supplier · ers*, the planted morphemes exactly. Boundary F1 on unseen words tracks F1 on training words at every size: the pieces learned from the training corpus carry over to words it never contained.
 
@@ -481,7 +481,7 @@ The lesson for real filings is the one in the caveats below. Compression is what
 
 <RigorFlag>
 
-1. **BPE optimizes a proxy, greedily.** Token count is not what a language model needs, and even for token count, the optimal merge sequence is NP-hard to find and APX-complete to approximate. The $1/3$ guarantee and the hardness results (Theorem 1) are cited, not proved, and checked here only on short strings.
+1. **BPE optimizes a proxy, greedily.** Token count is not what a language model needs, and even for token count, the optimal merge sequence is NP-hard to find and APX-complete to approximate. The $1/3$ guarantee and the hardness results (Theorem 1) are cited, not proved. Only the $1/3$ guarantee is checked here, and only on short strings; hardness cannot be checked by running examples.
 2. **"WordPiece" names several criteria.** Papers and implementations describe its merge score differently; the criterion on this page is the exact unigram likelihood gain of Proposition 5.
 3. **EM climbs, pruning guesses.** Theorem 3 guarantees that the Unigram LM's likelihood never decreases, not that it reaches a global optimum, and the vocabulary pruning step is SentencePiece's heuristic loss.
 4. **The vocabulary-size optimum depends on the code.** The two-part code's minimum moves with how the lexicon is described.
