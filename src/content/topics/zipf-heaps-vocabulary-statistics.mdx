@@ -156,7 +156,7 @@ import VocabularyLawsLab from '../../components/viz/VocabularyLawsLab.tsx';
 
 Count the words in any body of text and two shapes appear. Sort the word types from most to least frequent and plot each type's count against its rank on log–log axes: the points fall near a straight line of negative slope. That is **Zipf's law**, $f(r) \propto r^{-s}$. Now read the same text from the beginning and track how many distinct types we have seen after $n$ tokens: on log–log axes this growth curve is also nearly straight, with slope below one. That is **Heaps' law**, $V(n) \propto n^{\beta}$.
 
-The site's shared finance corpus — 300 synthetic earnings calls, MD&A sections, and 8-K filings — is a good place to look. It has $63{,}182$ tokens and $3{,}425$ types, and $54.8\%$ of those types occur exactly once. Its ten most frequent words are *and, in, the, of, for, percent, to, as, a, was*: a handful of function words carries most of the text, while most of the vocabulary is rare. The table below samples the curve at log-spaced ranks.
+The site's shared finance corpus — 300 synthetic earnings calls, MD&A sections, and 8-K filings — is a good place to look. It has $63{,}182$ tokens and $3{,}425$ types, and $54.8\%$ of those types occur exactly once. Its ten most frequent words are *and, in, the, of, for, percent, to, as, a, was*: a handful of function words carries a large share of the text ($23.8\%$ of tokens; the top hundred words carry $56.3\%$), while most of the vocabulary is rare. The table below samples the curve at log-spaced ranks.
 
 | rank $r$ | 1 | 4 | 19 | 84 | 372 | 779 | 1634 | 3425 |
 |---|---|---|---|---|---|---|---|---|
@@ -165,7 +165,7 @@ The site's shared finance corpus — 300 synthetic earnings calls, MD&A sections
 These two laws are the first fact about text as data, and almost everything later on this site leans on them. A vocabulary that keeps growing is why subword tokenizers exist; the mass of once-seen words is why language models need smoothing; the heavy head is why stopword lists and IDF weighting work. This topic makes the two laws precise and asks three questions about them:
 
 1. **Are they the same law?** Yes, in a precise sense. The rank–frequency curve is the tail of the type-count distribution turned on its side, and under i.i.d. sampling a Zipf exponent $s$ forces a Heaps exponent $\beta = 1/s$ (Karlin's theorem).
-2. **Where could they come from?** Two answers: Zipf is the maximum-entropy law at a fixed mean log-rank, and the Pitman–Yor process generates both laws from a single discount parameter $d$. That process is exactly how the finance corpus was built.
+2. **Where could they come from?** Two answers: Zipf is the maximum-entropy law at a fixed mean log-rank, and the Pitman–Yor process generates both laws from a single discount parameter $d$. That process is exactly how the finance corpus generates its content words.
 3. **How do we measure them?** Not by drawing a line through a log–log plot. We show how badly that goes, develop the maximum-likelihood alternative, and test both on a corpus where we know the right answer.
 
 Before any algebra, try the laboratory. In panel A, pick different windows of ranks and watch the fitted slope of the same corpus swing from $-0.554$ to $-1.807$. In panel B, turn the Pitman–Yor discount and watch one knob move both exponents.
@@ -246,7 +246,7 @@ $\zeta(s) \lt \infty$ if and only if $s > 1$. At $s = 1$ the partial sums satisf
 
 <TheoremBlock type="proof">
 
-For $s > 0$ the terms $x^{-s}$ are positive and decreasing, so by the integral test (see [Series Convergence](https://www.formalcalculus.com/topics/series-convergence)) the partial sum $\sum_{r=1}^{R} r^{-s}$ lies within $1$ of $\int_1^R x^{-s}\,dx$. That integral stays bounded as $R \to \infty$ exactly when $s > 1$. For $s \le 0$ the terms do not tend to zero, so the series diverges. At $s = 1$, $\int_1^R dx/x = \log R$, and the gap between the sum and the integral increases to the constant $\gamma$, with remainder $O(1/R)$.
+For $s > 0$ the terms $x^{-s}$ are positive and decreasing, so by the integral test (see [Series Convergence](https://www.formalcalculus.com/topics/series-convergence)) the partial sum $\sum_{r=1}^{R} r^{-s}$ lies within $1$ of $\int_1^R x^{-s}\,dx$. That integral stays bounded as $R \to \infty$ exactly when $s > 1$. For $s \le 0$ the terms do not tend to zero, so the series diverges. At $s = 1$, $\int_1^R dx/x = \log R$, and the gap between the sum and the integral decreases to the constant $\gamma$, with remainder $O(1/R)$.
 
 </TheoremBlock>
 

@@ -9,7 +9,7 @@ from ``viz_payload``. The sections follow the page:
 4. Pitman–Yor plants both laws: E[K_n] + θ/d = (θ/d)·Γ(θ+n+d)Γ(θ)/(Γ(θ+d)Γ(θ+n)) ~ c·n^d.
 5. Estimating the exponent: discrete power-law MLE (Hurwitz zeta) versus log–log OLS.
 6. Finance case study: the shared corpus plants d = HEAPS_DISCOUNT, a known answer — which the generic
-   asymptotic estimators miss at corpus scale and Theorem 2's exact offset recovers.
+   asymptotic estimators miss at corpus scale and Theorem 3's exact offset recovers.
 
 Run (executes the verification harness):
     uv run --with numpy==2.5.4 --with scipy==1.18.1 python notebooks/zipf-heaps-vocabulary-statistics/zipf_heaps_vocabulary_statistics.py
@@ -196,7 +196,7 @@ def sibuya_pmf(m: np.ndarray | int, d: float) -> np.ndarray:
 
 
 def heaps_slope_shifted(growth: np.ndarray, d: float, theta: float, start: int = 1000, k: int = 25) -> float:
-    """Theorem 2 as an estimator: slope of log(K_n + θ/d) on log(n + θ), which is d up to O(1/n)."""
+    """Theorem 3 as an estimator: slope of log(K_n + θ/d) on log(n + θ), which is d up to O(1/n)."""
     ns = log_spaced_ranks(len(growth), k, min_rank=start)
     return ols_loglog_slope(ns + theta, growth[ns - 1] + theta / d)
 
@@ -270,7 +270,7 @@ def select_xmin(counts: np.ndarray, candidates=range(1, 31), min_tail: int = 50)
 
 
 def zipf_exponent_from_alpha(alpha: float) -> float:
-    """Proposition 1: spectrum tail exponent α ⇔ rank–frequency exponent s = 1/(α − 1)."""
+    """Corollary 1: spectrum tail exponent α ⇔ rank–frequency exponent s = 1/(α − 1)."""
     return 1.0 / (alpha - 1.0)
 
 
@@ -325,7 +325,7 @@ def finance_summary() -> dict[str, float]:
         "hapax_share_content": float(np.mean(f_content == 1)),
         "heaps_content_naive": heaps_slope(types_seen(content)),
         "alpha_content_min": min(alphas), "alpha_content_max": max(alphas),
-        # The largest restaurant, with Theorem 2's exact offset as the estimator.
+        # The largest restaurant, with Theorem 3's exact offset as the estimator.
         "N_common": len(common), "V_common": len(set(common)),
         "heaps_common_naive": heaps_slope(types_seen(common)),
         "heaps_common_shifted": heaps_slope_shifted(types_seen(common), d, theta),
@@ -648,7 +648,7 @@ def test_templates_saturate_full_text_growth():
 
 def test_generic_estimators_miss_the_planted_truth():
     """Even on the pure content stream, the asymptotic estimators miss d = 0.6 at corpus scale: the naive
-    Heaps slope overshoots (Theorem 2's −θ/d offset), and the power-law MLE's α̂ drifts with xmin far from
+    Heaps slope overshoots (Theorem 3's −θ/d offset), and the power-law MLE's α̂ drifts with xmin far from
     1 + d (the Sibuya spectrum is a power law only for counts ≫ 1, which a 12k-draw stream barely has)."""
     s, d = finance_summary(), fc.HEAPS_DISCOUNT
     assert s["heaps_content_naive"] > d + 0.05, s["heaps_content_naive"]
@@ -656,7 +656,7 @@ def test_generic_estimators_miss_the_planted_truth():
     assert s["alpha_content_min"] > 1 + d + 0.25, s["alpha_content_min"]
 
 
-def test_theorem_two_recovers_the_planted_discount():
+def test_theorem_three_recovers_the_planted_discount():
     """On the largest restaurant, the offset-corrected fit log(K + θ/d) ~ d·log(n + θ) recovers d, and K
     sits near the exact E[K_n]. (θ = PY_STRENGTH is known here; d enters only through the θ/d shift.)"""
     s, d = finance_summary(), fc.HEAPS_DISCOUNT
