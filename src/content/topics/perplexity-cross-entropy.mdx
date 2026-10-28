@@ -22,7 +22,7 @@ notebookPath: "notebooks/perplexity-cross-entropy/01_perplexity_cross_entropy.ip
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/perplexity-cross-entropy.mdx"
 datePublished: 2026-10-23
 estimatedReadTime: 40
-abstract: "Perplexity is usually read as a score. This topic reads it three more ways and proves each reading. As a forecast, held-out log-loss is a cross-entropy, and the logarithm is the score that rewards reporting one's true belief. As a branching factor, perplexity counts equally likely choices — exactly so by the asymptotic equipartition property, which we prove with the typical set's size. As a file size, an arithmetic coder turns any sequential model into a code within two bits of the model's negative log-probability: we prove McMillan's inequality, price coding with the wrong model at its KL divergence, and run an exact big-integer arithmetic coder on the whole held-out finance corpus, which becomes one codeword of 98,345 bits, 0.69 bits above the model's own figure. The file-size reading settles which unit makes models comparable. A string's total log-probability does not depend on how it is tokenized, so bits per character is comparable across tokenizers and per-token perplexity is not: a character 7-gram's perplexity of 1.67 looks ten times better than a word trigram's 17.38 and codes worse. Mapping words to an unknown-word symbol can only lower the reported loss. On public EDGAR filings, Kneser–Ney does worse than a uniform guess, most of its honest code is spelling, and lzma beats every model on the page."
+abstract: "Perplexity is usually read as a score. This topic reads it three more ways and proves each reading. As a forecast, held-out log-loss is a cross-entropy, and the logarithm is the score that rewards reporting one's true belief. As a branching factor, perplexity counts equally likely choices — exactly so by the asymptotic equipartition property, which we prove with the typical set's size. As a file size, an arithmetic coder turns any sequential model into a code within two bits of the model's negative log-probability: we prove McMillan's inequality, price coding with the wrong model at its KL divergence, and run an exact big-integer arithmetic coder on the whole held-out finance corpus, which becomes one codeword of 98,345 bits, 0.69 bits above the model's own figure. The file-size reading settles which unit makes models comparable. A string's total log-probability does not depend on how it is tokenized, so bits per character is comparable across tokenizers and per-token perplexity is not: a character 7-gram's perplexity of 1.665 looks more than ten times better than a word trigram's 19.23 and codes worse. Mapping words to an unknown-word symbol can only lower the reported loss. On public EDGAR filings, Kneser–Ney does worse than a uniform guess, most of its honest code is spelling, and lzma beats every model on the page."
 connections: []
 references:
   - type: "paper"
@@ -164,7 +164,7 @@ import PerplexityCompressionLab from '../../components/viz/PerplexityCompression
 
 ## Overview & Motivation
 
-Two language models score the same held-out finance text. One reports a perplexity of $1.665$, the other $17.38$. Which is better? As posed, the question has no answer. The first model is a character $7$-gram, so its perplexity is per character. The second is a word trigram, so its perplexity is per word. Put both on one unit and the order flips: the word model spends $0.637$ bits per character, and the character model $0.735$.
+Two language models score the same held-out finance text. One reports a perplexity of $1.665$, the other $19.23$. Which is better? As posed, the question has no answer. The first model is a character $7$-gram, so its perplexity is per character. The second is a word trigram, so its perplexity is per word. Put both on one unit and the order flips: the word model spends $0.637$ bits per character, and the character model $0.735$.
 
 This topic makes that comparison precise by reading a language model three ways, and proving each reading.
 
@@ -200,7 +200,7 @@ $H(p, q) = H(p) + \mathrm{KL}(p \,\|\, q) \ge H(p)$, with equality if and only i
 
 </TheoremBlock>
 
-This is Proposition 1 of formalML's [KL divergence](https://www.formalml.com/topics/kl-divergence): expand $\log q = \log p - \log(p/q)$ and apply Gibbs' inequality. We use it as a tool, three times on this page.
+This is Proposition 1 of formalML's [KL divergence](https://www.formalml.com/topics/kl-divergence): expand $\log q = \log p - \log(p/q)$ and apply Gibbs' inequality. We use it as a tool, four times on this page: in Corollary 1, Proposition 2(3), Corollary 2, and Proposition 3.
 
 <TheoremBlock type="corollary" number={1} title="The log score is strictly proper">
 
@@ -214,7 +214,7 @@ $\mathbb{E}_p[-\log q(X)] = H(p, q) = H(p) + \mathrm{KL}(p \,\|\, q)$. Only the 
 
 </TheoremBlock>
 
-A forecaster scored by log-loss does best, on average, by reporting its true belief. That is the property **strictly proper** names (Gneiting and Raftery 2007), and it is why training a language model by cross-entropy is maximum likelihood, the reading the n-gram topic proved for relative frequencies. Not every score has it. Under the linear score $\mathbb{E}_p[q(X)]$, putting all mass on the most likely outcome beats reporting $p$ itself. For more than two outcomes, the logarithm is the only proper score that depends on the forecast only through the probability given to what happened (Bernardo 1979).
+A forecaster scored by log-loss does best, on average, by reporting its true belief. That is the property **strictly proper** names (Gneiting and Raftery 2007). Training a language model by minimizing empirical cross-entropy is maximum likelihood, the reading the n-gram topic proved for relative frequencies, and strict propriety is why maximum likelihood rewards a model for reporting its true beliefs. Not every score has it. Under the linear score $\mathbb{E}_p[q(X)]$, putting all mass on the most likely outcome does at least as well as reporting $p$ itself, and strictly better unless $p$ is uniform on its support. For more than two outcomes, the logarithm is the only proper score that depends on the forecast only through the probability given to what happened (Bernardo 1979).
 
 <TheoremBlock type="proposition" number={2} title="What a perplexity is">
 
@@ -237,7 +237,7 @@ On the held-out text, interpolated Kneser–Ney's $2.8551$ nats per token is a p
 
 ## Perplexity as a branching factor
 
-Roll a three-sided die weighted $0.6$, $0.3$, and $0.1$ three hundred times. There are $3^{300}$ possible sequences, but the die does not visit them evenly. Almost all of its probability falls on a set that holds a fraction $4.8 \times 10^{-17}$ of the sequences, each of about the same probability. That set behaves like a uniform choice among $e^{H} = 2.455$ faces per roll, rather than three. This is the precise sense in which perplexity is a branching factor.
+Roll a three-sided die weighted $0.6$, $0.3$, and $0.1$ three hundred times. There are $3^{300}$ possible sequences, but the die does not visit them evenly. Almost all of its probability falls on a set that holds a fraction $4.8 \times 10^{-17}$ of the sequences. Each sequence in that set has a probability whose geometric mean per roll is close to $e^{-H}$, so each is about as probable as a run of uniform choices among $e^{H} = 2.455$ faces per roll, rather than three. This is the precise sense in which perplexity is a branching factor.
 
 <TheoremBlock type="theorem" number={1} title="The asymptotic equipartition property">
 
@@ -267,7 +267,7 @@ $-\log p(X_1 \dots X_n) = \sum_i -\log p(X_i)$ is a sum of $n$ independent terms
 
 </TheoremBlock>
 
-So almost all the probability sits on between $e^{n(H - \varepsilon)}$ and $e^{n(H + \varepsilon)}$ sequences of nearly equal probability. Generating the text is then like choosing uniformly among $e^{H}$ options per symbol. A model that scores $-\frac1n \log q \approx H(p, q)$ assigns each typical sequence about the probability a uniform guesser among $e^{H(p, q)}$ options would. Its perplexity is that number of options.
+So almost all the probability sits on the typical set, and every member of it has probability within a factor $e^{\pm n\varepsilon}$ of $e^{-nH}$: per symbol, each typical sequence is about as probable as a uniform choice among $e^{H}$ options. That is a statement about each sequence's probability, not the set's size. With $\varepsilon$ fixed, the theorem pins $\lvert A \rvert$ only between $P(A)\, e^{n(H - \varepsilon)}$ and $e^{n(H + \varepsilon)}$, and the table below shows it sitting well above $e^{nH}$. Likewise, by the theorem's last statement, a text drawn from $p$ has $-\frac1n \log q \approx H(p, q)$ with high probability, so the model assigns it about the probability a uniform guesser among $e^{H(p, q)}$ options per symbol would. Its perplexity is that number of options.
 
 For the die, $H = 0.8979$ nats. Counting type classes exactly with $\varepsilon = 0.1$:
 
@@ -278,7 +278,7 @@ For the die, $H = 0.8979$ nats. Counting type classes exactly with $\varepsilon 
 | $300$ | $0.9979$ | $0.895$ | $0.9733$ |
 | $1{,}000$ | $1.0000$ | $0.968$ | $0.9797$ |
 
-The probability of the typical set climbs to one, and the growth rate of its size stays within $\varepsilon$ of $H$, as the theorem says. At $n = 300$ the set has $e^{292.0}$ members out of $3^{300} \approx e^{329.6}$. Formal statements of this kind are often quoted as "about $e^{nH}$ sequences." The table shows what "about" means: within $e^{\pm n\varepsilon}$, with $\varepsilon$ fixed while $n$ grows.
+The probability of the typical set climbs to one, and the growth rate of its size stays within $\varepsilon$ of $H$, as the theorem says. At $n = 300$ the set has $e^{292.0}$ members out of $3^{300} \approx e^{329.6}$, against $e^{nH} = e^{269.4}$. Formal statements of this kind are often quoted as "about $e^{nH}$ sequences." The table shows what "about" means: within $e^{\pm n\varepsilon}$, with $\varepsilon$ fixed while $n$ grows.
 
 ---
 
@@ -317,7 +317,7 @@ By the strong law of large numbers (formalStatistics, [Law of Large Numbers](htt
 
 Two things follow. First, the held-out average estimates a ratio of means, not the mean of per-sentence averages, so long sentences count for more. Second, the independent unit is the sentence: tokens in one sentence share a history, so treating them as independent understates the error. On the corpus the sentence-level standard error is $1.41$ times the naive one.
 
-We checked the theorem where the answer is known exactly. For twenty random bigram sentence sources, absorbing-chain algebra gives $\mathbb{E}[Y_1]$ and $\mathbb{E}[N_1]$ in closed form. The held-out average of $20{,}000$ sampled sentences lands within four standard errors of $r$ every time, and in $400$ replications the interval $\hat r \pm 1.96\,\widehat{\mathrm{se}}$ covers $r$ at the nominal rate. On the held-out corpus:
+We checked the theorem where the answer is known exactly. For twenty random bigram sentence sources, absorbing-chain algebra gives $\mathbb{E}[Y_1]$ and $\mathbb{E}[N_1]$ in closed form. The held-out average of $20{,}000$ sampled sentences lands within four standard errors of $r$ every time. For one of those sources, $400$ replications of $300$ sentences each check the interval $\hat r \pm 1.96\,\widehat{\mathrm{se}}$: it covers $r$ $373$ times ($93.3\%$), within binomial noise of the nominal $95\%$. On the held-out corpus:
 
 - interpolated Kneser–Ney scores $2.8551 \pm 0.0320$ nats per token;
 - modified Kneser–Ney minus interpolated Kneser–Ney, paired sentence by sentence, is $-0.0143 \pm 0.0006$, twenty-four standard errors from zero, although the two models' own intervals overlap;
@@ -343,7 +343,7 @@ Apply Proposition 1 to the joint distributions of $n$ symbols: $\mathbb{E}[-\log
 
 </TheoremBlock>
 
-So any model's held-out cross-entropy estimates an upper bound on the entropy rate of the source. Brown et al. (1992) bounded English at $1.75$ bits per character this way. For our generator the best code below gives $0.637$ bits per character. That figure comes from one held-out text, so it estimates the bound rather than certifying it.
+So any model's held-out cross-entropy estimates an upper bound on the entropy rate of the source. Brown et al. (1992) bounded English at $1.75$ bits per character this way. For our generator the lowest figure on this page is modified Kneser–Ney's open-vocabulary code, at $0.634$ bits per character; the interpolated Kneser–Ney code run below gives $0.637$. That figure comes from one held-out text, so it estimates the bound rather than certifying it.
 
 ---
 
@@ -439,7 +439,7 @@ The **open-vocabulary** form of a word model codes a word in $V$ as one symbol. 
 
 </TheoremBlock>
 
-The speller can also spell words that are in $V$. That wastes a little code space, so the code is slightly **deficient**, but it never fails. Under interpolated Kneser–Ney, the entire held-out text — $24{,}768$ symbols, counting the letters of spelled words — becomes **one codeword of $98{,}345$ bits**. The model's own $-\log_2 Q$ is $98{,}344.31$, so the codeword is $0.69$ bits longer. Quantizing to integer frequencies costs less than $0.01$ bits in all, and decoding reproduces all $2{,}049$ sentences exactly. That is $0.6371$ bits per character. Coding each symbol separately with its Shannon code would take $114{,}900$ bits, $16.8\%$ more. The subword topic's reading of a unigram model as a code, $-\log_2 p(t)$ bits per piece, is now exact to within two bits for a whole file.
+The speller can also spell words that are in $V$. That wastes a little code space, so the code is slightly **deficient**, but it never fails. Under interpolated Kneser–Ney, the entire held-out text — $24{,}768$ symbols, counting the letters of spelled words — becomes **one codeword of $98{,}345$ bits**. The model's own $-\log_2 Q$ is $98{,}344.31$, so the codeword is $0.69$ bits longer. Quantizing to integer frequencies costs less than $0.01$ bits in all, and decoding reproduces all $2{,}049$ sentences exactly. That is $0.6371$ bits per character. As in Theorem 4(2), the decoder is told the number of symbols; sending the count $24{,}768$ as well would add about $15$ bits. Coding each symbol separately with its Shannon code would take $114{,}900$ bits, $16.8\%$ more. The subword topic's reading of a unigram model as a code, $-\log_2 p(t)$ bits per piece, is now exact to within two bits for a whole file.
 
 <TheoremBlock type="proposition" number={4} title="A compressor is a model">
 
@@ -460,9 +460,9 @@ So compressors and language models can be ranked on one scale, bits per characte
 | zlib, level 9 | $1.4763$ | $1.3763$ | $3.2661$ | $3.0269$ |
 | bz2, level 9 | $1.0404$ | $0.6771$ | $3.1244$ | $3.5542$ |
 | lzma, preset 9e | $1.2617$ | $0.9559$ | $3.4201$ | $\mathbf{2.9080}$ |
-| interpolated Kneser–Ney, arithmetic-coded | — | $\mathbf{0.6371}$ | — | $5.6607$ |
+| interpolated Kneser–Ney, arithmetic-coded (codeword length) | — | $\mathbf{0.6371}$ | — | $5.6607$ |
 
-In domain, the Kneser–Ney code beats every general-purpose compressor that sees the same training text. bz2 comes within $6\%$, because its block sort finds the corpus's long templated phrases. On the EDGAR excerpts the order reverses, and lzma beats every model on the page. lzma wins by adapting to the text it is coding, and Theorem 4 allows that too: $Q(x_i \mid x_1 \dots x_{i-1})$ may be learned from the symbols already coded, as long as the decoder can learn it the same way. This is prequential coding (Dawid 1984; formalML's [Minimum Description Length](https://www.formalml.com/topics/minimum-description-length)), and adaptive models like PPM (Cleary and Witten 1984) were built on it.
+The last row is the length of the actual codeword, like the compressors' rows. Elsewhere the page reports the model's own $-\log_2 Q$ per character, which on EDGAR is $5.6605$: the $29{,}713$-bit codeword is $1.04$ bits longer than the model's $29{,}711.96$. In domain, the Kneser–Ney code beats every general-purpose compressor that sees the same training text. bz2 needs $6.3\%$ more bits, because its block sort finds the corpus's long templated phrases. On the EDGAR excerpts the order reverses, and lzma beats every model on the page. lzma wins by adapting to the text it is coding, and Theorem 4 allows that too: $Q(x_i \mid x_1 \dots x_{i-1})$ may be learned from the symbols already coded, as long as the decoder can learn it the same way. This is prequential coding (Dawid 1984; formalML's [Minimum Description Length](https://www.formalml.com/topics/minimum-description-length)), and adaptive models like PPM (Cleary and Witten 1984) were built on it.
 
 ---
 
@@ -537,7 +537,7 @@ The closed score is not the length of any code for the text, because it gives on
 
 <TheoremBlock type="proof">
 
-The open model's probability of the text is the closed model's probability times one spelling factor for each out-of-vocabulary word, and each factor is at most one. Two texts that differ only in their unknown words receive the same closed probability, so the closed probabilities do not sum to one over texts.
+The open model's probability of the text is the closed model's probability times one spelling factor for each out-of-vocabulary word, and each factor is at most one. Two texts that differ only in their unknown words receive the same closed probability. There are infinitely many unknown words, so each text with one has infinitely many such siblings, all with the same positive closed probability, and the closed probabilities summed over texts diverge. By Theorem 3, the lengths of any uniquely decodable code satisfy $\sum 2^{-\ell} \le 1$, so no such code has lengths $-\log_2 Q_{\text{closed}}$. (A sum below one would not have ruled out a code: by Proposition 4, compressors are sub-probability models.)
 
 </TheoremBlock>
 
@@ -558,7 +558,7 @@ In domain, every step down in vocabulary lowers the closed perplexity and length
 
 ## Coding a sentence, choosing a unit
 
-The laboratory makes the last two sections visible. In panel A, pick a sentence and a smoother, then step through the symbols. Each row is the current interval, stretched to full width and cut into the slices of the likeliest next symbols. The chosen slice becomes the next row. The ticker below shows the bits of the codeword that are already settled. Under interpolated Kneser–Ney the in-domain sentence costs $16$ bits, and Laplace smoothing needs $60$. In the second sentence, the unknown word *nonroyaltys* (the subword topic's running example) costs $35.9$ of the sentence's $65$ bits: $14.6$ for `<unk>` and $21.3$ for its letters. On the EDGAR sentence the smoothers trade places. Panel B ranks the table's models by the unit you choose, and its slider moves the unknown-word cutoff: the closed perplexity falls toward one while the honest code grows.
+The laboratory makes the last two sections visible. In panel A, pick a sentence and a smoother, then step through the symbols. Each row is the current interval, stretched to full width and cut into the slices of the likeliest next symbols. The chosen slice becomes the next row. The ticker below shows the bits of the codeword that are already settled. Under interpolated Kneser–Ney the in-domain sentence's codeword is $16$ bits, and Laplace smoothing's is $60$. In the second sentence, the unknown word *nonroyaltys* (the subword topic's running example) costs $35.9$ of the $64.5$ bits the model gives the sentence, whose codeword is $65$ bits: $14.6$ for `<unk>` and $21.3$ for its letters. On the EDGAR sentence the smoothers trade places. Panel B ranks the table's models by the unit you choose, and its slider moves the unknown-word cutoff: the closed perplexity falls toward one while the honest code grows.
 
 <PerplexityCompressionLab client:visible />
 
@@ -572,11 +572,11 @@ The n-gram topic found that on three public EDGAR MD&A excerpts, where $57.59\%$
 
 **Worse than guessing.** Interpolated Kneser–Ney's per-token perplexity on EDGAR is $6{,}610$, nearly twice $\lvert V \rvert = 3{,}427$. By Proposition 2 it predicts worse than the uniform distribution over its own vocabulary. The model learned how this generator's text continues, and on real filings that knowledge is worse than none.
 
-**What `<unk>` hides.** Counted with `<unk>` as one event, the same model's EDGAR score converts to $2.0067$ "bits per character", which would beat lzma's $2.9080$. Coded honestly, with every unknown word spelled out, it is $5.6605$ bits per character, and $64.5\%$ of those bits are spelling (in domain, $3.4\%$). In honest units the three smoothers rank Laplace ($5.509$), modified Kneser–Ney ($5.616$), then interpolated Kneser–Ney ($5.661$). The laboratory's EDGAR sentence, *book reserves are established for these plans*, shows the same order: $225$, $231$, and $233$ bits.
+**What `<unk>` hides.** Counted with `<unk>` as one event, the same model's EDGAR score converts to $2.0067$ "bits per character", which would beat lzma's $2.9080$. Coded honestly, with every unknown word spelled out, it is $5.6605$ bits per character, and $64.5\%$ of those bits are spelling (in domain, $3.4\%$). In honest units the three smoothers rank Laplace ($5.509$), modified Kneser–Ney ($5.616$), then interpolated Kneser–Ney ($5.660$). The laboratory's EDGAR sentence, *book reserves are established for these plans*, shows the same order: $225$, $231$, and $233$ bits.
 
 **The speller overfits too.** The trigram speller, fit to the corpus's planted pseudo-words, beats a plain letter-frequency speller in domain ($0.6371$ against $0.6612$ bits per character) and loses to it on real English ($5.6605$ against $4.9351$). Every component fit to the training distribution pays for the shift.
 
-**The zip file wins.** Given the training text, lzma codes EDGAR at $2.908$ bits per character. The best static model on the page is the $400$-piece BPE $5$-gram at $3.646$. Among the character models, the $3$-gram ($3.720$) beats both the $7$-gram ($3.748$) and the $5$-gram ($4.105$): out of domain, more context is more to unlearn. lzma wins because it adapts within the document it is coding, which no model here does. For a model meant to read filings it was not trained on, that is the case for conditioning on the text so far — cache models first, and eventually the in-context prediction of large language models.
+**The zip file wins.** Given the training text, lzma codes EDGAR at $2.908$ bits per character. The best static model on the page is the $400$-piece BPE $5$-gram at $3.646$. Among the character models, the $3$-gram ($3.719$) beats both the $7$-gram ($3.748$) and the $5$-gram ($4.105$): out of domain, more context is more to unlearn. lzma wins because it adapts within the document it is coding, which no model here does. For a model meant to read filings it was not trained on, that is the case for conditioning on the text so far — cache models first, and eventually the in-context prediction of large language models.
 
 </FinanceCaseStudy>
 
