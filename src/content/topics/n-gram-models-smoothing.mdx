@@ -247,31 +247,31 @@ So the estimate moves along the segment from the MLE to the lower-order model, a
 
 <TheoremBlock type="theorem" number={1} title="The Dirichlet–multinomial evidence">
 
-Under independent $\mathrm{Dirichlet}(\alpha\,m)$ priors for the contexts, with $m$ a distribution on $V$, the probability of the training word sequences is
+Under independent $\mathrm{Dirichlet}(\alpha\,m_u)$ priors for the contexts, where each context's center $m_u$ is a distribution on $V$ fixed in advance — in Definition 2, $m_u = P_{k-1}(\cdot \mid u^-)$ — the probability of the training word sequences is
 
 $$
-\log p(\text{data} \mid \alpha) \;=\; \sum_u \Bigl[\log\Gamma(\alpha) - \log\Gamma\bigl(\alpha + c(u\,\cdot)\bigr)\Bigr] \;+\; \sum_{(u,\,w)\,:\;c(u w) \gt 0} \Bigl[\log\Gamma\bigl(\alpha m_w + c(u\,w)\bigr) - \log\Gamma(\alpha m_w)\Bigr].
+\log p(\text{data} \mid \alpha) \;=\; \sum_u \Bigl[\log\Gamma(\alpha) - \log\Gamma\bigl(\alpha + c(u\,\cdot)\bigr)\Bigr] \;+\; \sum_{(u,\,w)\,:\;c(u w) \gt 0} \Bigl[\log\Gamma\bigl(\alpha m_{uw} + c(u\,w)\bigr) - \log\Gamma(\alpha m_{uw})\Bigr].
 $$
 
 </TheoremBlock>
 
 <TheoremBlock type="proof">
 
-For one context with next-word distribution $\theta$, the probability of its word sequence is $\prod_w \theta_w^{c(u w)}$. Integrate against the Dirichlet density $\prod_w \theta_w^{\alpha m_w - 1}/B(\alpha m)$, where $B(\beta) = \prod_w \Gamma(\beta_w)/\Gamma(\sum_w \beta_w)$:
+For one context with next-word distribution $\theta$, the probability of its word sequence is $\prod_w \theta_w^{c(u w)}$. Integrate against the Dirichlet density $\prod_w \theta_w^{\alpha m_{uw} - 1}/B(\alpha m_u)$, where $B(\beta) = \prod_w \Gamma(\beta_w)/\Gamma(\sum_w \beta_w)$:
 
 $$
-\int \prod_w \theta_w^{\alpha m_w + c(u w) - 1}\,d\theta \,\Big/\, B(\alpha m) \;=\; \frac{B(\alpha m + \mathbf{c}_u)}{B(\alpha m)},
+\int \prod_w \theta_w^{\alpha m_{uw} + c(u w) - 1}\,d\theta \,\Big/\, B(\alpha m_u) \;=\; \frac{B(\alpha m_u + \mathbf{c}_u)}{B(\alpha m_u)},
 $$
 
-where $\mathbf{c}_u = (c(u\,w))_{w \in V}$ is the vector of counts after $u$. Since $\sum_w \alpha m_w = \alpha$, the logarithm is the bracketed context term plus one term per word; a word with $c(u\,w) = 0$ contributes $\log\Gamma(\alpha m_w) - \log\Gamma(\alpha m_w) = 0$. Contexts have independent priors, so their log-probabilities add.
+where $\mathbf{c}_u = (c(u\,w))_{w \in V}$ is the vector of counts after $u$. Since $\sum_w \alpha m_{uw} = \alpha$, the logarithm is the bracketed context term plus one term per word; a word with $c(u\,w) = 0$ contributes $\log\Gamma(\alpha m_{uw}) - \log\Gamma(\alpha m_{uw}) = 0$. Contexts have independent priors, so their log-probabilities add.
 
 </TheoremBlock>
 
-Maximizing this **evidence** over $\alpha$ is Type-II maximum likelihood — the parametric empirical Bayes of formalStatistics' *hierarchical Bayes and partial pooling* (§28.7), where it fits the spread of eight schools' effects. Fit order by order, it gives $\hat\alpha = (1{,}105.5,\ 9.589,\ 25.015)$ for unigrams, bigrams, and trigrams, and a held-out log-loss of $3.534$ nats per token — far better than Laplace's $5.786$. The companion code checks Theorem 1 against SciPy's Dirichlet–multinomial distribution.
+Maximizing this **evidence** over $\alpha$ is Type-II maximum likelihood — the parametric empirical Bayes of formalStatistics' *hierarchical Bayes and partial pooling* (§28.7), where it fits the spread of eight schools' effects. Fit order by order, each order's centers $m_u$ taken from the orders already fitted below it, it gives $\hat\alpha = (1{,}105.5,\ 9.589,\ 25.015)$ for unigrams, bigrams, and trigrams, and a held-out log-loss of $3.534$ nats per token — far better than Laplace's $5.786$. Laplace here is flat add-one on the trigram counts with no lower orders, so that gap measures the hierarchy as well as the fitted strengths. The companion code checks Theorem 1 against SciPy's Dirichlet–multinomial distribution.
 
 <TheoremBlock type="remark">
 
-The evidence does not choose the best $\alpha$ for held-out text. Tuning $\alpha$ on the held-out data itself — an oracle we cannot use in practice — gives $(68{,}911.6,\ 591.4,\ 6.97)$ and a log-loss of $3.243$. The difference has a cause: the evidence is computed on training text, which contains no unseen words at all, so it never pays for the mass that `<unk>` will need, and it under-smooths. Type-II maximum likelihood answers the question it is asked — which prior best explains the training data — and that is not the question held-out text asks.
+The evidence does not choose the best $\alpha$ for held-out text. Tuning $\alpha$ on the held-out data itself — an oracle we cannot use in practice — gives $(68{,}911.6,\ 591.4,\ 6.97)$ and a log-loss of $3.243$. At the unigram and bigram orders the oracle's strength is about sixty-two times the evidence's, and there the difference has a cause: the evidence is computed on training text, which contains no unseen words at all, so it never pays for the mass that `<unk>` will need, and it under-smooths. At the trigram order the comparison reverses: the oracle's $6.97$ is below the evidence's $25.015$, so held-out text wants *less* trigram smoothing than the evidence chooses. We report that reversal as measured; we do not have a mechanism for it. Type-II maximum likelihood answers the question it is asked — which prior best explains the training data — and that is not the question held-out text asks.
 
 </TheoremBlock>
 
@@ -279,7 +279,7 @@ The evidence does not choose the best $\alpha$ for held-out text. Tuning $\alpha
 
 ## Good–Turing: Robbins' formula on word counts
 
-The Dirichlet approach assumes a shape for the prior. Turing, working on wartime codebooks, had a different idea, published by his assistant Good (1953): estimate a word's probability from how many other words share its count. Let $N_r$ be the number of distinct types seen exactly $r$ times in a sample of $n$ tokens — the **spectrum** of the previous topic — and $M_r$ the total true probability of those types. Good–Turing replaces a count of $r$ with
+The Dirichlet approach assumes a shape for the prior. Turing, working on wartime codebooks, had a different idea, published by his assistant Good (1953): estimate a word's probability from how many other words share its count. Let $N_r$ be the number of distinct types seen exactly $r$ times in a sample of $n$ tokens — the **spectrum** of the Zipf–Heaps topic — and $M_r$ the total true probability of those types. Good–Turing replaces a count of $r$ with
 
 $$
 r^* \;=\; (r + 1)\,\frac{N_{r+1}}{N_r},
@@ -309,7 +309,7 @@ Now $\binom{n}{r} = \frac{r + 1}{n + 1}\binom{n + 1}{r + 1}$, so the sum is $\fr
 
 </TheoremBlock>
 
-Both sides are linear in the distribution of the sample, so the identity also holds for mixtures of independent draws — exchangeable sequences such as the Pitman–Yor process of the previous topic. Setting $r = 0$ says the mass of the unseen types is, in expectation, $N_1(n + 1)/(n + 1)$. The usable estimate $N_1(n)/n$ is off by very little:
+Both sides are linear in the distribution of the sample, so the identity also holds for mixtures of independent draws — exchangeable sequences such as the Pitman–Yor process of the Zipf–Heaps topic. Setting $r = 0$ says the mass of the unseen types is, in expectation, $N_1(n + 1)/(n + 1)$. The usable estimate $N_1(n)/n$ is off by very little:
 
 <TheoremBlock type="corollary" number={1} title="The missing-mass estimate is nearly unbiased">
 
@@ -333,7 +333,7 @@ The missing mass also concentrates around its estimate (McAllester and Ortiz 200
 
 </TheoremBlock>
 
-The kinship carries a warning with it. Robbins' estimate is erratic where the next count is small (Topic 33, Remark 5), and so is Turing's: on our trigrams the discount $r - r^*$ runs $0.822$, $0.707$, $0.626$, $0.520$ for $r = 1, \dots, 4$, then jumps to $1.039$, falls to $-0.382$ — a *negative* discount — and climbs to $2.484$. **Simple Good–Turing** (Gale and Sampson 1995) repairs the tail: it averages $N_r$ over the gaps between observed counts, fits a straight line to $\log N_r$ against $\log r$ — plausible because the spectrum is a power law, as the previous topic showed — and switches from Turing's $r^*$ to the fitted one at the first $r$ where the two agree within about two standard errors (here $r = 3$). The resulting discount — Turing's for $r = 1, 2$, the fit's from then on — is close to constant: $0.822$, $0.707$, $0.648$, $0.688$, $0.714$, $0.733$, $0.747$, $0.758$ for $r = 1, \dots, 8$. Church and Gale (1991) saw the same thing on English bigrams. Hold on to it; it is the reason for absolute discounting. The companion code's Simple Good–Turing matches NLTK's to fifteen decimals.
+The kinship carries a warning with it. Robbins' estimate is erratic where the next count is small (Topic 33, Remark 5), and so is Turing's: on our trigrams the discount $r - r^*$ runs $0.822$, $0.707$, $0.626$, $0.520$ for $r = 1, \dots, 4$, then jumps to $1.039$, falls to $-0.382$ — a *negative* discount — and climbs to $2.484$. **Simple Good–Turing** (Gale and Sampson 1995) repairs the tail: it averages $N_r$ over the gaps between observed counts to get $Z_r$, fits a straight line to $\log Z_r$ against $\log r$ — plausible because the spectrum is a power law, as the Zipf–Heaps topic showed — and switches from Turing's $r^*$ to the fitted one at the first $r$ where the two agree within $1.96$ standard errors (here $r = 3$). The resulting discount — Turing's for $r = 1, 2$, the fit's from then on — is close to constant: $0.822$, $0.707$, $0.648$, $0.688$, $0.714$, $0.733$, $0.747$, $0.758$ for $r = 1, \dots, 8$. Church and Gale (1991) saw the same thing on English bigrams. Hold on to it; it is the reason for absolute discounting. The companion code's Simple Good–Turing matches NLTK's to fifteen decimals; that check runs on the bigram spectrum, through the same function that gives the trigram figures above.
 
 ---
 
@@ -371,7 +371,7 @@ Induct on the order; the Laplace unigram sums to one. The seen words of $u$ carr
 
 </TheoremBlock>
 
-On our corpus every $d_r$ lies strictly between $0$ and $1$ — for trigrams $0.123$, $0.623$, $0.777$, $0.861$, $0.778$ — and the model normalizes for every context tested. But the cutoff has a cost on text like ours, which is generated from templates. Take the context *in osaka*: it occurs seven times in training, followed by `</s>` every time. Seven is above the cutoff, so nothing is discounted and $\alpha(u) = 0$: Katz reserves no mass at all for any other continuation. Of $17{,}269$ contexts, $2{,}170$ reserve nothing (in $1{,}606$ of them the lower order has nothing left to give either, and Katz is undefined; we keep the MLE there). Three held-out tokens fall into such contexts — after *across aerospace*, *in osaka*, and *of fairhaven* — and get probability zero. **Katz's held-out log-loss is infinite**: the zero-count problem, back through the cutoff. On the other $23{,}052$ held-out tokens it scores $3.110$.
+On our corpus every $d_r$ lies strictly between $0$ and $1$ — for trigrams $0.123$, $0.623$, $0.777$, $0.861$, $0.778$ — and the model normalizes for every context tested. But the cutoff has a cost on text like ours, which is generated from templates. Take the context *in osaka*: it occurs seven times in training, followed by `</s>` every time. Seven is above the cutoff, so nothing is discounted and the numerator of $\alpha(u)$ is zero: Katz has no mass to reserve for any other continuation. Here the denominator is zero too — the bigram *osaka* is also always followed by `</s>`, and gives it probability one — so $\alpha(u)$ is $0/0$, undefined; we keep the MLE, which reserves nothing. Of the $17{,}269$ seen contexts ($3{,}426$ bigram and $13{,}843$ trigram), $2{,}170$ reserve nothing. In $564$ of them the cutoff does it alone: the numerator is zero, the denominator is not, and $\alpha(u) = 0$. The other $1{,}606$, *in osaka* among them, are trigram contexts whose seen followers already hold all of the lower order's mass, so the denominator is zero and $\alpha(u)$ is undefined. They reserve nothing because we keep the MLE there — $1{,}289$ of them would free some mass under discounting, but it would have nowhere to go. Three held-out tokens fall into zero-reserve contexts and get probability zero: after *across aerospace* and *of fairhaven*, where the cutoff makes $\alpha(u) = 0$, and after *in osaka*, where $\alpha(u)$ is undefined. **Katz's held-out log-loss is infinite**: the zero-count problem, back through the cutoff. On the other $23{,}052$ held-out tokens it scores $3.110$.
 
 ---
 
@@ -435,7 +435,7 @@ which rearranges to $D^* \le n_1'/(n_1' + 2n_2)$. Finally $x/(x + 2n_2)$ increas
 
 </TheoremBlock>
 
-So $n_1/(n_1 + 2n_2)$ is an upper bound on the leave-one-out optimum, reached only if the counts above two are ignored. The difference is not small here. For bigrams, $D^* = 0.702$ against the familiar $0.805$; for trigrams $D^* = 0.644$ against $0.849$, and over half of the trigram singletons ($10{,}306$ of $19{,}521$) sit alone in their context and drop out of $n_1'$ entirely. The companion code checks that $F$ differs from the exact leave-one-out log-likelihood by a constant, and the bound on random spectra.
+So $n_1/(n_1 + 2n_2)$ is an upper bound on the leave-one-out optimum, reached only if the counts above two are ignored and every singleton's context occurs at least twice, so that $n_1' = n_1$. The difference is not small here. For bigrams, $D^* = 0.702$ against the familiar $0.805$; for trigrams $D^* = 0.644$ against $0.849$, and over half of the trigram singletons ($10{,}306$ of $19{,}521$) sit alone in their context and drop out of $n_1'$ entirely. The companion code checks that $F$ differs from the exact leave-one-out log-likelihood by a constant, and the bound on random spectra.
 
 ---
 
@@ -495,7 +495,7 @@ Kneser and Ney (1995) derived the backing-off version of this approximately; in 
 
 ## Kneser–Ney as a hierarchical Pitman–Yor posterior
 
-Continuation counts came out of a constraint. They also come out of a prior. In the previous topic, word types arrived through a **Pitman–Yor Chinese restaurant** with discount $d$ and strength $\theta$: each customer (token) joins an occupied table with probability proportional to its occupancy minus $d$, or opens a new table, whose dish (word type) is drawn from a base distribution, with probability proportional to $\theta$ plus $d$ times the number of tables. Teh (2006) stacks these restaurants into a hierarchy.
+Continuation counts came out of a constraint. They also come out of a prior. In the Zipf–Heaps topic, word types arrived through a **Pitman–Yor Chinese restaurant** with discount $d$ and strength $\theta$: each customer (token) joins an occupied table with probability proportional to its occupancy minus $d$, or opens a new table, whose dish (word type) is drawn from a base distribution, with probability proportional to $\theta$ plus $d$ times the number of tables. Teh (2006) stacks these restaurants into a hierarchy.
 
 <TheoremBlock type="definition" number={6} title="The hierarchical Pitman–Yor language model">
 
@@ -525,7 +525,7 @@ The companion code checks the identity to thirteen decimals on $300$ held-out pr
 
 - **Strengths near zero.** The posterior means are $\theta = (0.962,\ 0.0026,\ 0.0017)$ for orders one to three: above the unigram, the data choose pure discounting — Kneser–Ney's regime.
 - **A discount that grows with the count.** A singleton always sits at one table, so its discount is exactly $d_3 = 0.775$. A trigram seen $r$ times sits at more tables as $r$ grows, so its *effective* discount $d_3\,\mathbb{E}[t \mid c = r]$ climbs: $0.775$, $1.167$, $1.503$, $1.787$, $1.971$, $2.004$, $2.260$, $2.657$ for $r = 1, \dots, 8$ — far past modified Kneser–Ney's top discount of $0.984$. Good–Turing's measured discount stayed near $0.7$; the two are not the same quantity, because in the Pitman–Yor model the subtracted mass flows to the parent, which in a templated context predicts the same word again.
-- **The best held-out score.** Averaging the predictive over sweeps $21$ to $40$ gives $2.822$ nats per token, ahead of modified Kneser–Ney's $2.841$. Three other random seeds give $2.8222$ to $2.8236$.
+- **The best held-out score.** Averaging the predictive over sweeps $21$ to $40$ gives $2.822$ nats per token, ahead of modified Kneser–Ney's $2.841$. That is one chain from one random seed; the harness does not test how far the score moves from seed to seed.
 
 This is Markov chain Monte Carlo run for forty sweeps; we report averages and claim no convergence guarantee.
 
@@ -558,13 +558,13 @@ In domain the ordering is the textbook one, strictly. The second column is a war
 
 <FinanceCaseStudy title="Finance case study: what each estimate estimates">
 
-**The Halvorsen effect.** Earnings-call text is full of fixed phrases — company names, *year over year*, *basis points* — and fixed phrases inflate raw counts without adding contexts. In the synthetic corpus the frequent words with the fewest distinct predecessors are *management* ($616$ tokens, $2$ contexts), *industrial* ($284$, $1$), *team* ($234$, $1$), *unchanged* ($232$, $1$), *steady* ($210$, $1$), and *plan* ($209$, $1$). At the unigram level, absolute discounting gives *industrial* probability $0.0041$ and rank $27$; Kneser–Ney gives it $0.00007$ and rank $1{,}259$ — fifty-nine times less. In the laboratory's *the ⟨unk⟩* context the two models' top words differ in the same way: absolute discounting proposes the frequent words `</s>`, *and*, *in*, *the*, *of*; Kneser–Ney proposes *and*, `</s>`, *a*, *outlook*, *which* — words that follow many different contexts. For a model of filings, a ticker's company name should not leak into contexts that never mention the company.
+**The Halvorsen effect.** Earnings-call text is full of fixed phrases — company names, *year over year*, *basis points* — and fixed phrases inflate raw counts without adding contexts. In the synthetic corpus the frequent words with the fewest distinct predecessors are *management* ($616$ tokens, $2$ contexts), *industrial* ($284$, $1$), *team* ($234$, $1$), *unchanged* ($232$, $1$), *steady* ($210$, $1$), and *plan* ($209$, $1$). At the unigram level, absolute discounting gives *industrial* probability $0.0041$ and rank $27$; interpolated Kneser–Ney gives it $6.7 \times 10^{-5}$ and rank $1{,}259$ — about sixty-one times less. (Modified Kneser–Ney gives it $8.3 \times 10^{-5}$, at the same rank.) In the laboratory's *the ⟨unk⟩* context the two models' top words differ in the same way: absolute discounting proposes the frequent words `</s>`, *and*, *in*, *the*, *of*; Kneser–Ney proposes *and*, `</s>`, *a*, *outlook*, *which* — words that follow many different contexts. For a model of filings, a ticker's company name should not leak into contexts that never mention the company.
 
 **What Good–Turing forecasts.** The training tokens give $N_1/N = 0.0271$: Good–Turing says the next token has a $2.71\%$ chance of being a word not yet seen. Test that on three kinds of new text.
 
 | new text | share of tokens never seen in training | against $N_1/N$ |
 |---|---|---|
-| the training generator, run on for $100$ more documents | $0.0275$ | within $1.6\%$ |
+| the training generator, run on for $100$ more documents | $0.0275$ | about $1.6\%$ higher |
 | a fresh run of the generator, `generate_corpus(100, 1)` | $0.0067$ | four times lower |
 | three EDGAR MD&A excerpts | $0.5759$ | twenty-one times higher |
 

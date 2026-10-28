@@ -1156,7 +1156,8 @@ def test_katz_normalizes():
 
 def katz_zero_events() -> list[NGram]:
     """Held-out events Katz gives probability 0: their context's followers all occurred more than
-    KATZ_CUTOFF times, so it reserved no mass (α = 0) — the zero-count problem, back through the cutoff."""
+    KATZ_CUTOFF times, so nothing was discounted and it reserved no mass — α = 0 from the cutoff, or
+    α = 0/0 in an exhausted context kept at its MLE. The zero-count problem, back through the cutoff."""
     m = katz_model()
     return [g for g in heldout_events() if katz_prob(g[-1], g[:-1], m) <= 0]
 
@@ -1166,6 +1167,18 @@ def test_katz_cutoff_reintroduces_zeros():
     assert sum(a == 0 for a in m.alpha.values()) > 1000  # templated contexts reserve nothing
     assert 0 < len(zeros) < 10 and log_loss(lambda w, u: katz_prob(w, u, m), heldout_events()) == math.inf
     assert all(m.alpha[g[:-1]] == 0 for g in zeros)
+    # The page's breakdown: 2,170 zero-reserve contexts = 564 from the cutoff (α = 0) + 1,606 exhausted
+    # trigram contexts (α = 0/0, kept at the MLE), 1,289 of which would free mass under discounting.
+    zero = {u for u, a in m.alpha.items() if a == 0}
+    assert (len(m.alpha), len(zero), len(zero - m.exhausted), len(m.exhausted)) == (17269, 2170, 564, 1606)
+    assert all(len(u) == 2 for u in m.exhausted)
+    followers: dict[NGram, list[int]] = defaultdict(list)
+    for g, c in m.counts[ORDER].items():
+        followers[g[:-1]].append(c)
+    frees = sum(sum(m.d[ORDER].get(c, 1.0) * c for c in followers[u]) < m.totals[ORDER][u] for u in m.exhausted)
+    assert frees == 1289
+    assert {g[:-1]: g[:-1] in m.exhausted for g in zeros} == {
+        ("across", "aerospace"): False, ("in", "osaka"): True, ("of", "fairhaven"): False}
 
 
 def test_loo_concave_and_bound():
@@ -1361,6 +1374,10 @@ def test_heldout_ordering():
     assert all(a < b for a, b in zip(held, held[1:])), held
     assert t["katz"]["held"] == math.inf and t["mle"]["held"] == math.inf
     assert t["dirichlet_oracle"]["held"] < t["dirichlet"]["held"]
+    # The evidence under-smooths only the lower orders: the oracle α is ~62× Type-II's at k = 1, 2 and
+    # smaller at k = 3.
+    t2, orc = type2_alphas(), heldout_optimal_alphas()
+    assert all(50 < o / a < 75 for o, a in zip(orc[:2], t2[:2])) and orc[2] < t2[2], (t2, orc)
     finite = {n: r["edgar"] for n, r in t.items() if "edgar" in r and math.isfinite(r["edgar"])}
     assert min(finite, key=finite.get) == "laplace", finite
 
@@ -1384,7 +1401,7 @@ def test_halvorsen_effect():
     f = finance_summary()
     assert (f["halvorsen_raw"], f["halvorsen_continuation"]) == (284, 1)
     assert f["rank_absdisc"] <= 30 < 1000 < f["rank_ikn"]
-    assert f["p_unigram_absdisc"] > 50 * f["p_unigram_ikn"]
+    assert 60 < f["p_unigram_absdisc"] / f["p_unigram_ikn"] < 62  # the page's "about sixty-one times"
 
 
 def test_viz_payload():
