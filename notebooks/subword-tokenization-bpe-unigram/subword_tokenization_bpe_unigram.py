@@ -7,7 +7,8 @@ from ``viz_payload``. The sections follow the page:
    a length-n string has 2^{n−1} segmentations (L-step Fibonacci when pieces are capped at L).
 2. BPE as greedy compression: a merge saves exactly its replacement count; replaying merges in rank
    order reproduces training segmentations; greedy is not optimal (optimal pair encoding is
-   APX-complete, Kozma & Voderholzer — cited, checked by brute force on tiny strings).
+   APX-complete, Kozma & Voderholzer — cited; only the 1/3 guarantee is checked, by brute force on
+   tiny strings).
 3. WordPiece's likelihood criterion: the exact change in unigram log-likelihood from a merge, and its
    count-weighted-PMI leading term with an explicit remainder bound.
 4. Unigram LM: Viterbi and forward–backward over the segmentation lattice; EM never lowers the
@@ -717,7 +718,7 @@ def test_bpe_matches_hf_tokenizers():
         assert tok.encode(w).tokens == replay_encode(w, bpe.merges), w
 
 
-GREEDY_GAP = ("aaaabaaab", 3, 5, 6)  # smallest string (exhaustive over |Σ| ≤ 3, n ≤ 9) where EVERY greedy run loses
+GREEDY_GAP = ("aaaabaaab", 3, 5, 6)  # a smallest string (exhaustive over |Σ| ≤ 3, n ≤ 9) where EVERY greedy run loses; aaabaaaab ties
 
 
 def test_greedy_is_not_optimal():
@@ -774,7 +775,7 @@ def test_wordpiece_leading_term_bound():
 def test_wordpiece_and_bpe_disagree():
     """Same corpus, different criterion: the likelihood criterion's merge order departs from BPE's at
     the third merge — BPE takes the frequent (e, r); ΔL prefers the cohesive (an, d), whose parts
-    rarely occur apart (higher PMI)."""
+    occur together far more often than chance (higher PMI)."""
     t = trained()
     k = next(k for k, (a, b) in enumerate(zip(t["bpe"].merges, t["wordpiece"].merges)) if a != b)
     assert k == 2 and t["bpe"].merges[2] == ("e", "r") and t["wordpiece"].merges[2] == ("an", "d")
@@ -936,8 +937,11 @@ def test_unigram_tracks_planted_morphemes():
     """The finance case study's claim. At |V| = 200 and 400, Unigram's boundaries match the planted
     prefix/root/suffix boundaries far better than BPE's — at matched |V|, and also at matched
     compression (BPE's F1 interpolated to Unigram's tokens per word), on training pseudo-words and on
-    held-out OOV words alike. By |V| = 800 the three tokenizers are within 0.08 of one another."""
+    held-out OOV words alike. By |V| = 800 the three tokenizers are within 0.08 of one another — with
+    WordPiece encoded by rank replay; under its MaxMatch encoder it scores higher and leaves that band."""
     s = finance_summary()
+    small = [(s[f"{k}_{v}_p_train"], s[f"{k}_{v}_r_train"]) for k in ("bpe", "wordpiece", "unigram") for v in (50, 100)]
+    assert all(0.16 <= round(p, 2) <= 0.23 and r > 0.9 for p, r in small), small  # beat 1
     for v in (200, 400):
         assert s[f"unigram_{v}_f1_train"] - s[f"bpe_{v}_f1_train"] >= 0.15
         assert s[f"unigram_{v}_f1_oov"] - s[f"bpe_{v}_f1_oov"] >= 0.15
@@ -945,6 +949,12 @@ def test_unigram_tracks_planted_morphemes():
         assert s[f"unigram_{v}_f1_train"] - _f1_at_tpw(s, "bpe", u_tpw) >= 0.1, (v, _f1_at_tpw(s, "bpe", u_tpw))
     top = [s[f"{k}_800_f1_train"] for k in ("bpe", "wordpiece", "unigram")]
     assert max(top) - min(top) < 0.08, top
+    fw, wp = finance_words(), trained()["wordpiece"]
+    gold = {w: set(next(iter(ps))) for w in fw["pseudo"] if len(ps := planted_parses(w)) == 1}
+    vocab = merge_vocab(wp, 800 - len(wp.alphabet))
+    wp_mm = boundary_prf({w: maxmatch_encode(w, vocab) for w in gold}, gold)["f1"]
+    top_mm = [top[0], wp_mm, top[2]]
+    assert wp_mm > top[1] and max(top_mm) - min(top_mm) >= 0.08, (wp_mm, top)
 
 
 def test_planted_morphemes_parse_uniquely():
