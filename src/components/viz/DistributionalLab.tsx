@@ -9,7 +9,7 @@ import payload from './data/distributional-lab.json';
 /**
  * Distributional Semantics Laboratory — two linked panels for the distributional-semantics-ppmi-svd topic.
  *   A. "The company a word keeps": a word's five nearest neighbors for every context × weighting (counts, PPMI,
- *      SPPMI₅, the dev-selected SVD), each tagged with its planted sector or stand-in lexicon category, with the
+ *      SPPMI_{0.75,5}, the dev-selected SVD), each tagged with its planted sector or stand-in lexicon category, with the
  *      setting's test-noun AUC and nearest-neighbor accuracy, and Turney's SO accuracy for polarity words.
  *   B. "Rank and spectrum": the selected SVD's test scores against the rank d for each eigenvalue weight p; the
  *      two-word window's singular values, real against shuffled (Prop 3); its signed eigenvalues (Thm 2); and
@@ -42,12 +42,12 @@ const LOWRANK = payload.lowrank as unknown as LowRank;
 type Weighting = 'counts' | 'ppmi' | 'sppmi5' | 'svd';
 const [, SVD_BASE, SVD_D, SVD_P] = SELECTED.svd;
 const WEIGHT_LABEL: Record<Weighting, string> = {
-  counts: 'raw counts', ppmi: 'PPMI', sppmi5: 'SPPMI₅ (shift log 5)', svd: `SVD, d = ${SVD_D}, p = ${SVD_P}`,
+  counts: 'raw counts', ppmi: 'PPMI', sppmi5: 'SPPMI, α = 0.75, shift log 5', svd: `SVD, d = ${SVD_D}, p = ${SVD_P}`,
 };
 const CONTEXT_LABEL: Record<string, string> = {
   L1: 'window 1', L2: 'window 2', L4: 'window 4', L8: 'window 8', sentence: 'sentence', document: 'document (oracle)',
 };
-const BASE_LABEL: Record<string, string> = { ppmi: 'PPMI', ppmi_a: 'smoothed PPMI', sppmi5: 'SPPMI₅' };
+const BASE_LABEL: Record<string, string> = { ppmi: 'PPMI', ppmi_a: 'smoothed PPMI', sppmi5: 'SPPMI (α = 0.75, k = 5)' };
 
 // A neighbor's tag, drawn as a labeled chip: sectors filled, lexicon categories outlined.
 const TAG_STYLE: Record<string, { bg: string; fg: string; outline?: boolean }> = {
@@ -313,7 +313,7 @@ export default function DistributionalLab() {
           <>
             <Row>
               <Pill active={specKey === 'ppmi'} onClick={() => setSpecKey('ppmi')} data={{ 'data-spectrum': 'ppmi' }}>PPMI</Pill>
-              <Pill active={specKey === 'sppmi5'} onClick={() => setSpecKey('sppmi5')} data={{ 'data-spectrum': 'sppmi5' }}>SPPMI₅</Pill>
+              <Pill active={specKey === 'sppmi5'} onClick={() => setSpecKey('sppmi5')} data={{ 'data-spectrum': 'sppmi5' }}>SPPMI (α = 0.75, k = 5)</Pill>
             </Row>
             <svg viewBox={`0 0 ${SW} ${SH}`} style={{ width: '100%', height: 'auto' }} role="img" data-panel="spectrum"
               aria-label="Singular values of the two-word window's matrix on a log scale, for the real corpus and for the same tokens shuffled">
@@ -331,7 +331,7 @@ export default function DistributionalLab() {
                 <path d={specLine(spec.real)!} data-series="real" style={{ fill: 'none', stroke: 'var(--color-accent)', strokeWidth: 2 }} />
               </g>
               <text x={8} y={12} style={{ fontFamily: sans, fontSize: '10.5px', fill: 'var(--color-accent)' }}>
-                {`singular values, window 2, ${specKey === 'ppmi' ? 'PPMI' : 'SPPMI₅'} — solid: real text`}
+                {`singular values, window 2, ${specKey === 'ppmi' ? 'PPMI' : 'SPPMI (α = 0.75, k = 5)'} — solid: real text`}
               </text>
               <text x={SW - 8} y={12} textAnchor="end" style={{ fontFamily: sans, fontSize: '10.5px', fill: 'var(--color-text-secondary)' }}>
                 dashed: tokens shuffled

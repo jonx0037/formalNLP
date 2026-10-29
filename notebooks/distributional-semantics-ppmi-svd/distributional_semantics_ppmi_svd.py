@@ -17,8 +17,8 @@ from ``viz_payload``. The sections follow the page:
 4. Two kinds of low rank: a latent-class (mixture) model makes the ratio matrix R = e^{PMI} low rank and
    rank(R − 𝟙𝟙ᵀ) ≤ K − 1, while its PMI leaves rank K − 1 at second order in the strength of association (a
    Hadamard series); a log-bilinear model makes PMI low rank and R not.
-5. Recovering planted structure: the shared corpus draws content nouns from one Pitman–Yor restaurant per
-   sector, so each noun has a known sector. Hyperparameters are chosen on half the nouns (dev), over local
+5. Recovering planted structure: the shared corpus draws each content noun from its document's sector
+   Pitman–Yor restaurant or from a shared one (fc.SECTOR_SHARE = 0.5), so each sector noun has a known sector. Hyperparameters are chosen on half the nouns (dev), over local
    contexts only, and every reported score is on the other half (test).
 6. Finance case study: polarity words are distributional neighbors of their antonyms in a window, and
    Turney's semantic orientation recovers polarity only from document-level contexts.
@@ -250,8 +250,9 @@ def pmi(C: sparse.spmatrix, alpha: float = 1.0) -> sparse.csr_matrix:
 
 
 def ppmi(C: sparse.spmatrix, alpha: float = 1.0, k: float = 1.0) -> sparse.csr_matrix:
-    """Def 2. max(PMI_α − log k, 0): k = 1 is PPMI, k > 1 the shifted SPPMI_k of Levy and Goldberg (2014), whose
-    unclipped matrix PMI − log k is what skip-gram with k negative samples factorizes (Topic 7)."""
+    """Def 2. max(PMI_α − log k, 0): k = 1 is PPMI, k > 1 the shifted SPPMI_{α,k} of Levy and Goldberg (2014), whose
+    unclipped matrix PMI_α − log k is skip-gram's optimum on observed pairs with k negative samples drawn from P_α
+    (Topic 7, exact only under that page's rigorFlag conditions)."""
     M = sparse.coo_matrix(pmi(C, alpha))
     v = M.data - math.log(k)
     keep = v > 0
@@ -260,7 +261,8 @@ def ppmi(C: sparse.spmatrix, alpha: float = 1.0, k: float = 1.0) -> sparse.csr_m
 
 @lru_cache(maxsize=None)
 def weighted(context: str, weighting: str, null: bool = False) -> sparse.csr_matrix:
-    """The matrix a weighting puts on one context: raw counts, PPMI, PPMI_α, or SPPMI_k (WEIGHTINGS)."""
+    """The matrix a weighting puts on one context: raw counts, PPMI, PPMI_α, or SPPMI_{α,k} (WEIGHTINGS; "sppmi5" is
+    SPPMI_{0.75,5}, smoothed and shifted)."""
     C = cooc(context, null)
     spec = WEIGHTINGS[weighting]
     return C if spec is None else ppmi(C, *spec)
@@ -341,11 +343,12 @@ def poisson_null(mu: float) -> dict[str, float]:
 @lru_cache(maxsize=None)
 def null_summary(context: str = "L2") -> dict[str, float]:
     """Prop 3 on the corpus: the real and the permutation-null PPMI matrices (every true PMI of the null is 0), and
-    the share of the real PPMI support whose independence-expected count μ = n_w n_c / N is below 1."""
+    the share of the real PPMI support whose independence-expected count μ = n_w n_c / N is below 1. "sppmi5" is
+    SPPMI_{0.75,5}; "sppmi1_5" is the unsmoothed shift SPPMI_{1,5}."""
     out = {}
     for name, null in (("real", False), ("null", True)):
-        for wt in ("ppmi", "sppmi5"):
-            M = weighted(context, wt, null)
+        for wt in ("ppmi", "sppmi5", "sppmi1_5"):
+            M = ppmi(cooc(context, null), 1.0, 5.0) if wt == "sppmi1_5" else weighted(context, wt, null)
             out[f"{name}_{wt}_nnz"] = float(M.nnz)
             out[f"{name}_{wt}_fro2"] = float(M.multiply(M).sum())
     C = cooc(context)
@@ -367,11 +370,16 @@ def smoothing_threshold(n_c: np.ndarray, alpha: float) -> float:
 
 @lru_cache(maxsize=None)
 def smoothing_summary(context: str = "L2") -> dict[str, float]:
+    """Prop 4 on the corpus. t* is in units of n_c, a context's co-occurrence total, not its token count:
+    `pairs_per_token` = N / (training tokens) converts it ("t_star_tokens"). "sppmi5" and "sppmi15" are smoothed
+    (α = 0.75)."""
     C = cooc(context)
     n_c = np.asarray(C.sum(axis=0)).ravel()
     t = smoothing_threshold(n_c, ALPHA)
     below = n_c < t
+    per = float(n_c.sum() / unigram_counts().sum())
     return {"t_star": t, "types_below": float(below.mean()), "tokens_below": float(n_c[below].sum() / n_c.sum()),
+            "pairs_per_token": per, "t_star_tokens": t / per,
             **{f"nnz_{w}": float(weighted(context, w).nnz) for w in ("ppmi", "ppmi_a", "sppmi5", "sppmi15")}}
 
 
@@ -426,11 +434,13 @@ def eig_truncation(M: np.ndarray, d: int) -> tuple[np.ndarray, np.ndarray]:
 def spectrum_summary() -> dict[str, float]:
     """Thm 2 on the corpus: the L2 PPMI matrix (α = 1, so symmetric) has many large negative eigenvalues, so the
     p = ½ word-word Gram |M|_d is far from M_d; the leading negative eigenvector splits the vocabulary nearly
-    bipartitely."""
+    bipartitely, frequent words on one side and rare nouns on the other. `gap_d` is |λ_d| − |λ_{d+1}| at d = 100,
+    which must be positive for M_d (and Q_d) to be unique."""
     M = weighted("L2", "ppmi")
-    lam, Q = eigsh(M, k=100, which="LM", v0=np.random.default_rng([SEED, 7]).standard_normal(M.shape[0]))
+    lam, Q = eigsh(M, k=101, which="LM", v0=np.random.default_rng([SEED, 7]).standard_normal(M.shape[0]))
     o = np.argsort(-np.abs(lam))
-    lam, Q = lam[o], Q[:, o]
+    gap_d = float(abs(lam[o[99]]) - abs(lam[o[100]]))
+    lam, Q = lam[o[:100]], Q[:, o[:100]]
     neg = lam < 0
     gap = 2 * np.sqrt(np.sum(lam[neg] ** 2)) / np.sqrt(np.sum(lam**2))
     j = int(np.flatnonzero(neg)[0])
@@ -440,7 +450,7 @@ def spectrum_summary() -> dict[str, float]:
     order = np.argsort(Q[:, j])
     return {"symmetric_err": float(abs(M - M.T).max()), "n_negative_top100": int(neg.sum()),
             "lambda1": float(lam[0]), "first_negative_rank": j + 1, "first_negative": float(lam[j]),
-            "gram_gap_rel": float(gap), "cut_mass": cut, "eig": lam,
+            "gram_gap_rel": float(gap), "cut_mass": cut, "eig": lam, "gap_d": gap_d,
             "neg_side": tuple(vocab()[i] for i in order[:8]), "pos_side": tuple(vocab()[i] for i in order[::-1][:8])}
 
 
@@ -495,7 +505,8 @@ def lowrank_summary(null: bool = False) -> dict:
     """Thm 3 on the corpus. Document-level co-occurrence of the content nouns (every restaurant, the common one
     included) seen at least LOWRANK_MIN_COUNT times, with the submatrix's own margins: the singular values of
     R − 𝟙𝟙ᵀ and of PPMI. Within a document the generator draws every content noun from that document's sector
-    restaurant or the common one, so a six-sector mixture predicts rank(R − 𝟙𝟙ᵀ) ≤ 5."""
+    restaurant or the common one, so a six-sector mixture predicts rank(R − 𝟙𝟙ᵀ) ≤ 5. These 115 nouns are not
+    Def 4's 115 test nouns: they include the common restaurant's (`common`)."""
     lab = planted_labels()
     nouns = [w for w in sorted(lab) if count_of(w) >= LOWRANK_MIN_COUNT]
     ids = [index()[w] for w in nouns]
@@ -507,7 +518,9 @@ def lowrank_summary(null: bool = False) -> dict:
         L = np.log(R)
     s_p = np.linalg.svd(np.where(L > 0, L, 0.0), compute_uv=False)
     r = K_SECTORS - 1
-    return {"nouns": len(nouns), "classes": len({lab[w] for w in nouns}), "zero_share": float(np.mean(sub == 0)),
+    off = ~np.eye(len(nouns), dtype=bool)  # pairs of distinct nouns; the diagonal holds a noun's self-pairs
+    return {"nouns": len(nouns), "classes": len({lab[w] for w in nouns}), "zero_share": float(np.mean(sub[off] == 0)),
+            "common": sum(lab[w] == "common" for w in nouns),
             "ratio_sv": s_r / s_r[0], "ppmi_sv": s_p / s_p[0], "ratio_sv_raw": s_r,
             "ratio_resid": residual_energy(s_r, r), "ppmi_resid": residual_energy(s_p, r)}
 
@@ -553,6 +566,14 @@ def pair_auc(X, words, labels) -> float:
     lab = np.array([labels[w] for w in words])
     iu = np.triu_indices(len(words), 1)
     return auc(S[iu], (lab[:, None] == lab[None, :])[iu])
+
+
+def nn_chance(words, labels) -> float:
+    """Def 4's chance level: the probability that a noun's nearest other noun, drawn uniformly from the rest of
+    `words`, shares its label, Σ v(v − 1) / (n(n − 1)) over label counts v (without replacement: a noun is never its
+    own neighbor)."""
+    n, cnt = len(words), Counter(labels[w] for w in words)
+    return sum(v * (v - 1) for v in cnt.values()) / (n * (n - 1))
 
 
 def jackknife_se(stat, words) -> float:
@@ -619,11 +640,9 @@ def comparison() -> dict[str, float]:
     for name, X in (("sparse", Xa), ("svd", Xb), ("counts", weighted(ctx, "counts"))):
         out[f"rare_auc_{name}"] = pair_auc(X, rare, lab)
         out[f"rare_nn_{name}"] = nn_accuracy(X, rare, lab)
-    labs = Counter(lab[w] for w in rare)
     out["rare_n"] = len(rare)
-    out["rare_chance_nn"] = sum((v / len(rare)) ** 2 for v in labs.values())
-    tl = Counter(lab[w] for w in test)
-    out["test_chance_nn"] = sum((v / len(test)) ** 2 for v in tl.values())
+    out["rare_chance_nn"] = nn_chance(rare, lab)
+    out["test_chance_nn"] = nn_chance(test, lab)
     for wt in ("counts", "ppmi"):
         out.update({f"oracle_{wt}_{k}": v for k, v in scores(("document", wt, None, None)).items()})
     # How narrow the SVD's win is: the local SVD configurations that beat the selected sparse matrix, and where
@@ -686,6 +705,12 @@ def so_accuracy(context: str) -> float:
                           for cat, so in so_scores(context).values()]))
 
 
+def so_evidence_accuracy(context: str) -> float:
+    """SO's sign accuracy among the polarity words with any seed co-occurrence (SO ≠ 0) alone; nan if none."""
+    hits = [(so > 0) == (cat == "positive") for cat, so in so_scores(context).values() if so != 0]
+    return float(np.mean(hits)) if hits else math.nan
+
+
 def so_coverage(context: str) -> float:
     """The share of polarity words with any seed co-occurrence in this context (SO ≠ 0)."""
     return float(np.mean([so != 0 for _, so in so_scores(context).values()]))
@@ -715,6 +740,7 @@ def finance_summary() -> dict:
         out[f"adj_within_{ctx}"] = float(within.mean())
         out[f"adj_cross_{ctx}"] = float(S[:a, a:].mean())
         out[f"so_acc_{ctx}"] = so_accuracy(ctx)
+        out[f"so_evidence_acc_{ctx}"] = so_evidence_accuracy(ctx)
         out[f"so_coverage_{ctx}"] = so_coverage(ctx)
         for cat in ("positive", "negative"):
             out[f"so_mean_{cat}_{ctx}"] = float(np.mean([so for c, so in so_scores(ctx).values() if c == cat]))
@@ -836,7 +862,7 @@ def summary() -> dict[str, float]:
     out.update({f"spec_{k}": v for k, v in spectrum_summary().items() if isinstance(v, (int, float))})
     lr = lowrank_summary()
     out.update({"lowrank_nouns": lr["nouns"], "lowrank_classes": lr["classes"], "lowrank_zero_share": lr["zero_share"],
-                "lowrank_ratio_resid": lr["ratio_resid"], "lowrank_ppmi_resid": lr["ppmi_resid"],
+                "lowrank_common": lr["common"], "lowrank_ratio_resid": lr["ratio_resid"], "lowrank_ppmi_resid": lr["ppmi_resid"],
                 "lowrank_ratio_sv6": float(lr["ratio_sv"][5]),
                 "lowrank_null_sv1_over_real_sv1": float(lowrank_summary(True)["ratio_sv_raw"][0] / lr["ratio_sv_raw"][0])})
     for fam, cfg in selected().items():
@@ -995,7 +1021,8 @@ def test_ppmi_under_independence():
     assert np.sum(pp[mu < 1] ** 2) / np.sum(pp**2) > 0.5
     n = null_summary()
     assert n["null_ppmi_fro2"] > n["real_ppmi_fro2"] and n["null_ppmi_nnz"] > n["real_ppmi_nnz"]
-    assert n["real_sppmi5_fro2"] > n["null_sppmi5_fro2"]  # the shift by log 5 reverses the comparison
+    assert n["real_sppmi5_fro2"] > n["null_sppmi5_fro2"]  # SPPMI_{0.75,5}: the shift by log 5 reverses the comparison
+    assert n["real_sppmi1_5_fro2"] > n["null_sppmi1_5_fro2"]  # ... and so does the unsmoothed shift
     assert abs(n["poisson_expected_positives"] / n["null_ppmi_nnz"] - 1) < 0.05
     assert n["real_ppmi_mu_below_1_share"] > 0.8
 
@@ -1020,6 +1047,8 @@ def test_context_smoothing_threshold():
     assert np.array_equal(lower, n_c[A.col] < t)
     s5, s15, s1 = (weighted("L2", w) != 0 for w in ("sppmi5", "sppmi15", "ppmi_a"))
     assert (s15 > s5).nnz == 0 and (s5 > s1).nnz == 0
+    m = smoothing_summary()  # t* counts co-occurrences n_c, about 3.4 per token at L2
+    assert 3 < m["pairs_per_token"] < 4 and abs(m["t_star_tokens"] - t / m["pairs_per_token"]) < 1e-9
 
 
 def test_svds_matches_dense_svd():
@@ -1063,15 +1092,17 @@ def test_eigenvalue_weighting():
             assert np.allclose(Abs, Md, atol=1e-9) == bool(np.all(lam >= 0))
             assert abs(np.linalg.norm(Abs - Md) - 2 * np.sqrt(np.sum(lam[lam < 0] ** 2))) < 1e-9
     s = spectrum_summary()
-    assert s["symmetric_err"] < 1e-12 and s["n_negative_top100"] >= 30
+    assert s["symmetric_err"] < 1e-12 and s["n_negative_top100"] >= 30 and s["gap_d"] > 0
     assert s["first_negative_rank"] <= 3 and s["gram_gap_rel"] > 1
     assert s["cut_mass"] > 0.5  # most PPMI mass joins the two sides of λ₂'s eigenvector: near-bipartite
 
 
 def test_word_plus_context():
-    """Cor 1. For symmetric M, W_½ + C_½ = 2Q_dΛ₊^½ (eigen-directions with λ < 0 cancel), so
-    ((W + C)/2)((W + C)/2)ᵀ = [M_d]₊, the positive part of M_d — exactly, whatever signs the SVD picks. Checked on
-    random symmetric matrices and on the corpus's L2 PPMI with ARPACK's vectors."""
+    """Cor 1. For symmetric M and the SVD built from its eigendecomposition, W_½ + C_½ = 2Q_dΛ₊^½ (eigen-directions
+    with λ < 0 cancel), so ((W + C)/2)((W + C)/2)ᵀ = [M_d]₊, the positive part of M_d. Any other SVD (|λ_d| > |λ_{d+1}|)
+    multiplies W and C by one orthogonal O on the right: W + C itself can change when |λ_i| = |λ_j| for a ± pair, but
+    the product does not. Checked on random symmetric matrices with random signs, on a tied ± pair rotated within its
+    singular subspace, and on the corpus's L2 PPMI with ARPACK's vectors."""
     rng = np.random.default_rng([SEED, 12])
     for _ in range(20):
         A = rng.normal(size=(18, 18))
@@ -1083,6 +1114,25 @@ def test_word_plus_context():
         H = (U[:, :d] * np.sqrt(s[:d]) + Vt[:d].T * np.sqrt(s[:d])) / 2
         lam, Q = eig_truncation(M, d)
         assert np.allclose(H @ H.T, (Q * np.clip(lam, 0, None)) @ Q.T, atol=1e-9)
+    # A tied pair λ_j = −λ_i: rotating (u_i, u_j) and (v_i, v_j) together by θ is another SVD. At θ = π/4,
+    # u = (q_i + q_j)/√2 and v = (q_i − q_j)/√2 give u + v = √2 q_i, not 2q_i and 0, yet the product is unchanged.
+    lam = np.array([5.0, -5.0, 3.0, -2.0, 1.5, 1.0, -0.7, 0.4, 0.2, -0.1])
+    Q = np.linalg.qr(rng.normal(size=(10, 10)))[0]
+    M = (Q * lam) @ Q.T
+    U, Vm, s = Q.copy(), Q * np.sign(lam), np.abs(lam)  # the SVD built from the eigendecomposition
+    for theta in (0.0, math.pi / 4, 1.0):
+        O = np.array([[math.cos(theta), -math.sin(theta)], [math.sin(theta), math.cos(theta)]])
+        U2, V2 = U.copy(), Vm.copy()
+        U2[:, :2], V2[:, :2] = U[:, :2] @ O, Vm[:, :2] @ O
+        assert np.allclose((U2 * s) @ V2.T, M, atol=1e-12)  # still an SVD of M
+        d = 4  # |λ_4| = 2 > |λ_5| = 1.5
+        W, Cp = U2[:, :d] * np.sqrt(s[:d]), V2[:, :d] * np.sqrt(s[:d])
+        assert np.allclose(W @ W.T, (Q[:, :d] * s[:d]) @ Q[:, :d].T, atol=1e-12)  # Thm 2 (iii) for every SVD
+        assert np.allclose((W + Cp) @ (W + Cp).T / 4, (Q[:, :d] * np.clip(lam[:d], 0, None)) @ Q[:, :d].T, atol=1e-12)
+        eig_form = 2 * Q[:, :d] * np.sqrt(np.clip(lam[:d], 0, None))
+        assert np.allclose(W + Cp, eig_form, atol=1e-12) == (theta == 0.0)
+        if theta == math.pi / 4:
+            assert np.allclose((W + Cp)[:, 0], math.sqrt(2) * math.sqrt(5.0) * Q[:, 0], atol=1e-12)
     W, Cv = embedding("L2", "ppmi", 100, 0.5), context_embedding("L2", "ppmi", 100, 0.5)
     scale = math.sqrt(svd_of("L2", "ppmi")[1][0])
     cols = np.arange(100)
@@ -1162,6 +1212,12 @@ def test_recovery_on_test_words():
     aucs = [scores((ctx, "ppmi", None, None))["test_auc"] for ctx in LOCAL_CONTEXTS]
     assert all(x < y for x, y in zip(aucs[:3], aucs[1:4]))  # L1 < L2 < L4 < L8
     c = comparison()
+    lab = planted_labels()
+    for ws, key in ((benchmark_split()[1], "test_chance_nn"), (benchmark_words(*RARE_BAND), "rare_chance_nn")):
+        la = np.array([lab[w] for w in ws])
+        same = la[:, None] == la[None, :]
+        np.fill_diagonal(same, False)  # the nearest *other* noun: a uniformly random one of the remaining n − 1
+        assert abs(np.mean(same.sum(axis=1) / (len(ws) - 1)) - c[key]) < 1e-12
     assert min(c["nn_sparse"], c["nn_svd"]) > 3 * c["test_chance_nn"]
     assert c["auc_svd"] - c["auc_sparse"] > 5 * c["auc_diff_se"]
     assert abs(c["nn_diff"]) <= 2 * c["nn_diff_se"]
@@ -1188,6 +1244,10 @@ def test_finance_findings():
         assert f[f"so_coverage_{ctx}"] == 0 and f[f"so_acc_{ctx}"] == 0.5  # no evidence at all
     for ctx in ("L8", "sentence"):  # evidence pointing the wrong way
         assert f[f"so_acc_{ctx}"] < 0.4 and f[f"so_mean_positive_{ctx}"] < 0 < f[f"so_mean_negative_{ctx}"]
+        # so_acc counts each no-evidence word as ½; among words with evidence alone the sign is right far less often
+        cov = f[f"so_coverage_{ctx}"]
+        assert abs(cov * f[f"so_evidence_acc_{ctx}"] + 0.5 * (1 - cov) - f[f"so_acc_{ctx}"]) < 1e-12
+        assert f[f"so_evidence_acc_{ctx}"] < f[f"so_acc_{ctx}"]
     assert f["so_coverage_document"] == 1 and f["so_acc_document"] > 0.8
     assert f["so_mean_positive_document"] > 0 > f["so_mean_negative_document"]
     assert abs(f["polyseme_so_mean"]) < 0.25 * f["lexicon_abs_so_median"]
