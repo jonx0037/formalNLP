@@ -19,7 +19,8 @@ from ``viz_payload``. The sections follow the page:
    most d + 2, on any set of contexts; a mixture of softmaxes escapes the bound.
 6. The honest comparison: each model as an exact arithmetic code (Topic 4), in bits per character; dynamic
    evaluation is prequential coding, and the decoder replays the updates.
-7. Finance case study: on EDGAR the neural models predict worse than uniform, dynamic evaluation recovers
+7. Finance case study: on EDGAR both static networks beat the uniform guess where KN cannot (word dropout
+   taught them a <unk> rate; the NPLM trained without it is worse than uniform), dynamic evaluation recovers
    much of the loss, and the spelling of out-of-vocabulary words alone costs more than lzma's whole code.
 
 Cross-checks: every hand-written gradient against complex-step derivatives (exact to rounding) and central
@@ -348,10 +349,10 @@ def permute_hidden(P: Params, perm: np.ndarray) -> Params:
 
 @lru_cache(maxsize=1)
 def nonconvexity() -> dict[str, float]:
-    """Prop 3 on the trained NPLM: the loss on 4,096 dev events at θ, at θ with its hidden units in reverse
-    order, and at their midpoint."""
+    """Prop 3 on the trained NPLM: the training loss on the first 4,096 training events (under unk_moment's draw
+    of the word dropout) at θ, at θ with its hidden units in reverse order, and at their midpoint."""
     P = trained_nplm().params
-    X, Y = events_of("dev")
+    X, Y = dropped_train_events(np.random.default_rng([SEED, 101]))
     X, Y = X[:4096], Y[:4096]
     Q = permute_hidden(P, np.arange(NPLM_CFG["h"])[::-1])
     mid = {k: (P[k] + Q[k]) / 2 for k in P}
@@ -739,13 +740,27 @@ def zero_gate_recurrence(P: Params, scale: float = 0.0) -> Params:
 # The long-lag memory task: read a bit, then LAG noise symbols, then report the bit.
 
 LAG, LAG_H, LAG_STEPS, LAG_BATCH, LAG_LR = 60, 16, 600, 64, 0.01
-FORGET_BIASES = (1.0, 3.0)  # Gers et al.'s 1, and a bias whose cell path σ(3)^60 = 0.056 still reaches the bit
+FORGET_BIASES = (1.0, 3.0)  # Jozefowicz et al.'s 1, and a bias whose cell path σ(3)^60 = 0.054 still reaches the bit
 
 
 def lag_data(rng: np.random.Generator, n: int, lag: int = LAG) -> tuple[np.ndarray, np.ndarray]:
     """Inputs (lag + 1) × n one-hot ids: x₀ = the bit ∈ {0, 1}, then noise ∈ {2, 3}; the target is the bit."""
     bit = rng.integers(0, 2, n)
     return np.concatenate([bit[None], rng.integers(2, 4, (lag, n))]), bit
+
+
+def lag_loss(P: Params, X: np.ndarray, bit: np.ndarray, cell: str):
+    """lag_loss_grad's loss by the forward pass alone; complex parameters give a complex loss (the complex step)."""
+    T, n = X.shape
+    H = P["Wh"].shape[0]
+    eye = np.eye(P["Wx"].shape[0])
+    h = c = np.zeros((n, H), dtype=np.result_type(*P.values()))
+    for t in range(T):
+        if cell == "lstm":
+            h, c, _ = lstm_cell(P, eye[X[t]], h, c)
+        else:
+            h = np.tanh(eye[X[t]] @ P["Wx"] + h @ P["Wh"] + P["b"])
+    return -log_softmax(h @ P["Wo"] + P["bo"])[np.arange(n), bit].mean()
 
 
 def lag_loss_grad(P: Params, X: np.ndarray, bit: np.ndarray, cell: str):
@@ -814,28 +829,42 @@ def long_lag_census(n_seeds: int = 12) -> dict[str, list[float]]:
     return out
 
 
+def train_lag_model(rng: np.random.Generator, cell: str, forget_bias: float) -> dict[str, float]:
+    """One start: a fresh model trained by Adam for LAG_STEPS minibatches, then scored on 2,000 fresh sequences."""
+    P = init_lag_model(rng, cell, forget_bias)
+    m = {q: np.zeros_like(v) for q, v in P.items()}
+    s = {q: np.zeros_like(v) for q, v in P.items()}
+    X, bit = lag_data(rng, 256)
+    reach0 = lag_loss_grad(P, X, bit, cell)[2]
+    for step in range(1, LAG_STEPS + 1):
+        X, bit = lag_data(rng, LAG_BATCH)
+        _, G, _, _ = lag_loss_grad(P, X, bit, cell)
+        for q in P:
+            m[q] = ADAM_B1 * m[q] + (1 - ADAM_B1) * G[q]
+            s[q] = ADAM_B2 * s[q] + (1 - ADAM_B2) * G[q] ** 2
+            P[q] -= LAG_LR * (m[q] / (1 - ADAM_B1**step)) / (np.sqrt(s[q] / (1 - ADAM_B2**step)) + ADAM_EPS)
+    X, bit = lag_data(rng, 2000)
+    loss, _, _, acc = lag_loss_grad(P, X, bit, cell)
+    return {"reach_init": reach0, "test_loss": loss, "accuracy": acc}
+
+
 @lru_cache(maxsize=1)
 def long_lag_training() -> dict[str, dict[str, float]]:
-    """Each model trained by Adam for LAG_STEPS minibatches, then scored on 2,000 fresh sequences."""
-    out = {}
-    for k, (name, cell, fb) in enumerate(lag_models()):
-        rng = np.random.default_rng([SEED, 310 + k])
-        P = init_lag_model(rng, cell, fb)
-        m = {q: np.zeros_like(v) for q, v in P.items()}
-        s = {q: np.zeros_like(v) for q, v in P.items()}
-        X, bit = lag_data(rng, 256)
-        reach0 = lag_loss_grad(P, X, bit, cell)[2]
-        for step in range(1, LAG_STEPS + 1):
-            X, bit = lag_data(rng, LAG_BATCH)
-            _, G, _, _ = lag_loss_grad(P, X, bit, cell)
-            for q in P:
-                m[q] = ADAM_B1 * m[q] + (1 - ADAM_B1) * G[q]
-                s[q] = ADAM_B2 * s[q] + (1 - ADAM_B2) * G[q] ** 2
-                P[q] -= LAG_LR * (m[q] / (1 - ADAM_B1**step)) / (np.sqrt(s[q] / (1 - ADAM_B2**step)) + ADAM_EPS)
-        X, bit = lag_data(rng, 2000)
-        loss, _, _, acc = lag_loss_grad(P, X, bit, cell)
-        out[name] = {"reach_init": reach0, "test_loss": loss, "accuracy": acc}
-    return out
+    """Each model trained from one start (the table's row), by train_lag_model."""
+    return {name: train_lag_model(np.random.default_rng([SEED, 310 + k]), cell, fb)
+            for k, (name, cell, fb) in enumerate(lag_models())}
+
+
+LAG_STARTS = 8
+
+
+@lru_cache(maxsize=1)
+def long_lag_starts() -> dict[str, list[float]]:
+    """Exploratory, NOT run by the harness (~35 s): each model's test accuracy from LAG_STARTS further starts,
+    start s drawing from default_rng([SEED, 320, s]) for every model. The page quotes these counts as exploratory
+    (bias 3 learns from 7 of 8, the Elman network from 2, bias 1 from none)."""
+    return {name: [train_lag_model(np.random.default_rng([SEED, 320, s]), cell, fb)["accuracy"]
+                   for s in range(LAG_STARTS)] for name, cell, fb in lag_models()}
 
 
 # --------------------------------------------------------------------------------------------
@@ -1210,7 +1239,8 @@ def viz_payload() -> dict:
     corpus_rows = {t: {name: {k: _r(v) for k, v in comparison_row(name, t).items()} for name in COMPARED} for t in TESTS}
     census, trained = long_lag_census(), long_lag_training()
     lag = {name: {"log10_reach": _r(math.log10(float(np.median(census[name]))), 3),
-                  "accuracy": _r(trained[name]["accuracy"], 4), "test_loss": _sig(trained[name]["test_loss"]),
+                  "accuracy": math.floor(trained[name]["accuracy"] * 1000 + 0.5) / 1000,  # 971/2000 → 0.486, half up
+                  "test_loss": _sig(trained[name]["test_loss"]),
                   "log10_cell_path": None if cell != "lstm" else _r(LAG * math.log10(float(_sigmoid(fb))), 3)}
            for name, cell, fb in lag_models()}
     return {"models": list(LAB_MODELS), "sentences": [lab_sentence(t, w) for t, w in LAB_SENTENCES],
@@ -1312,7 +1342,8 @@ def test_lipschitz_smoothing_random():
 
 @lru_cache(maxsize=1)
 def lipschitz_ratios() -> np.ndarray:
-    """max_w |log p(w | x) − log p(w | x′)| / (L ‖x − x′‖) for 2,000 random pairs of distinct held-out contexts."""
+    """max_w |log p(w | x) − log p(w | x′)| / (L ‖x − x′‖) for 2,000 random pairs of held-out contexts, those whose two
+    contexts are identical dropped (1,982 remain)."""
     rng = np.random.default_rng([SEED, 3])
     P = trained_nplm().params
     X = events_of("held")[0]
@@ -1324,7 +1355,8 @@ def lipschitz_ratios() -> np.ndarray:
 
 
 def test_lipschitz_smoothing_corpus():
-    """Thm 1 on the trained NPLM: the bound holds for 2,000 random pairs of held-out contexts; the observed
+    """Thm 1 on the trained NPLM: the bound holds for 1,982 random pairs of distinct held-out contexts (2,000 drawn,
+    identical pairs dropped); the observed
     ratio max_w |Δ log p| / (L ‖Δx‖) is well below 1 (the bound is a worst case)."""
     ratio = lipschitz_ratios()
     assert ratio.max() <= 1 and np.median(ratio) < 0.1
@@ -1390,7 +1422,8 @@ def test_zero_frequency_target_has_no_mle():
     probability, which is positive at every parameter value — so there is no stationary point, and gradient
     descent drives that bias down at every step and the class's probability toward 0. On the corpus: trained
     without word dropout, the NPLM's mean p(<unk>) falls below 1/|V| and EDGAR (57.6% <unk>) costs more than the
-    uniform guess; with it, mean p(<unk>) tracks the dropout's target rate to 10% (Thm 2) and EDGAR beats uniform."""
+    uniform guess; with it, mean p(<unk>) tracks the dropout's target rate to 10% (Thm 2) and EDGAR beats uniform —
+    already after one epoch, the raw network's training length, as well as at the dev-selected epoch."""
     rng = np.random.default_rng([SEED, 6])
     for _ in range(20):
         n, h, K = 120, 2, 4
@@ -1408,10 +1441,11 @@ def test_zero_frequency_target_has_no_mle():
     raw, drop = unk_cost("nplm-nodrop", "held"), unk_cost("nplm", "held")
     assert raw["mean_p_unk"] < 1 / V < drop["mean_p_unk"] and raw["unk_nats"] > drop["unk_nats"] + 3
     assert unk_cost("nplm-nodrop", "edgar")["nats"] > pce.uniform_log_loss() > unk_cost("nplm", "edgar")["nats"]
+    assert nplm_without_dropout().history[0]["edgar"] > pce.uniform_log_loss() > trained_nplm().history[0]["edgar"]
 
 
 def test_network_is_not_convex():
-    """Prop 3: relabeling hidden units leaves the loss unchanged, and the midpoint of the trained NPLM and its
+    """Prop 3: relabeling hidden units leaves the training loss unchanged, and the midpoint of the trained NPLM and its
     relabeling has a higher loss than both — impossible for a convex function, since convexity bounds the midpoint's
     loss by the endpoints' average. The symmetry itself is also checked on random small networks."""
     c = nonconvexity()
@@ -1424,8 +1458,8 @@ def test_network_is_not_convex():
 
 
 def test_reverse_accumulation_random_dags():
-    """Thm 3 on 200 random computational graphs with fan-out: one reverse sweep gives every input's adjoint,
-    equal to its complex-step derivative (exact to rounding)."""
+    """Thm 3 on 200 random computational graphs, 198 of them with fan-out: one reverse sweep gives every input's
+    adjoint, equal to its complex-step derivative (exact to rounding)."""
     rng = np.random.default_rng([SEED, 8])
     fanout = 0
     for _ in range(200):
@@ -1442,7 +1476,7 @@ def test_reverse_accumulation_random_dags():
         for i in range(m):
             f = lambda t, i=i: evaluate(prog, [t if j == i else xs[j] for j in range(m)]).nodes[-1].value  # noqa: E731
             assert np.allclose(adj[i], complex_step_grad(f, xs[i]), rtol=1e-11, atol=1e-13)
-    assert fanout > 150
+    assert fanout == 198
 
 
 def test_nplm_gradient():
@@ -1529,12 +1563,14 @@ def test_jacobian_bound_corpus():
     vanishing nor the linear picture applies, and every per-step factor along 200 held-out sentences has norm
     above 1; yet the median measured norm at lag 12 is under a quarter of its lag-1 value while the trajectory
     bound has grown past 1,000 times it — the decay lives in the products (successive factors' expanding
-    directions do not line up), where no per-step norm can see it — and no measured norm exceeds its bound."""
+    directions do not line up), where no per-step norm can see it — and no measured norm exceeds its bound. The
+    median measured norm falls at every lag from 2 to 14 and drops below 1 between lags 8 and 9."""
     R = trained_rnn().params
     assert np.linalg.norm(R["Wh"], 2) > 1 and np.abs(np.linalg.eigvals(R["Wh"])).max() > 1
     cd = corpus_decay()
     m, b = dict(zip(cd["lags"], cd["measured"])), dict(zip(cd["lags"], cd["bound"]))
     assert cd["violations"] == 0 and m[12] < 0.25 * m[1] and b[12] > 1000 * m[12] and cd["min_step_norm"] > 1
+    assert all(m[k + 1] < m[k] for k in range(2, 14)) and m[8] > 1 > m[9]
 
 
 def test_lstm_cell_path():
@@ -1556,10 +1592,27 @@ def test_lstm_cell_path():
         assert 5 < res[0] / res[1] < 20
 
 
+def test_lag_gradient():
+    """Cor 3 on the long-lag models: lag_loss_grad's hand-written BPTT (Elman and LSTM) equals complex-step
+    derivatives (relative error < 1e-10) and central differences (< 1e-6) on random short instances."""
+    rng = np.random.default_rng([SEED, 15])
+    for name, cell, fb in lag_models():
+        for _ in range(3):
+            P = init_lag_model(rng, cell, fb)
+            X, bit = lag_data(rng, 6, lag=8)
+            _, G, _, _ = lag_loss_grad(P, X, bit, cell)
+            cs = param_grad(complex_step_grad, lambda Q: lag_loss(Q, X, bit, cell), P)
+            cd = param_grad(central_diff_grad, lambda Q: lag_loss(Q, X, bit, cell), P)
+            for k in P:
+                scale = np.abs(cs[k]).max() + 1e-12
+                assert np.abs(G[k] - cs[k]).max() / scale < 1e-10 and np.abs(G[k] - cd[k]).max() / scale < 1e-6
+
+
 def test_long_lag_memory():
     """Prop 4 in practice, on a bit to be remembered across 60 noise symbols: at initialization the gradient
     reaching the bit is orders of magnitude larger for an LSTM with forget bias 3 than for one with bias 1 or for
-    the Elman network (median over 12 initializations); after 600 Adam steps only the bias-3 LSTM has learned."""
+    the Elman network (median over 12 initializations); after 600 Adam steps from one start each, only the bias-3
+    LSTM has learned (other starts: long_lag_starts, exploratory)."""
     c = {k: np.median(v) for k, v in long_lag_census().items()}
     assert c["lstm-3"] > 30 * c["lstm-1"] and c["lstm-3"] > 30 * c["elman"]
     t = long_lag_training()
@@ -1583,13 +1636,15 @@ def test_softmax_bottleneck():
 
 
 def test_neural_beats_kn_in_domain():
-    """§6: in domain, in honest bits per character, RNN < NPLM < KN, each gap many paired standard errors; mixing
-    with KN helps the NPLM; dynamic evaluation helps the RNN; the model ranking is the same per token."""
+    """§6: in domain, in honest bits per character, RNN < NPLM < KN, and every network beats KN by more than 20
+    paired standard errors; mixing with KN helps each network; dynamic evaluation helps the RNN; the model ranking
+    is the same per token."""
     r = {name: comparison_row(name, "held") for name in COMPARED}
     assert r["rnn"]["bpc"] < r["nplm"]["bpc"] < r["kn"]["bpc"]
-    for name in ("nplm", "rnn", "rnn-dyn"):
-        assert r[name]["bpc_minus_kn"] < -5 * r[name]["bpc_minus_kn_se"]
-    assert r["nplm+kn"]["bpc"] < r["nplm"]["bpc"] and r["rnn-dyn"]["bpc"] < r["rnn"]["bpc"]
+    for name in COMPARED[1:]:
+        assert r[name]["bpc_minus_kn"] < -20 * r[name]["bpc_minus_kn_se"]
+    assert r["nplm+kn"]["bpc"] < r["nplm"]["bpc"] and r["rnn+kn"]["bpc"] < r["rnn"]["bpc"]
+    assert r["rnn-dyn"]["bpc"] < r["rnn"]["bpc"]
     order_bpc = sorted(COMPARED, key=lambda k: r[k]["bpc"])
     assert order_bpc == sorted(COMPARED, key=lambda k: r[k]["nats"])
     assert abs(r["kn"]["nats"] - 2.8551) < 1e-4 and abs(r["kn"]["bpc"] - 0.6371) < 1e-4  # Topic 4's numbers
@@ -1621,8 +1676,9 @@ def test_finance_findings():
     f = finance_summary()
     for name in ("nplm", "rnn"):
         assert f[f"{name}_edgar_nats"] < f["uniform_nats"] < f["kn_edgar_nats"]
-        h = (trained_nplm() if name == "nplm" else trained_rnn()).history
-        assert h[-1]["edgar"] > h[0]["edgar"] and h[-1]["dev"] < h[0]["dev"]
+        tr = trained_nplm() if name == "nplm" else trained_rnn()
+        sel, first = tr.history[tr.epoch], tr.history[0]
+        assert sel["edgar"] > first["edgar"] and sel["dev"] < first["dev"]
     assert f["nplm_edgar_nats"] < f["rnn_edgar_nats"] and f["nplm_edgar_bpc"] < f["rnn_edgar_bpc"]
     assert f["rnn_held_bpc"] < f["nplm_held_bpc"]
     assert f["rnn-dyn_edgar_nats"] < f["rnn_edgar_nats"] - 3

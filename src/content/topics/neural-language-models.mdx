@@ -215,7 +215,7 @@ import NeuralLMLab from '../../components/viz/NeuralLMLab.tsx';
 
 ## Overview & Motivation
 
-Take one held-out sentence from the finance corpus: *cedar ridge bancorp owns brackenbury lending outright*. Interpolated Kneser–Ney, the [n-gram topic](/topics/n-gram-models-smoothing)'s best smoother, spends $45.1$ bits on its words. For three of them, the pair each forms with the word before it never occurred in training, so Kneser–Ney can only back off to shorter contexts and hope. A small neural network that sees exactly the same two-word context spends $28.3$ bits. It has never seen those word pairs either. What it has is a position for every context in a learned space, and contexts near this one have told it what tends to come next.
+Take one held-out sentence from the finance corpus: *cedar ridge bancorp owns brackenbury lending outright*. Interpolated Kneser–Ney, the best smoother of the [n-gram topic](/topics/n-gram-models-smoothing), spends $45.1$ bits on the sentence. For three of them, the pair each forms with the word before it never occurred in training, so Kneser–Ney can only back off to shorter contexts and hope. A small neural network that sees exactly the same two-word context spends $28.3$ bits. It has never seen those word pairs either. What it has is a position for every context in a learned space, and contexts near this one have told it what tends to come next.
 
 This topic is about that move: from counts to coordinates. We build two neural language models from scratch, Bengio's neural probabilistic language model (NPLM) and an Elman recurrent network, train them on the n-gram topic's $69{,}312$ training tokens, and prove what each piece does.
 
@@ -278,7 +278,7 @@ The entries of $\mathrm{diag}(1 - a^2)$ lie in $(0, 1]$, so its norm is at most 
 
 </TheoremBlock>
 
-A context never seen in training is predicted like the seen contexts near it, and "near" is learned from every context at once: an embedding row moves whenever its word occurs anywhere (Corollary 2). For the trained NPLM the constant is $207.2$, a worst case. Over $2{,}000$ random pairs of held-out contexts, the largest change in any word's log-probability divided by the bound has median $0.0193$ and maximum $0.0403$. The theorem holds with room to spare, and the room is the point: the constant certifies continuity, not how smooth the learned map actually is.
+A context never seen in training is predicted like the seen contexts near it, and "near" is learned from every context at once: an embedding row moves whenever its word occurs anywhere (Corollary 2). For the trained NPLM the constant is $207.2$, a worst case. Over about $2{,}000$ random pairs of distinct held-out contexts, the largest change in any word's log-probability divided by the bound has median $0.0193$ and maximum $0.0403$. The theorem holds with room to spare, and the room is the point: the constant certifies continuity, not how smooth the learned map actually is.
 
 Where does geometry pay? Split the held-out tokens by what training saw:
 
@@ -286,7 +286,7 @@ Where does geometry pay? Split the held-out tokens by what training saw:
 |---|---|---|---|---|
 | bigram never seen in training | $5{,}112$ | $7.525$ | $6.735$ | $6.247$ |
 | bigram seen, trigram not | $2{,}374$ | $3.563$ | $3.293$ | $3.066$ |
-| trigram seen | $15{,}569$ | $\mathbf{1.214}$ | $1.260$ | $1.142$ |
+| trigram seen | $15{,}569$ | $1.214$ | $1.260$ | $1.142$ |
 
 The entries are nats per token. With the same two-word context as Kneser–Ney, the NPLM is $0.79$ nats better where the counts are absent and $0.046$ worse where they exist. Counts are the better estimate when you have them, and coordinates when you do not. The recurrent network of a later section wins on every row, because it sees more than two words.
 
@@ -364,9 +364,9 @@ The $w$-th coordinate of $\nabla_b L$ in Theorem 2 has no $-e_{y_i}$ term, becau
 
 </TheoremBlock>
 
-The n-gram topic's zero-count problem returns, one level up. The softmax is positive, but fitting it by maximum likelihood is not smoothing, and the training text has a word that never occurs as a target: `<unk>`. Trained for one epoch on the raw text, the NPLM's average probability for `<unk>` on held-out contexts is $2.9 \times 10^{-5}$, below the uniform $1/\lvert V \rvert = 2.9 \times 10^{-4}$. Each held-out unknown word then costs $9.76$ nats. On the EDGAR excerpts, where $57.6\%$ of tokens are unknown, the network scores $8.2058$ nats per token, worse than a uniform guess at $8.1394$.
+The n-gram topic's zero-count problem returns, one level up. The softmax is positive, but fitting it by maximum likelihood is not smoothing, and the training text has a word that never occurs as a target: `<unk>`. Trained for one epoch on the raw text (the networks below train for up to four), the NPLM's average probability for `<unk>` on held-out contexts is $2.9 \times 10^{-5}$, below the uniform $1/\lvert V \rvert = 2.9 \times 10^{-4}$. Each held-out unknown word then costs $9.76$ nats. On the EDGAR excerpts, where $57.6\%$ of tokens are unknown, the network scores $8.2058$ nats per token, worse than a uniform guess at $8.1394$.
 
-The cure is the n-gram topic's Good–Turing logic: words seen once stand in for words not seen at all. In every epoch, each training token of a word seen once becomes `<unk>` with probability $\tfrac12$, in the context and as a target alike. This is **word dropout** (Kiperwasser and Goldberg 2016), and Theorem 2 predicts its effect. Expected over the dropout, $\tfrac12 \cdot n_1 / N = 0.0135$ of the targets are `<unk>`. The trained NPLM's average probability for `<unk>` over the training contexts is $0.0134$, against $0.0140$ in one draw. Each held-out unknown word now costs $3.13$ nats, and on EDGAR the network beats the uniform guess ($6.4165$ nats per token). Every network below is trained this way.
+The cure is the n-gram topic's Good–Turing logic: words seen once stand in for words not seen at all. In every epoch, each training token of a word seen once becomes `<unk>` with probability $\tfrac12$, in the context and as a target alike. This is **word dropout** (Kiperwasser and Goldberg 2016), and Theorem 2 predicts its effect. Expected over the dropout, $\tfrac12 \cdot n_1 / N = 0.0135$ of the targets are `<unk>`. The trained NPLM's average probability for `<unk>` over the training contexts is $0.0134$, against $0.0140$ in one draw. Each held-out unknown word now costs $3.13$ nats, and on EDGAR the network beats the uniform guess ($6.4165$ nats per token). That comparison is not matched in training length: this network trains for four epochs and the raw one for one. The matched comparison tells the same story: after its first epoch, the dropout network scores $5.475$ nats per token on EDGAR, against the raw network's $8.206$. Every network below is trained this way.
 
 <TheoremBlock type="proposition" number={3} title="The network is not convex">
 
@@ -376,7 +376,7 @@ The NPLM's training loss is not a convex function of its parameters.
 
 <TheoremBlock type="proof">
 
-Relabeling the hidden units, by permuting the columns of $W_1$ and the entries of $b_1$ and the rows of $W_2$ the same way, leaves the network's function unchanged, so the loss $L$ is unchanged: $L(\pi\theta) = L(\theta)$. If $L$ were convex, its value at the midpoint would satisfy $L\bigl(\tfrac12(\theta + \pi\theta)\bigr) \le \tfrac12 L(\theta) + \tfrac12 L(\pi\theta) = L(\theta)$. For the trained NPLM, with $\pi$ reversing the order of the hidden units, on $4{,}096$ dev events, $L(\theta) = L(\pi\theta) = 2.6955$ nats while the midpoint scores $3.5839$.
+Relabeling the hidden units, by permuting the columns of $W_1$ and the entries of $b_1$ and the rows of $W_2$ the same way, leaves the network's function unchanged, so the loss $L$ is unchanged: $L(\pi\theta) = L(\theta)$. If $L$ were convex, its value at the midpoint would satisfy $L\bigl(\tfrac12(\theta + \pi\theta)\bigr) \le \tfrac12 L(\theta) + \tfrac12 L(\pi\theta) = L(\theta)$. For the trained NPLM, with $\pi$ reversing the order of the hidden units, on the first $4{,}096$ training events (one draw of the word dropout below), $L(\theta) = L(\pi\theta) = 2.1004$ nats while the midpoint scores $3.1837$.
 
 </TheoremBlock>
 
@@ -413,7 +413,7 @@ $$
 \frac{\partial F_{i-1}}{\partial v_j} = \frac{\partial F_i}{\partial v_j} + \frac{\partial F_i}{\partial v_i}\,\frac{\partial \varphi_i}{\partial v_j},
 $$
 
-where the last term is zero unless $j$ is a parent of $i$. The sweep keeps one accumulator per node, starts with $\bar v_N = 1$ and zeros elsewhere, and on reaching node $i$ adds $\bar v_i\, \partial \varphi_i / \partial v_j$ to each parent's accumulator, which is this equation. By induction on the number of nodes processed, once nodes $N, \dots, i + 1$ are done, the accumulator of $v_i$ holds $\partial F_i / \partial v_i = \bar v_i$, and it is final because no unprocessed node depends on $v_i$. (2) Each node's products are formed once and each edge's contribution is added once.
+where the last term is zero unless $j$ is a parent of $i$. The sweep keeps one accumulator per node, starts with $\bar v_N = 1$ and zeros elsewhere, and on reaching node $i$ adds $\bar v_i\, \partial \varphi_i / \partial v_j$ to each parent's accumulator, which is this equation. By induction on the number of nodes processed, once nodes $N, \dots, i + 1$ are done, the accumulator of every remaining node $v_j$, $j \le i$, holds $\partial F_i / \partial v_j$. This holds at the start, since $F_N = v_N$, and processing node $i$ turns each $\partial F_i / \partial v_j$ into $\partial F_{i-1} / \partial v_j$ by the equation above (non-parents gain zero). In particular the accumulator of $v_i$ holds $\partial F_i / \partial v_i = \bar v_i$, and it is final because no unprocessed node depends on $v_i$. (2) Each node's products are formed once and each edge's contribution is added once.
 
 </TheoremBlock>
 
@@ -421,7 +421,7 @@ Reverse mode goes back to Linnainmaa (1976), the cost bound to Baur and Strassen
 
 <TheoremBlock type="remark" title="Checking a gradient exactly: the complex step">
 
-A hand-written gradient needs a reference. Finite differences subtract two nearly equal numbers and lose half their digits. For a real-analytic function, $f(\theta + i h e_j) = f(\theta) + i h\, \partial_j f(\theta) + O(h^2)$, so $\operatorname{Im} f(\theta + i h e_j)/h$ is the derivative with no subtraction at all (Squire and Trapp 1998). With $h = 10^{-30}$ it is exact to rounding. Every gradient on this page is checked against it on random instances, with central differences as a second check. The companion notebook runs Theorem 3 itself on $200$ random graphs with fan-out (matrix products, $\tanh$, products and sums of vectors, log-sum-exp), and every input's adjoint matches its complex-step derivative to $10^{-11}$.
+A hand-written gradient needs a reference. Finite differences subtract two nearly equal numbers and lose half their digits. For a real-analytic function, $f(\theta + i h e_j) = f(\theta) + i h\, \partial_j f(\theta) + O(h^2)$, so $\operatorname{Im} f(\theta + i h e_j)/h$ is the derivative with no subtraction at all (Squire and Trapp 1998). With $h = 10^{-30}$ it is exact to rounding. Every hand-written gradient on this page, the NPLM's, the recurrent network's, and the long-lag Elman and LSTM networks' below, is checked against it on random instances, with central differences as a second check. The companion notebook runs Theorem 3 itself on $200$ random graphs, $198$ of them with fan-out (matrix products, $\tanh$, products and sums of vectors, log-sum-exp), and every input's adjoint matches its complex-step derivative to $10^{-11}$.
 
 </TheoremBlock>
 
@@ -447,7 +447,7 @@ So a word's embedding moves whenever the word appears, in whatever context, by a
 
 ## Recurrent networks and gradients through time
 
-The NPLM sees two words, like the trigram it replaces. Take *pellucid software based in dublin expanded its headcount clinicbase footprint*. The last word is predictable from *expanded its*, five words back, and from nothing in its two-word context. The NPLM spends $57.8$ bits on the sentence. A recurrent network, whose state summarizes everything read so far, spends $41.3$.
+The NPLM sees two words, like the trigram it replaces. Take *pellucid software based in dublin expanded its headcount clinicbase footprint*. The last word is predictable from *expanded its*, four words back, and from nothing in its two-word context. The NPLM spends $57.8$ bits on the sentence. A recurrent network, whose state summarizes everything read so far, spends $41.3$.
 
 <TheoremBlock type="definition" number={3} title="Elman recurrent language model">
 
@@ -530,9 +530,9 @@ This is the vanishing- and exploding-gradient analysis of Bengio, Simard, and Fr
 | lag $m$ | $1$ | $2$ | $4$ | $8$ | $10$ | $12$ | $14$ |
 |---|---|---|---|---|---|---|---|
 | median $\lVert \partial h_T / \partial h_{T-m} \rVert_2$ | $2.024$ | $2.223$ | $1.899$ | $1.026$ | $0.704$ | $0.449$ | $0.219$ |
-| median bound from per-step norms | $2.0$ | $4.1$ | $17.4$ | $296$ | $1{,}242$ | $4{,}786$ | $17{,}657$ |
+| median bound from per-step norms | $2.0$ | $4.1$ | $17.4$ | $296$ | $1{,}241$ | $4{,}786$ | $17{,}656$ |
 
-The bound grows by a factor of about two per step and the measured norm falls. Saturation explains part of the gap ($37.9\%$ of the units sit beyond $\lvert h \rvert = 0.9$, where $1 - h^2$ is small), but not all of it, since every factor still has norm above one. The rest is alignment: the direction one factor stretches is not the direction the next one stretches, so the product shrinks while every factor expands. The product's growth rate per step turns negative after about eight steps. No bound built from per-step norms can see this. In effect the recurrent state lifts the trigram's two-word horizon, softly, to about a dozen words.
+The bound grows by a factor of about two per step and the measured norm falls. Saturation explains part of the gap ($37.9\%$ of the units sit beyond $\lvert h \rvert = 0.9$, where $1 - h^2$ is small), but not all of it, since every factor still has norm above one. The rest is alignment: the direction one factor stretches is not the direction the next one stretches, so the product shrinks while every factor expands. The measured norm peaks at lag $2$, falls at every lag after that, and drops below one between lags $8$ and $9$ ($1.026$, then $0.871$). No bound built from per-step norms can see this. In effect the recurrent state lifts the trigram's two-word horizon, softly, to about a dozen words.
 
 The **long short-term memory** network was designed to keep a gradient alive across many steps (Hochreiter and Schmidhuber 1997).
 
@@ -574,13 +574,13 @@ which is linear in the three gates' recurrent weights.
 
 With no forget gate, as in the original LSTM, the cell path is the identity, Hochreiter and Schmidhuber's "constant error carousel". With one, the forget gate's bias $b_f$ sets the cell path at initialization to about $\sigma(b_f)^{t-k}$. A bias of one (Jozefowicz, Zaremba, and Sutskever 2015) gives $\sigma(1)^{60} = 6.9 \times 10^{-9}$ across sixty steps, and a bias of three gives $0.054$. To see what that decides, train three networks with $16$ hidden units to read a bit, read $60$ random noise symbols, and then report the bit:
 
-| model | median gradient reaching the bit at initialization (12 starts) | accuracy after 600 training steps |
+| model | median gradient reaching the bit at initialization (12 starts) | accuracy after 600 training steps (one start) |
 |---|---|---|
-| Elman network | $2.45 \times 10^{-10}$ | $0.485$ |
+| Elman network | $2.45 \times 10^{-10}$ | $0.486$ |
 | LSTM, forget bias $1$ | $2.42 \times 10^{-7}$ | $0.531$ |
 | LSTM, forget bias $3$ | $\mathbf{1.42 \times 10^{-3}}$ | $\mathbf{1.000}$ |
 
-Only the network whose gradient reaches the bit learns to report it. The measured ratio between the two LSTMs, about $5{,}900$, is smaller than the cell paths' ratio of about $8 \times 10^{6}$, because the gradient also reaches the bit through the input gate and through paths that leave the cell. The direction and the scale follow Proposition 4. In exploratory runs the bias-three network learned the task from three of four starts, and choosing $b_f$ from the lag a task needs is the idea behind chrono initialization (Tallec and Ollivier 2018).
+In this run, only the network whose gradient reaches the bit learns to report it. The direction follows Proposition 4, and the scale does not: the measured ratio between the two LSTMs, about $5{,}900$, is far smaller than the cell paths' ratio of about $7.9 \times 10^{6}$, because the gradient also reaches the bit through the input gate and through paths that leave the cell. Each accuracy in the table comes from one training start. In an exploratory rerun from eight further starts per model, which the harness does not run, the bias-three network learned the task from seven, the bias-one network from none, and the Elman network from two. A gradient that reaches the bit at initialization makes learning likely, not certain, and a vanishing one makes it unlikely, not impossible. Choosing $b_f$ from the lag a task needs is the idea behind chrono initialization (Tallec and Ollivier 2018).
 
 ---
 
@@ -612,7 +612,7 @@ For the NPLM $d = h = 128$, and its matrix has rank exactly $130 = d + 2$, as do
 
 ## One sentence, four models; gradients through time
 
-The laboratory puts the last four sections side by side. In panel A, pick a sentence: each token gets one bar per model, in bits, and the chip beside the word says what training saw. In the first sentence the networks win on the tokens whose word pair is new. In the second, the recurrent network wins on *footprint*, five words after *expanded its*. In the EDGAR sentence, an unknown word's hatched spelling segment is the same for every model, and dynamic evaluation, which keeps learning on the text it is coding, takes over. Click a token, and panel B shows how strongly its loss depends on every earlier state of the trained network, against Theorem 5's bound. Switch panel B to the synthetic view to vary the spectral norm of $W_h$, with and without the $\tanh$.
+The laboratory puts the last four sections side by side. In panel A, pick a sentence: each token gets one bar per model, in bits, and the chip beside the word says what training saw. In the first sentence the networks win on the tokens whose word pair is new. In the second, the recurrent network wins on *footprint*, three words after *expanded its*. In the EDGAR sentence, an unknown word's hatched spelling segment is the same for every model, and dynamic evaluation, which keeps learning on the text it is coding, takes over. Click a token, and panel B shows how strongly its loss depends on every earlier state of the trained network, against Theorem 5's bound. Switch panel B to the synthetic view to vary the spectral norm of $W_h$, with and without the $\tanh$.
 
 <NeuralLMLab client:visible />
 
@@ -631,7 +631,7 @@ Each model is scored the perplexity topic's way: a ratio estimate over held-out 
 | Elman RNN with Kneser–Ney | $2.4593$ ($0.0294$) | $11.70$ | $0.5518$ ($0.0059$) | $-0.0853$ ($0.0016$) |
 | Elman RNN, dynamic evaluation | $2.2919$ ($0.0265$) | $9.89$ | $\mathbf{0.5158}$ ($0.0054$) | $-0.1213$ ($0.0020$) |
 
-Every network beats Kneser–Ney by more than twenty paired standard errors, and mixing in Kneser–Ney helps each a little. All models here share one tokenizer, so per-token perplexity and bits per character rank them identically (the perplexity topic's Theorem 5); bits per character is the number that stays comparable when a later model tokenizes differently. The networks do it with more numbers: $677{,}987$ and $686{,}179$ parameters, against $42{,}458$ stored n-gram counts.
+Every network beats Kneser–Ney by more than twenty paired standard errors, and mixing in Kneser–Ney helps each a little. All models here share one tokenizer, vocabulary, and speller, so per-token perplexity and bits per character rank them identically; bits per character is the number that stays comparable when a later model tokenizes differently (the perplexity topic's Theorem 5). The networks do it with more numbers: $677{,}987$ and $686{,}179$ parameters, against $42{,}458$ stored n-gram counts.
 
 The last row is **dynamic evaluation** (Mikolov et al. 2010; Krause et al. 2018): after scoring each held-out sentence, take one gradient step on it, with a step size chosen on dev. It is an honest score because it is a code.
 
@@ -647,7 +647,7 @@ The decoder, having decoded $x_1 \dots x_{i-1}$, can recompute the same paramete
 
 </TheoremBlock>
 
-This is prequential coding (formalML, [Minimum Description Length](https://www.formalml.com/topics/minimum-description-length)). Run exactly, with the decoder replaying every update, the whole held-out text becomes **one codeword of $79{,}614$ bits**. The model's own $-\log_2 Q$ is $79{,}612.86$, and decoding the EDGAR text and the first $150$ held-out sentences reproduces them exactly. The perplexity topic's Kneser–Ney code of the same text was $98{,}345$ bits, so the recurrent network with dynamic evaluation writes a file $19.0\%$ shorter.
+This is prequential coding (formalML, [Minimum Description Length](https://www.formalml.com/topics/minimum-description-length)). Run exactly, the whole held-out text becomes **one codeword of $79{,}614$ bits**, within two bits of the model's own $-\log_2 Q$ of $79{,}612.86$. That codeword is encoded and its length checked; the decoder's replay of every update is checked on two others, the EDGAR text's codeword and a separate codeword of the first $150$ held-out sentences, and decoding each reproduces its text exactly. The perplexity topic's Kneser–Ney code of the same text was $98{,}345$ bits, so the recurrent network with dynamic evaluation writes a file $19.0\%$ shorter.
 
 ---
 
@@ -668,7 +668,7 @@ The perplexity topic found that on public EDGAR MD&A excerpts, where $57.6\%$ of
 | Elman RNN, dynamic evaluation | $\mathbf{3.8986}$ | $49.3$ | $4.5432$ |
 | lzma, given the training text | — | — | $\mathbf{2.9080}$ |
 
-**The networks beat the uniform guess where Kneser–Ney cannot.** On a text that is more than half unknown words, the probability of `<unk>` decides most of the per-token loss. Kneser–Ney's is its uniform floor. The networks learned a rate, through word dropout and Theorem 2. Without dropout the NPLM is worse than uniform, as Corollary 1 predicts.
+**The networks beat the uniform guess where Kneser–Ney cannot.** On a text that is more than half unknown words, the `<unk>` events carry about half or more of each static model's loss: $70.1\%$ of Kneser–Ney's nats, $55.7\%$ of the recurrent network's, and $49.8\%$ of the NPLM's. Kneser–Ney's is its uniform floor. The networks learned a rate, through word dropout and Theorem 2. Without dropout the NPLM is worse than uniform after one epoch of training ($8.206$ nats per token), as Corollary 1 predicts, while after the same one epoch with dropout it scores $5.475$.
 
 **In-domain training hurts out of domain, and the ranking reverses.** By the selected epoch, both networks score worse on EDGAR than after their first epoch, while dev keeps improving: the NPLM goes from $5.475$ to $6.416$ nats per token, the recurrent network from $5.868$ to $7.205$. Choosing the epoch on in-domain text picks a worse model for filings. The NPLM also beats the recurrent network on EDGAR, the reverse of the in-domain order: the longer context is longer memory of the training distribution.
 
@@ -703,8 +703,8 @@ The word-level part of the code costs at least zero bits, which is the whole pro
 1. **One corpus, one seed.** The networks are small, trained once each from one random start, on a synthetic corpus. Their wins over Kneser–Ney are evidence about this generator, not about English, and variation across starts is not measured.
 2. **Tuning.** Training is non-convex (Proposition 3), so nothing certifies the trained weights. The network sizes, learning rates, epoch counts, and the word-dropout treatment of `<unk>` were set in exploratory runs, some of which were scored on held-out text before the dev split existed. Everything the published harness tunes is tuned on dev.
 3. **Word dropout is a heuristic.** Replacing once-seen words by `<unk>` half the time follows Good–Turing's logic, but it is not an estimator with a guarantee, and the rate one half is a choice.
-4. **Three bounds are vacuous on the trained models.** The Lipschitz constant of Theorem 1 is about twenty-five times the largest change observed; the tightness constant of Theorem 4 is $10^{-16}$; the bound of Theorem 5 passes $10^{4}$ where the measured norm is $0.2$. Each is true, and none describes what the networks actually do.
-5. **The LSTM result is partial.** Proposition 4 is proved for the cell path only. The long-lag task is asserted for one start; in exploratory runs the bias-three network succeeded from three of four.
+4. **Three bounds are vacuous on the trained models.** The Lipschitz constant of Theorem 1 is about twenty-five times the largest change observed; the tightness constant of Theorem 4 is $7.1 \times 10^{-17}$; the bound of Theorem 5 passes $10^{4}$ where the measured norm is $0.2$. Each is true, and none describes what the networks actually do.
+5. **The LSTM result is partial.** Proposition 4 is proved for the cell path only. The long-lag task is asserted for one start per model. In an exploratory rerun from eight further starts, not part of the harness, the bias-three network succeeded from seven, and the Elman network, whose gradient barely reaches the bit, from two.
 6. **The bottleneck is a rank statement.** That language needs a high-rank model is a hypothesis, and on this corpus the energy beyond the bottleneck's rank is small.
 7. **Exact codes need exact floats.** The arithmetic codes are lossless because encoder and decoder compute identical floating-point numbers. That holds within one process and is not guaranteed across machines.
 8. **Small and narrow tests.** EDGAR is $33$ sentences, and no character-level neural model was trained, so the comparison with lzma does not include the model best placed to win it.
@@ -715,12 +715,12 @@ The word-level part of the code costs at least zero bits, which is the whole pro
 
 ## Implementation
 
-The companion notebook (`notebookPath`) imports `neural_language_models.py`, which owns every number on this page. It imports the perplexity topic's speller and arithmetic coder, the n-gram topic's smoothers and corpus, and the shared finance corpus, and trains both networks from scratch in NumPy on a laptop CPU. Running it as a script executes a harness of $22$ assertion-based tests in under a minute. The tests cover:
+The companion notebook (`notebookPath`) imports `neural_language_models.py`, which owns every number on this page. It imports the perplexity topic's speller and arithmetic coder, the n-gram topic's smoothers and corpus, and the shared finance corpus, and trains both networks from scratch in NumPy on a laptop CPU. Running it as a script executes a harness of $23$ assertion-based tests in under a minute. The tests cover:
 
 - Proposition 1 on random and trained networks, Theorem 1 on random networks and on the trained NPLM, and the event-class table.
 - Proposition 2 and Theorem 2 on random softmax regressions, with complex-step Jacobians and L-BFGS stationary points; Corollary 1 by gradient descent and on the corpus, with and without word dropout; Proposition 3 on the trained network.
-- Theorem 3 on $200$ random computational graphs, and both networks' hand-written gradients, against complex-step derivatives and central differences.
-- Theorem 4 on random networks with large $\varepsilon$ and on the trained one; Theorem 5 on random and trained networks, including the linear case and Gelfand's formula; Proposition 4 exactly and to first order; the long-lag task.
+- Theorem 3 on $200$ random computational graphs, and the hand-written gradients of both networks and of the long-lag models, against complex-step derivatives and central differences.
+- Theorem 4 on random networks with large $\varepsilon$ and on the trained one; Theorem 5 on random and trained networks, including the linear case and Gelfand's formula; Proposition 4 exactly and to first order; the long-lag task from one start per model.
 - Theorem 6 on random instances, a mixture of softmaxes, and both trained networks; the comparison table; dynamic evaluation as an exact code, decoded back; and the finance case study.
 
 The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
