@@ -372,24 +372,36 @@ def band_fit(x: np.ndarray, counts: np.ndarray, target: np.ndarray) -> dict[str,
 
 
 @lru_cache(maxsize=None)
-def fit_summary(cfg: SGNSConfig = CONTROLLED) -> dict:
-    """§2's corpus check of Cor 1: fit by count band, the unobserved cells, and the gap to Thm 2's floor."""
+def fit_summary(cfg: SGNSConfig = CONTROLLED, block: int = 512) -> dict:
+    """§2's corpus check of Cor 1: fit by count band, every unobserved cell (in row blocks), and the gap to Thm 2's
+    floor. The floor is an infimum no finite score attains: an unobserved cell's KL term is b log(1 + eˣ) > 0 for
+    every finite x, so ``kl_gap_unobs``, the part of the gap on those cells, is not unfinished training alone."""
     m = train_sgns(cfg)
-    C = ds.cooc(cfg.context)
+    C = sparse.csr_matrix(ds.cooc(cfg.context))
     target = sparse.coo_matrix(sgns_optimum(C, cfg.alpha, cfg.k)).data
     counts = sparse.coo_matrix(C).data
     x = support_scores(m.W, m.C, C)
     out = band_fit(x, counts, target)
-    rng = np.random.default_rng([SEED, 721])
+    N, n_w, pn = ds.marginals(C, cfg.alpha)
+    med = np.median(x)
     V = C.shape[0]
-    w, c = rng.integers(0, V, (2, 20_000))
-    unseen = np.asarray(C[w, c]).ravel() == 0
-    xu = np.einsum("ij,ij->i", m.W[w[unseen]], m.C[c[unseen]])
-    out.update({"x_obs_mean": float(x.mean()), "x_unobs_mean": float(xu.mean()),
-                "unobs_below_obs_median": float(np.mean(xu < np.median(x))),
+    xu_sum, below, gap_unobs = 0.0, 0, 0.0
+    for s in range(0, V, block):
+        rows = slice(s, s + block)
+        X = m.W[rows] @ m.C.T
+        unseen = C[rows].toarray() == 0
+        xu = X[unseen]
+        xu_sum += float(xu.sum())
+        below += int(np.count_nonzero(xu < med))
+        b = cfg.k * n_w[rows, None] * pn[None, :]
+        gap_unobs += float(np.sum((b * softplus(X))[unseen]))
+    n_unobs = V**2 - C.nnz
+    out.update({"x_obs_mean": float(x.mean()), "x_unobs_mean": xu_sum / n_unobs, "n_unobs": n_unobs,
+                "unobs_below_obs_median": below / n_unobs,
                 "observed_share": C.nnz / V**2, "loss": m.loss, "floor": entropy_floor(C, cfg.alpha, cfg.k),
                 "grad_norm": m.grad_norm})
     out["kl_gap"] = out["loss"] - out["floor"]
+    out["kl_gap_unobs"] = gap_unobs / N
     return out
 
 
@@ -533,8 +545,13 @@ def balance_summary(cfg: SGNSConfig = CONTROLLED) -> dict:
     if 1 in Ds and cfg.epochs in Ds:  # how much of the final D was set in the first epoch
         out["D_change_after_epoch1"] = float(np.linalg.norm(Ds[cfg.epochs] - Ds[1]) / np.linalg.norm(Ds[cfg.epochs]))
         out["D_growth_epoch1"] = float(np.linalg.norm(Ds[1] - D0) / np.linalg.norm(D0))
+    out["D_norms"] = [float(np.linalg.norm(Ds[e])) for e in sorted(Ds)]  # ‖D‖ at each checkpoint, in epoch order
+    # Row 0 of A is the product's top singular direction, §2's offset: where A departs from orthogonal.
     out["gauge_top_row_norm"] = float(np.linalg.norm(A[0]))
     out["gauge_rest_row_norm_median"] = float(np.median(np.linalg.norm(A[1:], axis=1)))
+    E = A @ A.T - np.eye(A.shape[0])
+    out["gauge_offset_share"] = float((np.sum(E[0] ** 2) + np.sum(E[1:, 0] ** 2)) / np.sum(E**2))
+    out["gauge_min_sv_offset"] = float(abs(np.linalg.svd(A)[0][0, -1]))  # the smallest singular vector's offset part
     return out
 
 
@@ -596,9 +613,9 @@ def _paired(Xa, Xb, words) -> dict[str, float]:
 
 @lru_cache(maxsize=1)
 def sgns_comparison() -> dict:
-    """§5's headline: the controlled pair (SGNS against SVD of the same SPPMI₅ at L8, d = 25), the dev-selected grid
-    model against Topic 6's two selected configurations, the rare band, and Cor 1's mechanism — the share of each
-    method's emphasis on the benchmark nouns' rare pairs."""
+    """§5's headline: the controlled pair (SGNS against SVD of the same SPPMI_{0.75,5} at L8, d = 25), the dev-selected
+    grid model against Topic 6's two selected configurations, the rare band, and Cor 1's mechanism — the share of each
+    method's emphasis on the benchmark nouns' rare pairs, overall and on pairs with a word of the noun's own sector."""
     test = ds.benchmark_split()[1]
     lab = ds.planted_labels()
     ctx, d = CONTROLLED.context, CONTROLLED.d
@@ -618,8 +635,8 @@ def sgns_comparison() -> dict:
     for name, X in (("sgns", sgns_vectors(CONTROLLED)), ("svd", ds.vectors(svd_cfg))):
         out[f"rare_auc_{name}"] = ds.pair_auc(X, rare, lab)
         out[f"rare_nn_{name}"] = ds.nn_accuracy(X, rare, lab)
-    # Cor 1's mechanism on the benchmark nouns' rows: what share of SPPMI₅'s squared mass (which the SVD fits with
-    # uniform weight) and of SGNS's local weight ab/(a + b) falls on pairs seen at most 4 times.
+    # Cor 1's mechanism on the benchmark nouns' rows: what share of SPPMI_{0.75,5}'s squared mass (which the SVD fits
+    # with uniform weight) and of SGNS's local weight ab/(a + b) falls on pairs seen at most 4 times.
     C = ds.cooc(ctx)
     rows = np.array([ds.index()[w] for w in ds.benchmark_words()])
     sub = sparse.coo_matrix(C[rows])
@@ -633,6 +650,12 @@ def sgns_comparison() -> dict:
     out["mech_rare_share_support"] = float(rare_pair.mean())
     out["mech_rare_share_sppmi_mass"] = float(sppmi[rare_pair].sum() / sppmi.sum())
     out["mech_rare_share_sgns_weight"] = float(wt[rare_pair].sum() / wt.sum())
+    # The sector evidence: pairs whose context is a planted noun of the row noun's own sector, and how rare they are.
+    vocab = ds.vocab()
+    same = np.array([lab.get(vocab[c]) == lab[vocab[r]] for r, c in zip(rows[sub.row], sub.col)])
+    out["mech_same_share_sppmi_mass"] = float(sppmi[same].sum() / sppmi.sum())
+    out["mech_same_rare_share_sppmi_mass"] = float(sppmi[same & rare_pair].sum() / sppmi[same].sum())
+    out["mech_same_rare_share_sgns_weight"] = float(wt[same & rare_pair].sum() / wt[same].sum())
     for cfg in GRID:
         for k, v in sgns_scores(cfg).items():
             out[f"grid_{cfg.context}_{cfg.d}_{k}"] = v
@@ -647,7 +670,9 @@ def sgns_comparison() -> dict:
 def polarity_probe(X, positive: Sequence[str], negative: Sequence[str]) -> float:
     """Leave-one-out accuracy of the difference-of-means polarity direction on unit-length vectors: each lexicon
     word is classified by which side of the midpoint between the other words' two class means it falls on. The
-    direction and the midpoint are translation-invariant, so a shared offset (§2's bias direction) cannot help."""
+    direction and the midpoint are translation-invariant in the unit vectors, so a shift shared by the unit vectors
+    cancels; a shared offset in the raw vectors (§2's bias direction) changes their normalization and can still move
+    the probe."""
     idx = ds.index()
     words = [*positive, *negative]
     Y = ds.unit_rows(X, [idx[w] for w in words])
@@ -974,14 +999,18 @@ def test_corpus_optimum():
 
 def test_fit_by_count_band():
     """Cor 1 on the corpus (controlled model): the correlation of w·c with PMI_α − log k rises and the mean absolute
-    error falls across the count bands; frequent pairs are fitted closely; unobserved cells sit below observed ones;
-    SGD stops above Thm 2's floor and short of a stationary point."""
+    error falls across the count bands; frequent pairs are fitted closely; every unobserved cell counted, they sit
+    below observed ones. Training has not converged: the loss falls at every checkpoint, last from epoch 10 to 40, and
+    over half its gap to Thm 2's floor sits on unobserved cells, where the floor is an infimum no finite score attains."""
     f = fit_summary()
     assert all(f["r"][i] < f["r"][i + 1] for i in range(len(COUNT_BANDS) - 1))
     assert all(f["mae"][i] > f["mae"][i + 1] for i in range(len(COUNT_BANDS) - 1))
     assert f["r"][-1] > 0.95 and f["r"][0] < 0.7
     assert f["x_unobs_mean"] < f["x_obs_mean"] - 1 and f["unobs_below_obs_median"] > 0.9
-    assert f["kl_gap"] > 0 and f["grad_norm"] > 0
+    losses = [h["loss"] for h in train_sgns(CONTROLLED).history]
+    assert all(l0 > l1 for l0, l1 in zip(losses, losses[1:])), losses
+    assert f["n_unobs"] == round((1 - f["observed_share"]) * ds.cooc(CONTROLLED.context).shape[0] ** 2)
+    assert 0.5 * f["kl_gap"] < f["kl_gap_unobs"] < f["kl_gap"]
     bd = bias_direction()
     assert bd["u_purity"] == 1.0 and bd["v_purity"] == 1.0 and bd["negative"] == 1.0
     assert bd["energy_share"] > 0.8
@@ -1084,11 +1113,14 @@ def test_balanced_factorization():
 def test_corpus_balance():
     """Thm 3 and Cor 2 on the corpus. word2vec's initialization is balanced up to a tiny D₀, but minibatch SGD at its
     step sizes is not gradient flow: Thm 3's η² terms make D grow over a thousandfold in the first epoch and keep
-    growing. What cosines depend on is the gauge A of W = UΣ^½A, and it is near-orthogonal from the first epoch on —
-    singular values within [0.7, 1.3], moving by under 0.05 between checkpoints — so W's cosines are close to the
-    exactly balanced UΣ^½'s (test AUC within 0.03)."""
+    growing at every checkpoint. What cosines depend on is the gauge A of W = UΣ^½A, and it is near-orthogonal from
+    the first epoch on — singular values within [0.7, 1.3], moving by under 0.05 between checkpoints; its row for the
+    offset direction (row 0) is shorter than the median row, and its smallest singular vector lies mostly along that
+    direction — so W's cosines are close to the exactly balanced UΣ^½'s (test AUC within 0.03)."""
     bs = balance_summary()
     assert bs["D0_rel"] < 1e-3 and bs["D_growth_epoch1"] > 100
+    assert all(n0 < n1 for n0, n1 in zip(bs["D_norms"], bs["D_norms"][1:])), bs["D_norms"]
+    assert bs["gauge_top_row_norm"] < bs["gauge_rest_row_norm_median"] and bs["gauge_min_sv_offset"] > 0.5
     assert 0.7 < bs["gauge_sv_min"] <= bs["gauge_sv_max"] < 1.3
     svs = np.array([h["gauge_sv"] for h in train_sgns(CONTROLLED).history if "gauge_sv" in h])
     assert np.ptp(svs, axis=0).max() < 0.05
@@ -1100,12 +1132,14 @@ def test_corpus_balance():
 def test_recovery_on_test_words():
     """§5: the controlled pair and the dev-selected grid model on Topic 6's test nouns. SGNS beats chance and the
     sparse count rows but, at this budget, not the SVD of the same matrix; Cor 1's mechanism holds — the benchmark
-    nouns' rare pairs carry most of SPPMI₅'s squared mass and little of SGNS's local weight."""
+    nouns' rare pairs carry most of SPPMI_{0.75,5}'s squared mass and little of SGNS's local weight, and the pairs
+    with a word of the noun's own sector, the sector evidence, are nearly all rare."""
     c = sgns_comparison()
     chance = ds.comparison()["test_chance_nn"]
     assert c["ctl_test_nn"] > 2 * chance and c["ctl_test_auc"] > 0.75
     assert c["ctl_vs_svd_auc_diff"] < 0
     assert c["mech_rare_share_sppmi_mass"] > c["mech_rare_share_sgns_weight"]
+    assert c["mech_same_share_sppmi_mass"] > 0.5 and c["mech_same_rare_share_sppmi_mass"] > 0.95
     longer = sgns_scores(CONTROLLED)["test_auc"]
     same_budget = sgns_scores(SGNSConfig("L8", 25))["test_auc"]
     assert longer > same_budget  # more epochs help: the 20-epoch grid model is less converged
