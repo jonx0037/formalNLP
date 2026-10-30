@@ -393,8 +393,10 @@ def affine_gauge(W, Cv, b, bt, A, t, s, beta: float) -> tuple[np.ndarray, ...]:
 
 
 def recover_affine_gauge(p1, p2) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-    """Prop 4 (ii): from two parameter sets (W, C, b, b̃) with the same scores and full-column-rank augmented word
-    matrices [W, b, 𝟙], the unique G with [W₂, b₂, 𝟙] = [W₁, b₁, 𝟙]G, read as (A, t, s, β)."""
+    """Prop 4 (ii): from two parameter sets (W, C, b, b̃) with the same scores and, for both sets, full-column-rank
+    augmented matrices [W, b, 𝟙] and [C, 𝟙, b̃] (the word side alone is not enough: with C = 0 any W gives the same
+    scores), the unique G with [W₂, b₂, 𝟙] = [W₁, b₁, 𝟙]G, read as (A, t, s, β). It solves on the word side alone and
+    assumes the context-side rank."""
     W1, _, b1, _ = p1
     W2, _, b2, _ = p2
     d = W1.shape[1]

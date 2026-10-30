@@ -16,7 +16,7 @@ tags:
   - "matrix-factorization"
 domain: "representations"
 financeCaseStudy: true
-rigorFlag: "GloVe's derivation from co-occurrence ratios rests on modeling choices (ratios as the statistic, a function of a dot product of differences, symmetry restored by hand), and Theorem 1 makes GloVe the quadratic of a Poisson fit with a tempered weight and the unobserved pairs dropped, not a likelihood. On this 300-document synthetic corpus, where 69% of observed pairs are seen once, GloVe's vectors do not recover the planted sectors (test AUC 0.476, within 1.1 standard errors of chance) while negative sampling and the SVD of the same counts do. The effect fades as the generator's text is continued (0.695 at ten times the text), and imputing unseen pairs at half a count, our own parameter-free variant rather than the published Swivel, reaches 0.946 there; GloVe's published regime is billions of tokens, and the scale experiment counts the continued text on the 300-document vocabulary and trains by alternating least squares. Exact parallelograms need exact fits: no model's scores come close to one (median defect 0.80 to 1.26), 3CosAdd's answers depend on the factorization (a random basis change at identical loss cuts negative sampling's city-to-region accuracy from 0.633 to 0.253), and the open-vocabulary protocol excludes the query words, without which GloVe would answer 41.5% of the sector questions with the given sector. The knowledge base is synthetic, with 13 cities and 24 companies, and its questions share words. Fifty AdaGrad epochs are not converged (alternating least squares reaches a third of the loss), minibatch summation departs from the C code's updates, the counts are unweighted windows rather than GloVe's distance-weighted ones, and every result is one seed. Proposition 5 describes stationary points that neither trained model reaches."
+rigorFlag: "GloVe's derivation from co-occurrence ratios rests on modeling choices (ratios as the statistic, a function of a dot product of differences, symmetry restored by hand), and Theorem 1 makes GloVe the quadratic of a Poisson fit with a tempered weight and the unobserved pairs dropped, not a likelihood. On this 300-document synthetic corpus, where 69% of observed pairs are seen once, GloVe's vectors do not recover the planted sectors (test AUC 0.476, about 1.1 standard errors from chance) while negative sampling and the SVD of the same counts do. The effect fades as the generator's text is continued (0.695 at ten times the text), and imputing unseen pairs at half a count, our own parameter-free variant rather than the published Swivel, reaches 0.946 there; GloVe's published regime is billions of tokens, and the scale experiment counts the continued text on the 300-document vocabulary and trains by alternating least squares. Exact parallelograms need exact fits: no model's scores come close to one (median defect 0.80 to 1.26), 3CosAdd's answers depend on the factorization (a random basis change at identical loss cuts negative sampling's city-to-region accuracy from 0.633 to 0.253), and the open-vocabulary protocol excludes the query words, without which GloVe would answer 41.5% of the sector questions with the given sector. The knowledge base is synthetic, with 13 cities and 24 companies, and its questions share words. Fifty AdaGrad epochs are not converged (alternating least squares reaches a third of the loss), minibatch summation departs from the C code's updates, the counts are unweighted windows rather than GloVe's distance-weighted ones, and every result is one seed. Proposition 5 describes stationary points that neither trained model reaches."
 videoId: null
 notebookPath: "notebooks/glove-embedding-geometry/01_glove_embedding_geometry.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/glove-embedding-geometry.mdx"
@@ -211,7 +211,7 @@ import GloVeLab from '../../components/viz/GloVeLab.tsx';
 
 ## Overview & Motivation
 
-Take the eight-word-window co-occurrence counts of the [distributional-semantics topic](/topics/distributional-semantics-ppmi-svd) and fit three models to that one matrix at one rank, $d = 25$: the truncated SVD of shifted PPMI that topic selected, the skip-gram with negative sampling of the [word2vec topic](/topics/word2vec-implicit-factorization), and GloVe with its published settings. Score each on the planted-sector benchmark, the probability that two nouns from the same sector are closer than two from different sectors. The SVD scores $0.973$ and negative sampling $0.886$. GloVe scores $0.476$, within $1.1$ standard errors of a coin flip.
+Take the eight-word-window co-occurrence counts of the [distributional-semantics topic](/topics/distributional-semantics-ppmi-svd) and fit three models to that one matrix at one rank, $d = 25$: the truncated SVD of shifted PPMI that topic selected, the skip-gram with negative sampling of the [word2vec topic](/topics/word2vec-implicit-factorization), and GloVe with its published weight and settings. Score each on the planted-sector benchmark, the probability that two nouns from the same sector are closer than two from different sectors. The SVD scores $0.973$ and negative sampling $0.886$. GloVe scores $0.476$, about $1.1$ standard errors from a coin flip.
 
 Nothing went wrong in training. GloVe fits the logarithms of the counts, and a logarithm needs a count: its loss runs over the pairs that occurred and ignores every other cell. In this corpus $69\%$ of the pairs that occurred occurred once, and $\log 1 = 0$. Most of what GloVe sees is a scatter of zeros, and what distinguishes the sectors, which pairs occur at all, is the one thing its loss cannot see.
 
@@ -251,7 +251,7 @@ Why logarithms, and why a dot product? Pennington and colleagues argued from rat
 
 <TheoremBlock type="proposition" number={1} title="The ratio argument, with its hypotheses">
 
-Let $F: \mathbb{R} \to (0, \infty)$ be continuous with $F(u - v) = F(u)/F(v)$ for all $u, v$. Then $F(u) = e^{\lambda u}$ for some $\lambda \in \mathbb{R}$. If in addition
+Let $F: \mathbb{R} \to (0, \infty)$ be continuous with $F(u - v) = F(u)/F(v)$ for all $u, v$. Then $F(u) = e^{\lambda u}$ for some $\lambda \in \mathbb{R}$. If in addition every $X_{ij} \gt 0$, so that every ratio below is defined and positive, and
 
 $$
 F\bigl(\langle \mathbf{w}_i - \mathbf{w}_k, \mathbf{c}_j \rangle\bigr) = \frac{P(j \mid i)}{P(j \mid k)}
@@ -273,7 +273,7 @@ The model the argument lands on is one the distributional-semantics topic alread
 
 <TheoremBlock type="proposition" number={2} title="An exact fit makes PMI rank at most d + 2">
 
-If $s_{ij} = \log X_{ij}$ on every cell, then
+If every $X_{ij} \gt 0$ and $s_{ij} = \log X_{ij}$ on every cell, then
 
 $$
 \operatorname{PMI} = W C^\top + a \mathbf{1}^\top + \mathbf{1} \beta^\top, \qquad a_i = b_i - \log X_{i\cdot} + \log N, \quad \beta_j = \tilde b_j - \log X_{\cdot j},
@@ -315,7 +315,7 @@ $$
 
 **(ii)** For $x = 0$, $\ell(s; 0) = e^s$ decreases strictly toward $0$ as $s \to -\infty$ and has no minimizer.
 
-**(iii)** Hence $\tfrac12 \sum_{\Omega} X_{ij} (s_{ij} - \log X_{ij})^2$ is the second-order Poisson fit on the observed cells, and GloVe's loss is that sum with the weight $X_{ij}$ replaced by $f(X_{ij})$ and the unobserved cells' term $\sum_{(i,j) \notin \Omega} e^{s_{ij}}$ dropped.
+**(iii)** Hence $\tfrac12 \sum_{\Omega} X_{ij} (s_{ij} - \log X_{ij})^2$ is the second-order Poisson fit on the observed cells, and GloVe's loss is, up to a factor of $2$, that sum with the weight $X_{ij}$ replaced by $f(X_{ij})$ and the unobserved cells' term $\sum_{(i,j) \notin \Omega} e^{s_{ij}}$ dropped.
 
 </TheoremBlock>
 
@@ -337,13 +337,13 @@ Near their optima on observed cells, all three objectives are weighted least squ
 | negative sampling | $\tfrac12 \frac{ab}{a + b}\bigl(\langle \mathbf{w}, \mathbf{c} \rangle + \log k\#(w) + \log P_\alpha(c) - \log a\bigr)^2$ | $\frac{ab}{a + b} \le \min(a, b)$ | $b \log(1 + e^{\langle \mathbf{w}, \mathbf{c} \rangle})$, pushed toward $-\infty$ |
 | GloVe | $f(X)(s - \log X)^2$ | $f(X) \le 1$ | no term |
 
-Negative sampling's local loss is GloVe's residual with the biases frozen at $b_w = \log k\#(w)$ and $\tilde b_c = \log P_\alpha(c)$. Because $f(X)/X = X^{\gamma - 1} x_{\max}^{-\gamma}$ decreases for $X \le x_{\max}$, GloVe puts a larger share of its weight on rare pairs than the Poisson fit does, on every corpus.
+Negative sampling's local loss is GloVe's residual with the biases frozen at $b_w = \log k\#(w)$ and $\tilde b_c = \log P_\alpha(c)$. Because $f(X)/X$ decreases for every $X$, as $X^{\gamma - 1} x_{\max}^{-\gamma}$ below the cap and as $1/X$ above it, GloVe's share of its weight on every set of rare pairs $\{X \le t\}$ is at least the Poisson fit's, on every corpus, and strictly larger whenever there are counts on both sides of $t$.
 
 </TheoremBlock>
 
 <TheoremBlock type="proof">
 
-The Poisson row is Theorem 1. For negative sampling, the word2vec topic's Corollary 1 gives the local loss $\tfrac12 \frac{ab}{a + b}(x - x^\star)^2$ with $x^\star = \log a - \log b$ and $b = k\#(w)P_\alpha(c)$, and $x - x^\star$ is the stated residual. For the last claim: if a weight $w_1$ divided by a weight $w_2$ decreases with the count, then on every set $\{X \le t\}$ the share of the total of $w_1$ exceeds that of $w_2$.
+The Poisson row is Theorem 1. For negative sampling, the word2vec topic's Corollary 1 gives the local loss $\tfrac12 \frac{ab}{a + b}(x - x^\star)^2$ with $x^\star = \log a - \log b$ and $b = k\#(w)P_\alpha(c)$, and $x - x^\star$ is the stated residual. For the last claim, write $w_1 = r\, w_2$ with $r = f(X)/X$ decreasing in the count, and let $A_k$ and $B_k$ be the totals of $w_k$ on $\{X \le t\}$ and on $\{X \gt t\}$. Then $A_1 \ge r(t) A_2$ and $B_1 \le r(t) B_2$, with the second strict when $B_2 \gt 0$, so $A_1/B_1 \gt A_2/B_2$ when both sets hold counts, and the share $A_k/(A_k + B_k)$ of $w_1$ is the larger. When either set is empty both shares are $0$ or both are $1$.
 
 </TheoremBlock>
 
@@ -354,7 +354,7 @@ Shi and Liu (2014) noticed the frozen biases at the optimum: negative sampling's
 | benchmark nouns' rows | $0.923$ | $\mathbf{0.721}$ | $0.585$ | $0.548$ |
 | all observed cells | $0.885$ | $0.523$ | $0.296$ | $0.301$ |
 
-GloVe gives most of its weight to exactly the cells whose values carry the least, log counts of $0$ and $\log 2$.
+GloVe gives most of its weight to exactly the cells whose values carry the least, log counts from $0$ to $\log 4$.
 
 ---
 
@@ -394,7 +394,7 @@ $J \ge 0$, and substituting gives $s_{ij} - \log X_{ij} = 0$ on every observed c
 
 </TheoremBlock>
 
-A sector shows in which nouns keep company with which, the pattern of $\Omega$, and Proposition 3 says GloVe's loss reads that pattern only through the values on it. The corpus is close to the proposition's hypothesis. Of the observed cells, $69.0\%$ are seen once and $80.4\%$ at most twice. Fitting the biases alone explains $71.9\%$ of the weighted variation of $\log X$ on $\Omega$; adding $25$-dimensional vectors explains another $27.3\%$, with $178{,}100$ parameters for $143{,}345$ observed cells, and that part carries no sector information:
+A sector shows in which nouns keep company with which, the pattern of $\Omega$, and Proposition 3 says GloVe's loss reads that pattern only through the values on it. The corpus is close to the proposition's hypothesis. Of the observed cells, $69.0\%$ are seen once and $80.4\%$ at most twice. Fitting the biases alone explains $71.9\%$ of the weighted variation of $\log X$ on $\Omega$; adding $25$-dimensional vectors, fitted by alternating least squares (below), explains another $27.3\%$ (fifty AdaGrad epochs, $25.6\%$), with $178{,}100$ parameters, biases included, for $143{,}345$ observed cells, and that part carries no sector information:
 
 | the same counts, $d = 25$ | dev AUC | dev nearest neighbor | **test AUC** | **test nearest neighbor** |
 |---|---|---|---|---|
@@ -430,13 +430,13 @@ The entries are test AUC. As the text grows, fewer observed pairs are seen once 
 
 <TheoremBlock type="definition" number={3} title="GloVe's AdaGrad, as run here">
 
-Each **epoch** visits the observed cells in a fresh random order, in minibatches of $512$. Each cell takes the GloVe C code's step on $\tfrac12 f(X_{ij})(s_{ij} - \log X_{ij})^2$: with $\eta = 0.05$, the update of each parameter is $\eta$ times its gradient divided by the square root of an accumulator that starts at $1$ and sums the squared updates (AdaGrad; Duchi, Hazan, and Singer 2011). Every vector entry and bias starts uniform on $[-\tfrac{1}{2d}, \tfrac{1}{2d}]$, and training runs $50$ epochs.
+Each **epoch** visits the observed cells in a fresh random order, in minibatches of $512$. Each cell takes the GloVe C code's step on $\tfrac12 f(X_{ij})(s_{ij} - \log X_{ij})^2$: with $\eta = 0.05$, each parameter moves by $\eta$ times its gradient, summed over the minibatch, divided by the square root of an accumulator that starts at $1$; after each step the accumulator adds the square of that undivided step, $\eta$ times the gradient (AdaGrad; Duchi, Hazan, and Singer 2011). Every vector entry and bias starts uniform on $[-\tfrac{1}{2d}, \tfrac{1}{2d}]$, and training runs $50$ epochs.
 
 </TheoremBlock>
 
 Two departures from the C code are worth stating. The code applies each cell's update at once, from several threads without locks, while we sum a minibatch's updates. And its counts weight a pair at distance $\delta$ by $1/\delta$, while we use the distributional-semantics topic's unweighted window counts, so that all three methods factor one matrix.
 
-As a cross-check we minimize the same $J$ by **alternating least squares**. With the contexts fixed, each word's vector and bias solve a weighted ridge regression in closed form, by its normal equations (formalStatistics, [Linear Regression](https://www.formalstatistics.com/topics/linear-regression)), and then the roles swap. Each half-step is an exact minimization, so the objective never increases. In $40$ sweeps it reaches $J = 228.3$, against AdaGrad's $693.4$ after $50$ epochs (from $13{,}247$ after the first); per unit of weight, the mean squared residual is $0.024$ against $0.074$. AdaGrad has not converged, and its vectors are no better for the benchmark than the converged ones.
+As a cross-check we minimize $J + \lambda\bigl(\lVert W \rVert_F^2 + \lVert C \rVert_F^2\bigr)$, with a small ridge $\lambda = 10^{-3}$ on the vectors and the biases unpenalized, by **alternating least squares**. With the contexts fixed, each word's vector and bias solve a weighted ridge regression in closed form, by its normal equations (formalStatistics, [Linear Regression](https://www.formalstatistics.com/topics/linear-regression)), and then the roles swap. Each half-step is an exact minimization, so the objective never increases. In $40$ sweeps it reaches $J = 228.3$, against AdaGrad's $693.4$ after $50$ epochs (from $13{,}247$ after the first); per unit of weight, the mean squared residual is $0.024$ against $0.074$. Alternating least squares has not converged either: its objective, $347.0$ with the penalty's $118.8$ included, is still falling about $0.9\%$ per sweep. AdaGrad is the further from a minimum, and its vectors are no better for the benchmark than alternating least squares' ($0.507$).
 
 ---
 
@@ -458,7 +458,7 @@ $$
 
 leaves every score $s_{ij}$, and so $J$, unchanged.
 
-**(ii)** Conversely, if two parameter sets give the same scores and both matrices $[W, b, \mathbf{1}]$ have full column rank $d + 2$, they are related by exactly one such substitution.
+**(ii)** Conversely, if two parameter sets give the same scores and, for both sets, the matrices $[W, b, \mathbf{1}]$ and $[C, \mathbf{1}, \tilde b]$ have full column rank $d + 2$, they are related by exactly one such substitution.
 
 **(iii)** Cosines between word vectors are not determined by $J$, and differences $\mathbf{w}_i - \mathbf{w}_k$ transform by $A^\top$ alone.
 
@@ -466,7 +466,7 @@ leaves every score $s_{ij}$, and so $J$, unchanged.
 
 <TheoremBlock type="proof">
 
-For part (i), $\langle A^\top \mathbf{w}, A^{-1}\mathbf{c} \rangle = \langle \mathbf{w}, \mathbf{c} \rangle$, and the cross terms $\langle A^\top \mathbf{w}_i, s \rangle + \langle t, A^{-1}\mathbf{c}_j \rangle + \langle t, s \rangle$ are exactly what the bias changes remove. For part (ii), write $\bar W = [W, b, \mathbf{1}]$ and $\bar C = [C, \mathbf{1}, \tilde b]$, so the score matrix is $\bar W \bar C^\top$. The word2vec topic's Proposition 3, applied to these augmented matrices, gives $\bar W' = \bar W G$ and $\bar C' = \bar C G^{-\top}$ for a unique invertible $G$. The last column of $\bar W$ is $\mathbf{1}$ on both sides, so $G e_{d+2} = e_{d+2}$; the $(d+1)$-th column of $\bar C$ is $\mathbf{1}$ on both sides, so $e_{d+1}^\top G = e_{d+1}^\top$. Such a $G$ has blocks $A$, $t$, $u$, and a scalar, and reading off $\bar W G = [WA + \mathbf{1}t^\top, Wu + b + \beta' \mathbf{1}, \mathbf{1}]$ gives the substitution of part (i) with $u = -As$. Part (iii): translations cancel in differences.
+For part (i), $\langle A^\top \mathbf{w}, A^{-1}\mathbf{c} \rangle = \langle \mathbf{w}, \mathbf{c} \rangle$, and the cross terms $\langle A^\top \mathbf{w}_i, s \rangle + \langle t, A^{-1}\mathbf{c}_j \rangle + \langle t, s \rangle$ are exactly what the bias changes remove. For part (ii), write $\bar W = [W, b, \mathbf{1}]$ and $\bar C = [C, \mathbf{1}, \tilde b]$, so the score matrix is $\bar W \bar C^\top$. The word2vec topic's Proposition 3, applied to these augmented matrices, which needs all four of them to have full column rank $d + 2$, gives $\bar W' = \bar W G$ and $\bar C' = \bar C G^{-\top}$ for a unique invertible $G$. The last column of $\bar W$ is $\mathbf{1}$ on both sides, so $G e_{d+2} = e_{d+2}$; the $(d+1)$-th column of $\bar C$ is $\mathbf{1}$ on both sides, so $e_{d+1}^\top G = e_{d+1}^\top$. Such a $G$ has blocks $A$, $t$, $u$, and a scalar, and reading off $\bar W G = [WA + \mathbf{1}t^\top, Wu + b + \beta' \mathbf{1}, \mathbf{1}]$ gives the substitution of part (i) with $u = -As$. The rank condition on the context side cannot be dropped: with $C = C' = 0$ and the same biases, every $W'$ gives the same scores, including one whose columns leave the span of $W$'s columns and $\mathbf{1}$, which no substitution reaches. Part (iii): translations cancel in differences.
 
 </TheoremBlock>
 
@@ -484,7 +484,7 @@ Let $G = \partial J / \partial S$, which is $2 f(X)(s - \log X)$ on observed cel
 
 </TheoremBlock>
 
-By the word2vec topic's Lemma 1, a balanced factorization is $W = U \Sigma^{1/2} R$: the distributional-semantics topic's square-root weighting of the fitted matrix, centered. A penalty chooses the geometry that the loss leaves free (formalStatistics, [Regularization and Penalized Estimation](https://www.formalstatistics.com/topics/regularization-and-penalized-estimation)). The proposition is about stationary points, and training does not reach them in the gauge directions: after $40$ sweeps of alternating least squares with $\lambda = 10^{-3}$, the imbalance $\lVert W^\top W - C^\top C \rVert / \lVert W^\top W \rVert$ is $0.999$, because the first sweep fits $W$ through the small initial $C$ and the weak penalty has barely pulled them together. Unpenalized AdaGrad, which the proposition does not cover, ends at $0.093$. Neither trained model sits in the ridge's gauge.
+When $W C^\top = U \Sigma V^\top$ has rank $d$ and distinct singular values, the word2vec topic's Lemma 1 makes a balanced factorization $W = U \Sigma^{1/2} R$: the distributional-semantics topic's square-root weighting of the fitted matrix, centered. A penalty chooses the geometry that the loss leaves free (formalStatistics, [Regularization and Penalized Estimation](https://www.formalstatistics.com/topics/regularization-and-penalized-estimation)). The proposition is about stationary points, and training does not reach them in the gauge directions: after $40$ sweeps of alternating least squares with $\lambda = 10^{-3}$, the imbalance $\lVert W^\top W - C^\top C \rVert / \lVert W^\top W \rVert$ is $0.999$, because the first sweep fits $W$ through the small initial $C$ and so small a $\lambda$ has barely pulled them together. Unpenalized AdaGrad, which the proposition does not cover, ends at $0.093$. Neither trained model sits in the ridge's gauge.
 
 Now the analogies. The standard test is vector arithmetic.
 
@@ -530,7 +530,7 @@ Normalizing to unit length undoes the scaling, and a rotation preserves every in
 
 </TheoremBlock>
 
-Theorem 3 also gives an analogy method that reads the scores alone. Answer *a : b :: c : ?* with the candidate $d'$ whose score row brings the four rows closest to a parallelogram, the one that minimizes the spread over all contexts of $s_{bj} - s_{aj} - s_{d'j} + s_{cj}$. Call this the **gauge-free solver**, and call that spread, divided by the spread of $s_{bj} - s_{aj}$, the **defect** of the quadruple: zero exactly for an exact parallelogram. Every factorization of the same scores gives the solver the same answers. Here are the two trained models, each refactored without changing a score, on the knowledge base's city-to-region questions (the finance section below introduces them):
+Theorem 3 also gives an analogy method that reads the scores alone. Answer *a : b :: c : ?* with the candidate $d'$, searched among the relation's tails (its regions or sectors) other than $b$, whose score row brings the four rows closest to a parallelogram, the one that minimizes the spread over all contexts of $s_{bj} - s_{aj} - s_{d'j} + s_{cj}$. Call this the **gauge-free solver**; it chooses among the tails only, so its accuracy compares with 3CosAdd among the tails, not over the whole vocabulary. Call that spread, divided by the spread of $s_{bj} - s_{aj}$, the **defect** of the quadruple: zero exactly for an exact parallelogram. Every factorization of the same scores gives the solver the same answers. Here are the two trained models, each refactored without changing a score, on the knowledge base's city-to-region questions (the finance section below introduces them):
 
 | model | factorization | test AUC | 3CosAdd, whole vocabulary | 3CosAdd, among regions | gauge-free solver |
 |---|---|---|---|---|---|
@@ -545,7 +545,7 @@ Theorem 3 also gives an analogy method that reads the scores alone. Answer *a : 
 | GloVe | translated | $0.466$ | $0.380$ | $0.580$ | $0.360$ |
 | GloVe | random $A$, condition $100$ | $0.470$ | $0.213$ | $0.500$ | $0.360$ |
 
-Every row of a model has the same scores to within $1.4 \times 10^{-14}$ relative, the same defect, and the same gauge-free answers. The negative-sampling rows are the word2vec topic's five factorizations, with the same random basis change. The rows for negative sampling have no translation because, without biases, translating its vectors would change its scores. Vector arithmetic loses more than half its successes to a change of basis that the training loss cannot detect.
+Every row of a model has the same scores to within $1.3 \times 10^{-14}$ relative, the same defect, and the same gauge-free answers. The negative-sampling rows are the word2vec topic's five factorizations, with the same random basis change. The rows for negative sampling have no translation because, without biases, translating its vectors would change its scores. A change of basis that the training loss cannot detect costs negative sampling's vector arithmetic more than half its successes over the whole vocabulary ($0.633$ to $0.253$), and GloVe's about two-fifths ($0.367$ to $0.213$).
 
 ---
 
@@ -566,19 +566,21 @@ The shared finance corpus is generated from a fixed knowledge base, and its docu
 | relation | model | 3CosAdd, whole vocabulary | among the tails | $b$ nearest before exclusion | gauge-free solver (defect, right / wrong tail) |
 |---|---|---|---|---|---|
 | city to region (chance among tails $0.111$) | GloVe $W + C$ | $0.367$ | $0.580$ | $0.040$ | $0.360$ ($1.262$ / $1.790$) |
-| | negative sampling $W$ | $\mathbf{0.633}$ | $0.707$ | $0.027$ | $0.693$ ($1.162$ / $1.809$) |
-| | negative sampling $W + C$ | $0.680$ | $0.767$ | $0.013$ | |
+| | negative sampling $W$ | $0.633$ | $0.707$ | $0.027$ | $0.693$ ($1.162$ / $1.809$) |
+| | negative sampling $W + C$ | $\mathbf{0.680}$ | $0.767$ | $0.013$ | |
 | | SVD, $p = 0$ | $0.540$ | $0.707$ | $0.040$ | $0.713$ ($0.802$ / $1.294$) |
 | company to sector (chance among tails $0.200$) | GloVe $W + C$ | $0.138$ | $0.433$ | $\mathbf{0.415}$ | $0.423$ ($0.895$ / $1.120$) |
 | | negative sampling $W$ | $\mathbf{0.375}$ | $0.515$ | $0.044$ | $0.446$ ($0.910$ / $1.088$) |
 | | negative sampling $W + C$ | $0.338$ | $0.677$ | $0.008$ | |
 | | SVD, $p = 0$ | $0.190$ | $0.715$ | $0.008$ | $0.500$ ($0.907$ / $1.049$) |
 
+For the SVD, the gauge-free solver reads the fitted rank-$25$ $\operatorname{SPPMI}_5$ matrix rather than log-count scores, so its answer is the same for every $p$.
+
 Three things stand out.
 
-**The scores carry the relations, but no offset is constant.** For every model the median defect is near $1$: the four score rows of a typical question are as far from a parallelogram as the offset itself is large. Yet the right answer's defect is consistently below the wrong answers', so the gauge-free solver beats chance for every model, and for negative sampling on cities it nearly matches vector arithmetic in the trained basis ($0.693$ against $0.707$). The relation is in the counts, as Theorem 3 says it must be if it is anywhere, but only approximately.
+**The scores carry the relations, but no offset is constant.** For every model the median defect is near $1$: the four score rows of a typical question are as far from a parallelogram as the offset itself is large. Yet the right answer's median defect is below the wrong answers', so the gauge-free solver beats chance for every model, and for negative sampling on cities it nearly matches vector arithmetic in the trained basis ($0.693$ against $0.707$). The relation is in the counts, as Theorem 3 says it must be if it is anywhere, but only approximately.
 
-**Vector arithmetic needs only relative proximity, and it is brittle.** On the first question, *Houston : Texas :: Boston : ?*, GloVe answers *massachusetts* and negative sampling answers *ireland*, though negative sampling solves far more of the relation overall. Without the exclusion of the query words, GloVe's answer to $41.5\%$ of the sector questions would be the sector it was given.
+**Vector arithmetic needs only relative proximity, and it is brittle.** On the lab's first question, *Houston : Texas :: Boston : ?*, GloVe answers *massachusetts* and negative sampling answers *ireland*, though negative sampling solves far more of the relation overall. Without the exclusion of the query words, GloVe's answer to $41.5\%$ of the sector questions would be the sector it was given.
 
 **The SVD finds the relations' targets but not their directions.** Among the tails it is the most accurate on sectors ($0.715$), and over the whole vocabulary it is among the least ($0.190$): its offsets point toward the right kind of word, not the right word.
 
