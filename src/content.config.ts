@@ -24,7 +24,7 @@ const topics = defineCollection({
     tags: z.array(z.string()),
     // Nine language-centric domains; see src/data/domains.ts.
     domain: z.enum(DOMAINS),
-    videoId: z.string().nullable().default(null),
+    videoId: z.union([z.string(), z.array(z.string())]).nullable().default(null),
     notebookPath: z.string().nullable().default(null),
     githubUrl: z.string().url().nullable().default(null),
     datePublished: z.coerce.date().optional(),
