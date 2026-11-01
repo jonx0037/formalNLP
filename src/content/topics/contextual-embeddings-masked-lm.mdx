@@ -18,13 +18,13 @@ tags:
   - "polysemy"
 domain: "representations"
 financeCaseStudy: true
-rigorFlag: "Every theorem on this page is proved in full under the conditions it states, and two of those conditions are not BERT's. The closed form for the masked-LM optimum assumes each position is selected independently; BERT selects a fixed 15% of positions, which couples them weakly, so there the formula is an approximation. One mask per sequence makes the objective Besag's pseudo-likelihood, and we prove the population statement (the truth maximizes the expected pseudo-likelihood) but check the estimator's convergence on one Ising chain rather than prove it. That a joint's conditionals pass the four-cycle test is proved; the converse is Arnold and Press's, cited, and the incompatibility of the trained encoder is measured on 200 pairs of one toy model. Anisotropy and maximum explainable variance are descriptive measures, and the degeneration account of the cone is an explanation, not a theorem; in our two-block filing encoder the anisotropy baseline falls to 0.048 at the top layer. A probe shows that information is linearly decodable, not that the model uses it: before we read every token at one window position, the context-free layer typed a company alias from the position table alone. The finance contexts are templates, the evaluative-verb probes fail with 26 to 45 examples each for reasons we cannot separate, and the filing encoder does not reach the channel's optimum at visible words. Topic 7's strong-versus-weak question is not won here, because the corpus does not write polarity into the text. The encoders have two blocks and at most 64 dimensions, on synthetic text; claims about BERT's layers are cited."
+rigorFlag: "Every theorem on this page is proved in full under the conditions it states, and two of those conditions are not BERT's. The closed form for the masked-LM optimum assumes each position is selected independently; BERT selects a fixed 15% of positions, which couples them weakly, so there the formula is an approximation. One mask per sequence makes the objective Besag's pseudo-likelihood, and we prove the population statement (the truth maximizes the expected pseudo-likelihood) but check the estimator's convergence on one Ising chain rather than prove it. That a joint's conditionals pass the four-cycle test is proved; the converse is Arnold and Press's, cited, and the incompatibility of the trained encoder is measured on 200 pairs of one toy model. Anisotropy and maximum explainable variance are descriptive measures, and the degeneration account of the cone is an explanation, not a theorem; in our two-block filing encoder the anisotropy baseline falls to 0.048 at the top layer. A probe shows that information is linearly decodable, not that the model uses it: before we read every token at one window position, the context-free layer typed a company alias from the position table alone. The finance contexts are templates. The evaluative-verb probes fail, and sample size alone does not explain it: direction words cut to the same 26 to 45 examples still read about 0.9, so the distance to the aspect term is the likelier cause, which we have not isolated. The filing encoder does not reach the channel's optimum at visible words. Topic 7's strong-versus-weak question is not won here: a word's lexicon polarity shows when it is pooled across documents, a 32-token window never pools, and the sentences barely carry it. The encoders have two blocks and at most 64 dimensions, on synthetic text; claims about BERT's layers are cited."
 videoId: null
 notebookPath: "notebooks/contextual-embeddings-masked-lm/01_contextual_embeddings_masked_lm.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/contextual-embeddings-masked-lm.mdx"
 datePublished: 2026-10-24
 estimatedReadTime: 45
-abstract: "Word2vec gives each word type one vector, so a word with two senses gets one point for both. We prove that the point sees a mixture: a polyseme's PMI is the log of its senses' exponentiated PMIs, and any probe on a static vector is capped at the majority sense. BERT gives each occurrence its own vector, trained by hiding tokens and asking a bidirectional encoder to put them back. We prove that the masked-LM risk is entropy plus divergence, so its optimum is the posterior of the hidden token given the corrupted sentence, and that under BERT's 80/10/10 corruption that posterior has a closed form: the context's prediction at a mask, shrunk toward the visible token elsewhere, with the selection rate dropping out. With one mask per sequence the objective is Besag's pseudo-likelihood. Brook's lemma rebuilds a joint distribution from its conditionals, and a four-cycle test that every joint passes shows the trained encoder's conditionals belong to no joint: BERT is not a language model in the generative sense. We train two encoders from scratch on Topic 11's block, one on a hidden Markov language whose exact posteriors check every theorem, one on the shared filings. On the filings, context separates a company from its product, and the news a direction word reports, where static vectors cannot; it does not recover a word's dictionary polarity, which the text does not carry."
+abstract: "Word2vec gives each word type one vector, so a word with two senses gets one point for both. We prove that the point sees a mixture: a polyseme's PMI is the log of its senses' exponentiated PMIs, and any probe on a static vector is capped at the majority sense. BERT gives each occurrence its own vector, trained by hiding tokens and asking a bidirectional encoder to put them back. We prove that the masked-LM risk is entropy plus divergence, so its optimum is the posterior of the hidden token given the corrupted sentence, and that under BERT's 80/10/10 corruption that posterior has a closed form: the context's prediction at a mask, shrunk toward the visible token elsewhere, with the selection rate dropping out. With one mask per sequence the objective is Besag's pseudo-likelihood. Brook's lemma rebuilds a joint distribution from its conditionals, and a four-cycle test that every joint passes shows the trained encoder's conditionals belong to no joint: BERT is not a language model in the generative sense. We train two encoders from scratch on Topic 11's block, one on a hidden Markov language whose exact posteriors check the closed form, one on the shared filings. On the filings, context separates a company from its product, and the news a direction word reports, where static vectors cannot; it does not recover a word's dictionary polarity, which the sentences barely carry."
 connections: []
 references:
   - type: "paper"
@@ -151,14 +151,14 @@ formalmlPrereqs:
 formalmlConnections:
   - topic: "pca-low-rank"
     site: "formalml"
-    relationship: "PCA as optimal projection (its Theorem 2): maximum explainable variance is the share of a word's occurrence cloud that one principal direction carries, the best a static vector can do."
+    relationship: "PCA as optimal projection (its Theorem 2): maximum explainable variance is its uncentered, one-direction analogue, the share of a word's occurrence cloud that one direction through the origin carries, the best a static vector can do."
 formalstatisticsPrereqs:
   - topic: "conditional-probability"
     site: "formalstatistics"
     relationship: "Bayes' theorem (its Theorem 4) applied to the corruption channel is the closed form of the masked-LM optimum at a mask, a kept token, or a random one."
   - topic: "maximum-likelihood"
     site: "formalstatistics"
-    relationship: "The MLE's consistency (its Theorem 3) is the benchmark that pseudo-likelihood trades away, giving up efficiency for conditionals that need no normalizing constant."
+    relationship: "The MLE's consistency (its Theorem 3) and asymptotic efficiency (its Theorem 5) are the benchmark: pseudo-likelihood gives up efficiency for conditionals that need no normalizing constant."
 formalstatisticsConnections:
   - topic: "bayesian-computation-and-mcmc"
     site: "formalstatistics"
@@ -193,10 +193,10 @@ Such vectors are **contextual embeddings**, and BERT (Devlin and colleagues 2019
 1. **One vector per type sees a mixture.** A word with two senses has a PMI that is the log of a mixture of its senses' PMIs, and a probe on any static vector is capped at the commoner sense's share.
 2. **The masked-LM optimum has a closed form.** The risk is entropy plus divergence, so the best predictor is the posterior of the hidden token given the corrupted sentence. Under BERT's corruption, that posterior is the context's prediction at a `[MASK]`, shrunk toward the visible token elsewhere, and the selection rate drops out.
 3. **BERT is not a joint language model.** With one mask per sequence the objective is pseudo-likelihood. Brook's lemma says the conditionals of a joint determine it, and a four-cycle test that every joint passes shows that the trained encoder's conditionals come from no joint at all.
-4. **The geometry of the vectors.** Occurrences of one word spread apart with depth, in a cloud that is not isotropic, and we measure how much of the cloud a single static vector could carry.
+4. **The geometry of the vectors.** Occurrences of one word spread apart once context enters, in a cloud that is not isotropic, and we measure how much of the cloud a single static vector could carry.
 5. **What probes see.** Against a language whose exact posteriors we can compute, a linear probe on the encoder's vectors comes within $0.008$ of the Bayes accuracy for a word's sense, far above the static cap.
 
-Then the finance case. On the filings, context separates a company from its product and good news from bad ("costs rose" against "revenue rose"), where static vectors cannot. It does not recover whether *strong* is a positive word, because the filings do not write that into their sentences.
+Then the finance case. On the filings, context separates a company from its product and good news from bad ("costs rose" against "revenue rose"), where static vectors cannot. It does not recover whether *strong* is a positive word, because the filings barely write that into their sentences.
 
 ---
 
@@ -230,7 +230,7 @@ By total probability over the senses, $P(c \mid w) = \sum_k P(s_k \mid w) P(c \m
 
 </TheoremBlock>
 
-The word2vec topic proved that skip-gram with negative sampling fits shifted PMI (its Theorem 1). So the row of a polyseme that it factorizes is this log-mixture. Where one sense dominates a context, the row follows that sense, up to $\log \pi_k$. It is never both senses at once. On the HMM the identity holds to $10^{-12}$, and the two senses' PMIs with the next token differ by up to $3.654$ nats. Arora and colleagues (2018) read trained static vectors as superpositions of sense vectors, which is the same picture in the embedding space.
+The word2vec topic proved that skip-gram with negative sampling fits shifted PMI (its Theorem 1). So at its unconstrained optimum, the row of a polyseme that it factorizes is this log-mixture, shifted. Where one sense dominates a context, the row follows that sense, up to $\log \pi_k$. It is never both senses at once. On the HMM the identity holds to $10^{-12}$, and the two senses' PMIs with the next token differ by up to $3.654$ nats. Arora and colleagues (2018) read trained static vectors as superpositions of sense vectors, which is the same picture in the embedding space.
 
 <TheoremBlock type="corollary" number={1} title="The static cap">
 
@@ -258,7 +258,7 @@ Each position of $x$ is **selected** independently with probability $\rho$; writ
 
 </TheoremBlock>
 
-BERT uses $\rho = 0.15$ and $(m, r, \kappa) = (0.8, 0.1, 0.1)$, and selects a fixed $15\%$ of the positions of each sequence rather than each one independently. The independent version is what the next two theorems need, and we come back to the difference in the caveats. The loss counts only the selected positions, so the encoder is trained only where something may have happened; at the other $85\%$ it is free.
+BERT uses $\rho = 0.15$ and $(m, r, \kappa) = (0.8, 0.1, 0.1)$, and selects a fixed $15\%$ of the positions of each sequence rather than each one independently. The independent version is what Theorem 2 needs (Theorem 1's proof uses no independence), and we come back to the difference in the caveats. The loss counts only the selected positions, so the encoder is trained only where something may have happened; at the other $85\%$ it is free.
 
 <TheoremBlock type="theorem" number={1} title="The masked-LM loss is a proper scoring rule">
 
@@ -296,7 +296,7 @@ In particular:
 
 **(iii)** the selection rate $\rho$ does not appear;
 
-**(iv)** if $r = 0$ then $q(v) = 1$, and if $\kappa = 0$ then $q = p$.
+**(iv)** if $r = 0$ and $\kappa > 0$ then $q(v) = 1$, and if $\kappa = 0$ then $q = p$.
 
 </TheoremBlock>
 
@@ -308,7 +308,7 @@ $$
 P(x_i = y,\ \tilde x_i = s \mid \tilde x_{-i},\ i \in M) = p(y)\, S(s \mid y).
 $$
 
-Bayes' theorem in $x_i$ gives the formula. The rate $\rho$ entered only through the event $i \in M$, on which we conditioned, which is (iii). For (i), $S(\texttt{[MASK]} \mid y) = m$ for every $y$ and cancels. For (ii), $\sum_{y'} p(y')(\kappa\, \mathbb{1}[y' = v] + r/V) = \kappa\, p(v) + r/V$. For (iv), at $r = 0$ the numerator is $p(y)\kappa\, \mathbb{1}[y = v]$ and the denominator $\kappa\, p(v)$, while at $\kappa = 0$ the channel is $r/V$ for every $y$ and cancels.
+Bayes' theorem in $x_i$ gives the formula. The rate $\rho$ entered only through the event $i \in M$, on which we conditioned, which is (iii). For (i), $S(\texttt{[MASK]} \mid y) = m$ for every $y$ and cancels. For (ii), $\sum_{y'} p(y')(\kappa\, \mathbb{1}[y' = v] + r/V) = \kappa\, p(v) + r/V$. For (iv), at $r = 0$ with $\kappa > 0$ the numerator is $p(y)\kappa\, \mathbb{1}[y = v]$ and the denominator $\kappa\, p(v)$, while at $\kappa = 0$ the channel is $r/V$ for every $y$ and cancels.
 
 </TheoremBlock>
 
@@ -318,7 +318,7 @@ On the HMM, the notebook checks the formula against brute-force enumeration of a
 
 **The encoder.** We build the encoder from the pre-LN block of the [transformer-block topic](/topics/transformer-block-residual-stream) (its Definition 1) with the causal mask removed, so every position attends to every other. To that block we add three things from BERT: a learned position table (Definition 1 of the [positional-encodings topic](/topics/positional-encodings-geometry)), input and output embeddings tied into one table $E$, and a final LayerNorm before the logits $\operatorname{LN}(x_L) E^\top/\sqrt{d} + b$. There are two blocks. The HMM encoder has $d = 32$ and is trained for $3000$ Adam steps on fresh corrupted sequences of length $24$. Its gradient is written by hand and checked against central differences.
 
-On $1439$ selected positions of held-out sequences, the exact posterior has a cross-entropy of $1.895$ nats and the encoder $1.917$, so their mean KL is $0.032$, under $2\%$ of the $1.874$-nat entropy. The KL is $0.021$ at a `[MASK]`, $0.098$ at a random token, and $0.040$ at a kept one. We can also read Theorem 2 (ii) off the encoder itself. At a kept token, it puts $0.747$ on the token on average, and the formula applied to its own `[MASK]` guess predicts $0.761$. That guess alone puts only $0.176$ on the same token.
+On $1439$ selected positions of held-out sequences, the exact posterior has a cross-entropy of $1.895$ nats and the encoder $1.917$. Those score one sampled token per position, so their gap of $0.022$ is only an estimate. Computed directly, distribution against distribution, the mean KL is $0.032$, under $2\%$ of the $1.874$-nat entropy. The KL is $0.021$ at a `[MASK]`, $0.098$ at a random token, and $0.040$ at a kept one. We can also read Theorem 2 (ii) off the encoder itself. At a kept token, it puts $0.747$ on the token on average, and the formula applied to its own `[MASK]` guess predicts $0.761$. That guess alone puts only $0.176$ on the same token.
 
 ---
 
@@ -344,7 +344,7 @@ Averaging over $I$ gives $\mathbb{E}_I \mathbb{E}_x[-\log q(x_I \mid x_{-I})] = 
 
 </TheoremBlock>
 
-Besag (1975) introduced the pseudo-likelihood for spatial data, where a joint's normalizing constant is intractable and its conditionals are not. Theorem 3 is the population statement. That the maximizer of a finite sample's pseudo-likelihood converges to $\theta^\ast$ is a separate question, which we check rather than prove. On an open Ising chain of $10$ spins with field $0.2$ and coupling $0.5$, the expected log pseudo-likelihood has zero gradient at the truth to rounding. The estimate from $200$ exact samples is off by $0.011$, and from $20000$ samples by $0.004$. Against formalStatistics' [maximum-likelihood topic](https://www.formalstatistics.com/topics/maximum-likelihood), whose Theorem 3 gives the MLE's consistency, pseudo-likelihood gives up efficiency to get conditionals that need no normalizing constant. BERT's objective, with many masks and the 80/10/10 channel, is not exactly a pseudo-likelihood, but it is built from the same conditionals.
+Besag (1975) introduced the pseudo-likelihood for spatial data, where a joint's normalizing constant is intractable and its conditionals are not. Theorem 3 is the population statement. That the maximizer of a finite sample's pseudo-likelihood converges to $\theta^\ast$ is a separate question, which we check rather than prove. On an open Ising chain of $10$ spins with field $0.2$ and coupling $0.5$, the expected log pseudo-likelihood has zero gradient at the truth to rounding. The estimate from $200$ exact samples is off by $0.011$, and from $20000$ samples by $0.004$. Against formalStatistics' [maximum-likelihood topic](https://www.formalstatistics.com/topics/maximum-likelihood), whose Theorem 3 gives the MLE's consistency and whose Theorem 5 gives its asymptotic efficiency, pseudo-likelihood gives up efficiency to get conditionals that need no normalizing constant. That trade is known, and we do not measure it here. BERT's objective, with many masks and the 80/10/10 channel, is not exactly a pseudo-likelihood: its targets read the rest of the sentence through the channel.
 
 Can the conditionals be turned back into a joint?
 
@@ -428,7 +428,7 @@ For (i), the gradient of $\sum_j \lVert h_j - c \rVert^2$ in $c$ is $-2\sum_j (h
 
 </TheoremBlock>
 
-By Eckart–Young, $1 - \operatorname{MEV}$ is the share of the cloud that the best rank-$1$ approximation misses. Ethayarajh reads MEV as an upper bound on how well a single static vector could stand in for a word's contextual ones. formalML's [PCA topic](https://www.formalml.com/topics/pca-low-rank) proves the optimal projection (its Theorem 2), of which (ii) is the one-dimensional case.
+By Eckart–Young, $1 - \operatorname{MEV}$ is the share of the cloud that the best rank-$1$ approximation misses. Ethayarajh reads MEV as an upper bound on how well a single static vector could stand in for a word's contextual ones. formalML's [PCA topic](https://www.formalml.com/topics/pca-low-rank) proves the optimal projection for centered data (its Theorem 2), and (ii) is its uncentered, one-direction analogue, through the origin instead of the mean.
 
 | layer | HMM $w$: self-similarity | MEV | baseline | adjusted | *kestrel*: self-similarity | MEV | baseline | adjusted |
 |---|---|---|---|---|---|---|---|---|
@@ -436,7 +436,7 @@ By Eckart–Young, $1 - \operatorname{MEV}$ is the share of the cloud that the b
 | $1$ | $0.620$ | $0.638$ | $0.152$ | $0.467$ | $0.862$ | $0.868$ | $0.320$ | $0.542$ |
 | $2$ | $0.676$ | $0.691$ | $0.203$ | $0.473$ | $0.846$ | $0.862$ | $0.048$ | $0.798$ |
 
-Layer $0$ of the HMM encoder is not static, because positions vary across occurrences. In the filings we read every token at one position, so the layer-$0$ vectors of *kestrel* are a single point. Context lowers the adjusted self-similarity at both layers, most at layer $1$. The baseline rises from layer $0$ to layer $1$ in both encoders, as Ethayarajh found for BERT, ELMo, and GPT-2, but it is not monotone: the filing encoder's top layer is nearly isotropic. Gao and colleagues (2019) explain the cone through tied embeddings, which push the vectors of rare tokens along a common direction. That is an account, not a theorem, and two blocks are too few to test it.
+Layer $0$ of the HMM encoder is not static, because positions vary across occurrences. In the filings we read every token at one position, so the layer-$0$ vectors of *kestrel* are a single point. Context lowers the adjusted self-similarity at both layers, most at layer $1$. The baseline rises from layer $0$ to layer $1$ in both encoders, as Ethayarajh found for BERT, ELMo, and GPT-2, but it is not monotone: the filing encoder's top layer has no shared cone, with a mean cosine of $0.048$. That is not isotropy, for which a mean cosine near zero is necessary but not sufficient. The MEV of $1000$ uniformly drawn token vectors at that layer is $0.093$, against $1/64$ for a truly isotropic cloud in $64$ dimensions. Gao and colleagues (2019) explain the cone through tied embeddings, which push the vectors of rare tokens along a common direction. That is an account, not a theorem, and two blocks are too few to test it.
 
 ---
 
@@ -474,7 +474,7 @@ Figure B is the geometry. Choose the HMM word or *kestrel* and a layer, and see 
 
 <FinanceCaseStudy title="Finance case study: a company or its product, and the news a word reports">
 
-We train the same encoder, with $d = 64$, four heads, two blocks, and windows of $32$ tokens, on the shared corpus's $300$ filings, the text that the word2vec topic trained on. The vocabulary is the $877$ words seen at least five times, which cover $94.3\%$ of tokens, plus `[UNK]` and a `[SEP]` between sentences. On held-out windows its masked-token cross-entropy is $1.843$ nats, against $5.364$ for the unigram distribution. Every token we analyze is read at the center of its own window, so its layer-$0$ vector, $E[x] + P_{16}$, is static. The static baseline is the word2vec topic's skip-gram model with a $\pm 2$ window and $d = 25$.
+We train the same encoder, with $d = 64$, four heads, two blocks, and windows of $32$ tokens, on the shared corpus's $300$ filings, the text that the word2vec topic trained on. The vocabulary is the $877$ words seen at least five times, which cover $94.3\%$ of tokens, plus `[UNK]` and a `[SEP]` between sentences. At the selected positions of fresh corruptions of those same filings, its cross-entropy is $1.843$ nats ($1.851$ at the masks alone), against $5.364$ for the unigram distribution. That is a fit, not a held-out score. Every token we analyze is read at the center of its own window, so its layer-$0$ vector, $E[x] + P_{16}$, is static. The static baseline is the word2vec topic's skip-gram model with a $\pm 2$ window and $d = 25$.
 
 **A company or its product.** The corpus reuses $21$ company aliases as product names: "Kestrel Turbine Services" and "the Kestrel turbine". The gold annotations type each of their $1720$ occurrences, $254$ of them as PRODUCT. We hold out one alias at a time, train a probe on the other $20$, and type the held-out alias's occurrences:
 
@@ -488,7 +488,7 @@ We train the same encoder, with $d = 64$, four heads, two blocks, and windows of
 
 On *kestrel* alone (57 ORG, 61 PRODUCT, majority $0.517$), five-fold cross-validation gives $0.339$ at layer $0$ and $1.000$ at layers $1$ and $2$. The static layer scores below its own majority because each fold predicts its training majority, which is the test fold's minority. The contexts are templates, so $1.000$ says that the cue is in the window, not that the encoder is an entity tagger. Making it one is the subject of the named-entity-recognition topic.
 
-**The news a word reports.** The corpus attaches a polarity to every aspect it mentions, and the direction word after it inherits that polarity: "costs rose" is bad news, and "revenue rose" is good news. The same goes for evaluative verbs ("costs exceeded expectations" is bad news). One vector per word can only predict each word's commoner polarity. We probe each word with five-fold cross-validation and pool the $13$ words that have at least $20$ labeled occurrences, $973$ occurrences in all:
+**The news a word reports.** The corpus attaches a polarity to every aspect it mentions, and the direction word after it inherits that polarity: "costs rose" is bad news, and "revenue rose" is good news. The same goes for evaluative verbs ("income taxes in power surpassed expectations" is bad news). One vector per word can only predict each word's commoner polarity. We probe each word with five-fold cross-validation and pool the $13$ words that have at least $20$ labeled occurrences, $973$ occurrences in all:
 
 | representation | accuracy |
 |---|---|
@@ -498,7 +498,7 @@ On *kestrel* alone (57 ORG, 61 PRODUCT, majority $0.517$), five-fold cross-valid
 | layer $2$ | $0.863$ |
 | shuffled control (layer $1$) | $0.536$ |
 
-The six direction words, with $101$ to $133$ occurrences each, are read at $0.945$ to $0.991$ at layer $1$. The seven evaluative verbs, with $26$ to $45$ each, are not: their accuracies run from $0.357$ to $0.853$. They have few examples for a $64$-dimensional probe, and their aspect term sits four or more words back. This corpus cannot tell us which matters.
+The six direction words, with $101$ to $133$ occurrences each, are read at $0.945$ to $0.991$ at layer $1$. The seven evaluative verbs, with $26$ to $45$ each, are not: their accuracies run from $0.357$ to $0.853$. They have few examples for a $64$-dimensional probe, and their aspect term sits three to six tokens back, where a direction word's sits right beside it. Sample size alone does not explain the failure: cut down to $26$, $35$, and $45$ occurrences, the direction words still read about $0.88$, $0.91$, and $0.94$ at layer $1$, against $0.550$ for the seven verbs pooled. So distance is the likelier cause, and we have not isolated it.
 
 **Topic 7's question.** The word2vec topic found that window-trained vectors cannot tell *strong* from *weak*, and that a contextual embedding gives each occurrence its own vector. So we rerun its leave-one-out polarity probe on each lexicon word's mean vector:
 - skip-gram: $0.571$;
@@ -506,9 +506,9 @@ The six direction words, with $101$ to $133$ occurrences each, are read at $0.94
 - layer $1$: $0.629$;
 - layer $2$: $0.571$.
 
-Chance is $0.5 \pm 0.085$ for $35$ words, and no representation is two standard errors above it. The reason is in the text. Let the other lexicon words near each of the $1414$ lexicon occurrences vote on its polarity. Within $8$ words they get it right $0.514$ of the time, within $32$ words $0.546$, and over the whole document $0.571$. A word's polarity is a fact about the dictionary, not about the sentences it sits in, and these filings barely write it down. What an occurrence *reports* is a fact about its context, and there the contextual vectors find it.
+Chance is $0.5 \pm 0.085$ for $35$ words, and no representation is two standard errors above it. The reason is a matter of scale. Pool a word over all its documents, and the [distributional-semantics topic](/topics/distributional-semantics-ppmi-svd)'s semantic orientation gets $0.829$ of these words right. One occurrence has far less to go on. Let the other lexicon words near each of the $1414$ lexicon occurrences vote on its polarity, with a tie scored as half. Within $8$ words they get it right $0.514$ of the time, within $32$ words $0.546$, and over the whole document $0.571$. Setting the ties aside, those are $0.530$, $0.558$, and $0.583$. A word's lexicon polarity shows when you pool across documents, not in the sentence it sits in, and these sentences barely write it down. What an occurrence *reports* is a fact about its context, and there the contextual vectors find it.
 
-One more measurement keeps the encoder honest. With $V = 879$, Theorem 2 says the optimum keeps $0.950$ of its mass on a visible word, on average over $512$ words read in clean windows. The encoder keeps $0.734$. It has not reached the channel's optimum at visible positions, which carry under $3\%$ of its training signal. Its guesses at `[MASK]` positions, where the signal is, are what the probes and the laboratory show.
+One more measurement keeps the encoder honest. Take $512$ words read in clean windows. Masked, the encoder puts $0.591$ on the word on average. With $V = 879$, Theorem 2's formula applied to that guess keeps $0.950$; this is a plug-in, because the true $p$ is unknown. Visible, the encoder keeps $0.734$. It has not reached the channel's optimum at visible positions, and we have not isolated why: kept tokens are one selected position in ten here, as on the HMM, where the same comparison came out close. The laboratory's guesses are `[MASK]` guesses from this output head. The probes read hidden layers on clean windows with the word visible, not this head.
 
 </FinanceCaseStudy>
 
@@ -530,11 +530,11 @@ One more measurement keeps the encoder honest. With $V = 879$, Theorem 2 says th
 1. **BERT selects a fixed 15%.** Theorem 2 is exact when positions are selected independently. With a fixed count, the selection of one position is weakly tied to the others, and the closed form becomes an approximation.
 2. **Pseudo-likelihood's estimator is checked, not proved.** Theorem 3 is the population statement. Its finite-sample convergence is shown on one Ising chain, and we cite no general consistency theorem.
 3. **The converse of the four-cycle test is cited.** Arnold and Press characterize compatible conditionals. The encoder's incompatibility is measured on $200$ pairs of one toy model; for large models it is Hennigen and Kim's and Young and colleagues' measurement.
-4. **The cone is described, not explained.** Anisotropy and MEV are descriptive. The degeneration account of Gao and colleagues is an explanation, and our two-block filing encoder is nearly isotropic at its top layer.
+4. **The cone is described, not explained.** Anisotropy and MEV are descriptive. The degeneration account of Gao and colleagues is an explanation, and our two-block filing encoder shows no shared cone at its top layer.
 5. **A probe finds any cue.** Probes show linear decodability, not use. The position leak that typed *kestrel* through the position table is the cautionary example.
-6. **Templates and small samples.** The finance contexts are templates, so a perfect probe says the cue is present, not that the model is a tagger. The evaluative-verb probes fail with $26$ to $45$ examples each, for reasons we cannot separate.
-7. **The filing encoder falls short at visible words.** It keeps $0.734$ of its mass on a visible word where the optimum keeps $0.950$.
-8. **Topic 7's question is not won.** Contextual vectors do not recover a word's dictionary polarity here, because the text does not carry it.
+6. **Templates and small samples.** The finance contexts are templates, so a perfect probe says the cue is present, not that the model is a tagger. The evaluative-verb probes fail with $26$ to $45$ examples each. Direction words cut to those counts still read about $0.88$ to $0.94$, so sample size alone does not explain it. The distance to the aspect term is the likelier cause, and we have not isolated it.
+7. **The filing encoder falls short at visible words.** It keeps $0.734$ of its mass on a visible word where Theorem 2's formula, applied to its own `[MASK]` guess, keeps $0.950$.
+8. **Topic 7's question is not won.** Contextual vectors do not recover a word's dictionary polarity here. It shows when pooled across documents, a $32$-token window never pools, and the sentences barely carry it.
 9. **Toy scale.** The encoders have two blocks and at most $64$ dimensions and are trained on synthetic text. Statements about BERT's layers are cited.
 
 </RigorFlag>
@@ -543,7 +543,7 @@ One more measurement keeps the encoder honest. With $V = 879$, Theorem 2 says th
 
 ## Implementation
 
-The companion notebook (`notebookPath`) imports `contextual_embeddings_masked_lm.py`, which owns every number on this page. That module imports the transformer-block topic's module for the pre-LN block, LayerNorm, and attention with their backward passes, and through it the neural-language-models topic's Adam constants and the shared finance corpus. It imports the word2vec topic's module for its skip-gram vectors and polarity probe, and through it the distributional-semantics topic's corpus and vocabulary. It trains two encoders from scratch in NumPy with hand-written gradients and runs a harness of $20$ assertion-based tests in about forty seconds on a laptop CPU. The tests cover:
+The companion notebook (`notebookPath`) imports `contextual_embeddings_masked_lm.py`, which owns every number on this page. That module imports the transformer-block topic's module for the pre-LN block, LayerNorm, and attention with their backward passes, and through it the neural-language-models topic's Adam constants and the shared finance corpus. It imports the word2vec topic's module for its skip-gram vectors and polarity probe, and through it the distributional-semantics topic's corpus and vocabulary. It trains two encoders from scratch in NumPy with hand-written gradients and runs a harness of $21$ assertion-based tests in about forty seconds on a laptop CPU. The tests cover:
 
 - Proposition 1 exactly on the HMM, and Corollary 1 against the token table's probe.
 - Theorem 1's identity on random distributions and on the trained encoder.
@@ -551,7 +551,7 @@ The companion notebook (`notebookPath`) imports `contextual_embeddings_masked_lm
 - Theorem 3's population gradient and the pseudo-likelihood estimates on the Ising chain.
 - Theorem 4 against the enumerated joint, and Corollary 2 on three families of conditionals.
 - Proposition 2 on random matrices and on both encoders.
-- The probes and their controls, the position leak, and the finance tables, including the encoder's shortfall at visible words.
+- The probes and their controls, the position leak, and the finance tables, including the sample-size check on the evaluative verbs and the encoder's shortfall at visible words.
 - The encoder's gradient against central differences, the selected-rows loss against the full forward pass, and the faster MLP backward pass against the transformer-block topic's.
 
 The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
