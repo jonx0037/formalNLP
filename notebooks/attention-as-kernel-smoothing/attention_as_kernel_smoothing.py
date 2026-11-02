@@ -7,9 +7,10 @@ from ``viz_payload``. The sections follow the page:
    Gaussian in ‖q − k‖ (bandwidth √τ) times design weights e^{‖k‖²/2τ}; its weights are the posterior
    responsibilities of a Gaussian mixture centered on the keys; one layer without positions reads its prefix as a
    bag, and two causal layers already do not.
-2. Temperature is bandwidth: τ → 0 is a lookup and τ → ∞ the mean, both at exponential rates; on n equispaced
-   keys on the circle attention is a Fourier multiplier with aliased Bessel gains, so its bias–variance trade-off
-   is a closed form whose optimal concentration grows like n^{2/5}; a trained one-layer denoiser finds it.
+2. Temperature is bandwidth: τ → 0 is a lookup at an exponential rate and τ → ∞ the mean at a rate of order R/τ;
+   on n equispaced keys on the circle attention is a Fourier multiplier with aliased Bessel gains, so its
+   bias–variance trade-off is a closed form whose optimal concentration grows like n^{2/5}; a trained one-layer
+   denoiser finds it.
 3. Why 1/√d: unscaled dot products of random d-dimensional vectors have variance d, so the softmax saturates and
    its Jacobian (Topic 5's covariance) vanishes; the scale holds the kernel's spread fixed.
 4. A lookup instead of a state: the gradient from position t reaches position k in one hop, scaled by the
@@ -303,6 +304,20 @@ DENOISERS = (DenoiserConfig("smooth", 32, stream=930), DenoiserConfig("smooth", 
              DenoiserConfig("rough", 32, stream=932))
 
 
+def denoiser_population_risk(M: np.ndarray, n: int, spectrum: str, sigma: float = SIGMA, grid: int = 8) -> float:
+    """The exact population risk of a general M, over f, the noise, and θ₀. Given θ₀, f has covariance
+    C_ij = Σ_k s_k² cos k(θ_i − θ_j), so the risk is (1/n)[tr (A − I) C (A − I)ᵀ + σ²‖A‖_F²]; a rotation by 2π/n only
+    relabels the tokens, so θ₀ is averaged over one such period, on a grid (the trapezoid rule, for a smooth periodic
+    integrand)."""
+    s2 = SPECTRA[spectrum]
+    th = (np.arange(grid) / grid * 2 * np.pi / n)[:, None] + 2 * np.pi * np.arange(n) / n
+    U = np.stack([np.cos(th), np.sin(th)], -1)
+    A = _softmax(U @ M @ np.swapaxes(U, 1, 2))
+    C = (s2 * np.cos((th[:, :, None] - th[:, None, :])[..., None] * np.arange(1, len(s2) + 1))).sum(-1)
+    B = A - np.eye(n)
+    return float((((B @ C) * B).sum((1, 2)) + sigma**2 * (A**2).sum((1, 2))).mean() / n)
+
+
 # --------------------------------------------------------------------------------------------
 # 3. Why 1/√d.
 # --------------------------------------------------------------------------------------------
@@ -486,7 +501,7 @@ def lag_attention_training() -> dict[str, float]:
 
 
 LAG_SWEEP = (10, 30, 60, 120, 240, 480)
-TOPIC5_LAG_ACCURACY = {"elman": 0.485, "lstm-1": 0.531, "lstm-3": 1.000}  # quoted from Topic 5's page (its harness)
+TOPIC5_LAG_ACCURACY = {"elman": 0.486, "lstm-1": 0.531, "lstm-3": 1.000}  # Topic 5's page (971/2000 rounds half up)
 
 
 @lru_cache(maxsize=1)
@@ -593,12 +608,18 @@ def doc_events(split: str) -> tuple[Doc, ...]:
 @lru_cache(maxsize=1)
 def key_classes() -> dict[str, int]:
     """How many training words share their unit key with another word (cosine 1 to 10⁻⁹): Cor 2's β → ∞ limit pools
-    them. They are words seen in identical contexts — once-seen pseudo-words and first names in fixed templates."""
-    _, E = key_vectors()
+    them. They are words seen in identical contexts: nearly all were seen once in training (many are pseudo-words),
+    and the rest are a few names and ordinary words."""
+    idx, E = key_vectors()
     G = E @ E.T
     np.fill_diagonal(G, 0.0)
     same = G >= 1 - 1e-9
-    return {"words": len(E), "pairs": int(same.sum() // 2), "shared_words": int(same.any(1).sum())}
+    shared = same.any(1)
+    counts: dict[str, int] = {}
+    for w in (w for d in documents("train") for s in d for w in s):
+        counts[w] = counts.get(w, 0) + 1
+    return {"words": len(E), "pairs": int(same.sum() // 2), "shared_words": int(shared.sum()),
+            "once_seen": sum(counts[w] == 1 for w, i in idx.items() if shared[i])}
 
 
 def _strict_lower(n: int) -> np.ndarray:
@@ -730,8 +751,11 @@ def cache_benchmark() -> dict:
                              "cache": float(-m_all[sel].mean())})
     out["gain_from_cross_sentence"] = float((m_all - k_all)[R & X].sum() / (m_all - k_all).sum())
     chars = [float(d.chars) for d in docs]
-    out["kn_bpc"] = doc_rate(kn_doc_logprobs("held", True), chars, LN2)
-    out["cache_bpc"] = doc_rate(mixture_logprobs("held", beta, lam, open_vocab=True), chars, LN2)
+    kn_open, mix_open = kn_doc_logprobs("held", True), mixture_logprobs("held", beta, lam, open_vocab=True)
+    out["kn_bpc"] = doc_rate(kn_open, chars, LN2)
+    out["cache_bpc"] = doc_rate(mix_open, chars, LN2)
+    out["open_gain"] = paired_rate(kn_open, mix_open, n_tok)
+    out["open_gain_bpc"] = paired_rate(kn_open, mix_open, chars, LN2)
     return out
 
 
@@ -971,8 +995,9 @@ EDGAR_NAMES = ("Apple", "ExxonMobil", "Microsoft")  # fc.load_edgar_excerpts() o
 @lru_cache(maxsize=1)
 def finance_summary() -> dict:
     """EDGAR in open-vocabulary bits per character: KN, KN with Topic 5's PPM-C spelling cache, KN ⊕ cache at the
-    dev-chosen (β, λ) and with the learned kernel, and lzma given the training text; the share of the cache's gain
-    that comes from repeated OOV words; and two curated OOV terms per filing."""
+    dev-chosen (β, λ) and with the learned kernel at its own dev-chosen λ, both kernels at each other's λ, and lzma
+    given the training text; Topic 5's spelling floor (its Prop 6); the share of the cache's gain that comes from
+    repeated OOV words; the mean cost of every OOV word's second mention; and two curated OOV terms per filing."""
     beta, lam = tune_cache()
     tk = train_learned_kernel()
     docs = doc_events("edgar")
@@ -982,11 +1007,18 @@ def finance_summary() -> dict:
     mix = mixture_logprobs("edgar", beta, lam, open_vocab=True)
     learned = mixture_logprobs("edgar", tk.beta, tk.lam, tk.params, open_vocab=True)
     closed_kn = -sum(d.kn.sum() for d in docs)
+
+    def bpc_at(b: float, l: float, kernel: Params | None = None) -> float:
+        return -sum(x.sum() for x in mixture_logprobs("edgar", b, l, kernel, True)) / nc / LN2
+
     out = {"kn_bpc": -sum(x.sum() for x in kn) / nc / LN2,
            "kn_ppm_bpc": (closed_kn + nlm.ppm_cache_spelled_nats("edgar")) / nc / LN2,
            "cache_bpc": -sum(x.sum() for x in mix) / nc / LN2,
-           "learned_bpc": -sum(x.sum() for x in learned) / nc / LN2,
+           "learned_bpc": -sum(x.sum() for x in learned) / nc / LN2, "learned_lambda": tk.lam,
+           "cache_bpc_at_learned_lambda": bpc_at(beta, tk.lam),
+           "learned_bpc_at_cache_lambda": bpc_at(tk.beta, lam, tk.params),
            "lzma_bpc": nlm.lzma_given_bpc("edgar"), "topic5_best_bpc": TOPIC5_RNN_DYN_CACHE_EDGAR_BPC,
+           "spelling_floor_bpc": sum(d.spell.sum() for d in docs) / nc / LN2,
            "oov_share": float(np.concatenate([d.oov for d in docs]).mean())}
     gain = np.concatenate([m - k for m, k in zip(mix, kn)])
     rep = np.concatenate([repeat_info(d, True)[0] for d in docs])
@@ -1000,18 +1032,23 @@ def finance_summary() -> dict:
     out["oracle_bpc"] = oracle[out["oracle_lambda"]]  # a diagnostic, tuned on EDGAR itself: never a result
     out["per_filing"] = [{"name": name, "kn_bpc": -k.sum() / d.chars / LN2, "cache_bpc": -m.sum() / d.chars / LN2}
                          for name, d, k, m in zip(EDGAR_NAMES, docs, kn, mix)]
-    out["curated"] = []
+    out["curated"], second_kn, second_cache = [], [], []
     for name, d, k, m in zip(EDGAR_NAMES, docs, kn, mix):
         counts: dict[str, list[int]] = {}
         for t, (w, o) in enumerate(zip(d.targets, d.oov)):
             if o:
                 counts.setdefault(w, []).append(t)
+        second = [ts[1] for ts in counts.values() if len(ts) >= 2]
+        second_kn += list(-k[second] / LN2)
+        second_cache += list(-m[second] / LN2)
         terms = sorted((w for w, ts in counts.items() if len(ts) >= 2 and len(w) >= 3),
                        key=lambda w: (-len(counts[w]), counts[w][0]))
         for w in terms[:2]:
             t1, t2 = counts[w][:2]
             out["curated"].append({"filing": name, "word": w, "first": t1, "second": t2, "count": len(counts[w]),
                                    "kn_bits": (-k[t1] / LN2, -k[t2] / LN2), "cache_bits": (-m[t1] / LN2, -m[t2] / LN2)})
+    out["second_mentions"] = {"n": len(second_kn), "kn_bits": float(np.mean(second_kn)),
+                              "cache_bits": float(np.mean(second_cache))}
     return out
 
 
@@ -1135,12 +1172,14 @@ def summary() -> dict[str, float]:
     out["held_kn_nats"], out["held_cache_nats"] = cb["kn"][0], cb["cache"][0]
     out["held_gain_nats"], out["held_gain_se"] = cb["gain"]
     out["held_kn_bpc"], out["held_cache_bpc"] = cb["kn_bpc"][0], cb["cache_bpc"][0]
+    out["held_open_gain_nats"], out["held_open_gain_bpc"] = cb["open_gain"][0], cb["open_gain_bpc"][0]
     out["held_learned_nats"], out["held_learned_minus_fixed"] = lb["learned"][0], lb["learned_minus_fixed"][0]
     out["held_learned_minus_fixed_se"] = lb["learned_minus_fixed"][1]
     for beta, row in rf["tv"].items():
         out[f"rf_tv_beta{beta:g}_m1024"] = row[-1]
     out["rf_nats_m1024"], out["rf_nats_exact"] = rf["nats"][-1], rf["exact"]
-    for k in ("kn_bpc", "kn_ppm_bpc", "cache_bpc", "learned_bpc", "lzma_bpc", "gain_share_oov_repeat"):
+    for k in ("kn_bpc", "kn_ppm_bpc", "cache_bpc", "learned_bpc", "cache_bpc_at_learned_lambda",
+              "learned_bpc_at_cache_lambda", "lzma_bpc", "spelling_floor_bpc", "gain_share_oov_repeat"):
         out[f"edgar_{k}"] = fin[k]
     return out
 
@@ -1171,21 +1210,23 @@ def test_documents_partition_corpus():
 def test_attention_is_nadaraya_watson():
     """Prop 1: attention equals Def 1's smoother with the exponential kernel and the weighted Gaussian
     Nadaraya–Watson estimator (bandwidth √τ, weights e^{‖k‖²/2τ}) to 10⁻¹²; the factorization is exact; equal key norms
-    give the unweighted estimator and, on a sphere, the vMF kernel; outputs lie in the values' hull; and of two keys
-    equally far from the query, the longer one gets exactly e^{Δ‖k‖²/2τ} times the weight."""
+    give the unweighted estimator and, on a sphere, the vMF kernel; the weights are nonnegative and sum to 1, so each
+    output lies in the values' hull, with ‖o‖ ≤ V_max; and of two keys equally far from the query, the longer one gets
+    exactly e^{Δ‖k‖²/2τ} times the weight."""
     rng = np.random.default_rng([SEED, 900])
     for _ in range(50):
         n, d, dv = int(rng.integers(3, 30)), int(rng.integers(1, 17)), int(rng.integers(1, 5))
         Q, K, V = rng.normal(0, 0.7, (4, d)), rng.normal(0, 0.7, (n, d)), rng.normal(size=(n, dv))
         tau = math.sqrt(d)
-        O = attention(Q, K, V)[0]
+        O, A = attention(Q, K, V)
+        assert np.all(A >= 0) and np.allclose(A.sum(1), 1.0, rtol=1e-12, atol=0)
+        assert np.linalg.norm(O, axis=1).max() <= np.linalg.norm(V, axis=1).max() * (1 + 1e-12)
         for i, q in enumerate(Q):
             g = gaussian_form(q, K, tau)
             assert np.allclose(g["query"] * g["omega"] * g["gauss"], np.exp(K @ q / tau), rtol=1e-12, atol=0)
             assert np.allclose(O[i], kernel_smoother(q, K, V, lambda q, K: np.exp(K @ q / tau)), rtol=1e-12, atol=1e-13)
             assert np.allclose(O[i], kernel_smoother(q, K, V, lambda q, K: g["omega"] * g["gauss"]),
                                rtol=1e-12, atol=1e-13)
-            assert np.all(O[i] <= V.max(0) + 1e-12) and np.all(O[i] >= V.min(0) - 1e-12)
         r = 1.7
         Ks = r * K / np.linalg.norm(K, axis=1, keepdims=True)
         qs = r * Q[0] / np.linalg.norm(Q[0])
@@ -1224,8 +1265,8 @@ def test_mixture_posterior():
 
 def test_order_blindness():
     """Prop 3: (i) bidirectional stacks (depth 1 and 3) are permutation-equivariant to 10⁻¹²; (ii) one causal layer,
-    reading a held-out sentence through Topic 6's vectors, gives the last position the same output when the prefix is
-    reversed; (iii) two causal layers do not."""
+    reading a corpus sentence's first eight words through Topic 6's vectors, gives the last position the same output
+    when the words before it are reversed; (iii) two causal layers do not."""
     rng = np.random.default_rng([SEED, 902])
     X = rng.normal(size=(7, 6))
     for depth in (1, 3):
@@ -1292,19 +1333,31 @@ def test_circle_fourier_multiplier():
 
 def test_circle_rate():
     """Cor 1, on the exact formula: c*(n)/(Cn^{2/5}) is within 1% of 1 at n = 10⁸ for both spectra, and the log–log
-    slope of c* from 10⁶ to 10⁸ is within 0.01 of 2/5."""
+    slope of c* from 10⁶ to 10⁸ is within 0.01 of 2/5. Its proof's steps: the aliased terms are smaller by about
+    e^{−n²/2c}, which is 0.03 at n = 1000, c = n²/log n; their relative effects on 1 − ρ_k and on the variance sum have
+    the proof's orders at c = n²/10; and for c ≥ εn² the variance factor stays above 1/A_ε², A_ε = Σ_m e^{−8εm²}."""
     for power in SPECTRA.values():
         pre = rate_prefactor(power, SIGMA)
         cs = {n: optimal_c(n, power, SIGMA) for n in (10**6, 10**8)}
         assert abs(cs[10**8] / (pre * 1e8**0.4) - 1) < 0.01
         assert abs(math.log(cs[10**8] / cs[10**6]) / math.log(100) - 0.4) < 0.01
+    n, c = 1000, 1000**2 / math.log(1000)
+    ratio = float(special.ive(n, c) / special.ive(0, c))
+    assert math.isclose(ratio, math.exp(-n**2 / (2 * c)), rel_tol=1e-3) and 0.025 < ratio < 0.035
+    x, c = 10.0, n**2 / 10.0
+    assert 1 < abs((1 - circle_gains(n, c, [1])[0]) * 2 * c - 1) / (x * math.exp(-x / 2)) < 2
+    assert 1 < (circle_variance_factor(n, c) * n / math.sqrt(math.pi * c) - 1) / math.exp(-x / 4) < 2
+    for eps in (0.1, 1.0, 10.0):
+        A_eps = float(np.exp(-8 * eps * np.arange(-50, 51) ** 2.0).sum())
+        assert all(circle_variance_factor(n, eps * n**2) >= (1 - 1e-12) / A_eps**2 for n in (32, 1024))
 
 
 def test_trained_denoiser():
     """The trained denoiser: its hand-written gradient matches the complex step to 10⁻¹⁰ relative (and central
     differences to 10⁻⁶); the loss at M = c*I averages to Thm 1's risk over fresh tasks; after training, the learned M
-    is within 5% of c*I in Frobenius norm and nearly isotropic, for each configuration; the rough spectrum learns a
-    sharper kernel than the smooth one, and a longer context a sharper one too."""
+    (the Polyak average, with c half its trace) is within 0.6% of c*I in Frobenius norm and within 0.12% of cI, for
+    each configuration, and the worst case's distance is nearly all the miss in c; the rough spectrum learns a sharper
+    kernel than the smooth one, and a longer context a sharper one too."""
     rng = np.random.default_rng([SEED, 904])
     U, y, f = denoiser_tasks(rng, 3, 8, "rough")
     P = {"Wq": rng.normal(size=(2, 2)), "Wk": rng.normal(size=(2, 2))}
@@ -1320,16 +1373,44 @@ def test_trained_denoiser():
     assert abs(np.mean(loss) - circle_risk(cs, 32, SPECTRA["smooth"], SIGMA)["risk"]) < 4 * np.std(loss) / math.sqrt(3000)
     tr = {(c.spectrum, c.n): train_denoiser(c) for c in DENOISERS}
     for t in tr.values():
-        assert np.linalg.norm(t.M - t.c_star * np.eye(2)) / (t.c_star * math.sqrt(2)) < 0.05
-        assert t.anisotropy < 0.05
+        assert np.linalg.norm(t.M - t.c_star * np.eye(2)) / (t.c_star * math.sqrt(2)) < 0.006
+        assert t.anisotropy < 0.0012
+    worst = tr["smooth", 64]
+    assert abs(worst.c - worst.c_star) / worst.c_star > 0.99 * 0.00528
     assert tr["rough", 32].c > 3 * tr["smooth", 32].c and tr["rough", 32].c_star > tr["smooth", 32].c_star
     assert tr["smooth", 64].c > tr["smooth", 32].c and tr["smooth", 64].c_star > tr["smooth", 32].c_star
+
+
+def test_population_optimum():
+    """Why M = c*I: invariance only points there, so search for it. For each configuration, the exact population risk
+    over a general M equals Thm 1's R(c) at M = cI to 10⁻¹², and matches the mean loss on fresh tasks at an anisotropic
+    M (within 4 standard errors); Nelder–Mead over all 2 × 2 matrices, from an isotropic start and five random ones,
+    ends within 0.1% of c*I, at Thm 1's risk to 10⁻⁶ and never below it. A search, not a proof that the minimum is
+    global."""
+    rng = np.random.default_rng([SEED, 911])
+    for cfg in DENOISERS:
+        n, sp = cfg.n, cfg.spectrum
+        cs = optimal_c(n, SPECTRA[sp], SIGMA)
+        R = circle_risk(cs, n, SPECTRA[sp], SIGMA)["risk"]
+        assert math.isclose(denoiser_population_risk(cs * np.eye(2), n, sp), R, rel_tol=1e-12)
+        M = cs * np.array([[1.3, 0.1], [-0.2, 0.7]])
+        P = {"Wq": math.sqrt(2) * M, "Wk": np.eye(2)}
+        loss = [denoiser_loss_grad(P, *denoiser_tasks(rng, 1, n, sp))[0] for _ in range(2000)]
+        assert abs(np.mean(loss) - denoiser_population_risk(M, n, sp)) < 4 * np.std(loss) / math.sqrt(2000)
+        starts = [0.3 * cs * np.eye(2)] + [rng.normal(0, cs / 2, (2, 2)) for _ in range(5)]
+        for M0 in starts:
+            r = optimize.minimize(lambda v: denoiser_population_risk(v.reshape(2, 2), n, sp), M0.ravel(),
+                                  method="Nelder-Mead", options={"xatol": 1e-4, "fatol": 1e-10, "maxiter": 4000})
+            assert np.linalg.norm(r.x.reshape(2, 2) - cs * np.eye(2)) / (cs * math.sqrt(2)) < 1e-3
+            assert -1e-9 < r.fun - R < 1e-6
 
 
 def test_scaling_and_saturation():
     """Thm 2: (i) Var⟨q, k⟩ = d for Rademacher coordinates (within 4 standard errors); (ii) ‖J‖₂ ≤ tr J = 1 − ‖α‖² ≤
     2(1 − α_max), and J is Topic 5's softmax Jacobian; (iii) unscaled, the mean of 1 − α_max falls at every d and ends
-    below 0.05 and a tenth of the scaled value, while scaled it stays within 5%; the Jacobian follows."""
+    below 0.05 and a tenth of the scaled value, while scaled it stays within 5%; the Jacobian follows. And why (iii) is
+    in probability: at n = 2, P(|⟨q, k₁ − k₂⟩| < 1), which forces 1 − α_max > 1/(1 + e), is about 1/√(πd), whose sum
+    diverges (drawn given ‖q‖² ~ χ²_d, since the score is then N(0, 2‖q‖²))."""
     rng = np.random.default_rng([SEED, 905])
     for d in (8, 64, 512):
         s = (rng.choice([-1.0, 1.0], (20_000, d)) * rng.choice([-1.0, 1.0], (20_000, d))).sum(1)
@@ -1346,6 +1427,10 @@ def test_scaling_and_saturation():
     assert max(v) / min(v) < 1.05
     ju, js = sc["unscaled_jac"], sc["scaled_jac"]
     assert all(x > y for x, y in zip(ju, ju[1:])) and ju[-1] < js[-1] / 3 and max(js) / min(js) < 1.15
+    rng = np.random.default_rng([SEED, 905, 2])
+    for d in (64, 1024):
+        s = np.sqrt(2 * rng.chisquare(d, 400_000)) * rng.standard_normal(400_000)
+        assert abs(np.mean(np.abs(s) < 1) * math.sqrt(math.pi * d) - 1) < 0.05
 
 
 def test_one_hop_jacobian():
@@ -1377,7 +1462,9 @@ def test_lag_attention():
     the hand-written gradient and the reach match the complex step; Topic 5's census reproduces its page; at lag 60
     attention's reach at initialization is 10⁵ times Elman's and above LSTM-1's, below LSTM-3's; across lags it falls
     like 1/(L + 1) (within a factor of 2), Elman's by 30 orders of magnitude, and attention overtakes LSTM-3 by lag
-    480; trained by Topic 5's protocol at lag 60, attention is right on every fresh sequence, at lag 60 and at lag 600."""
+    480, though LSTM-3's cell path keeps only σ(3)⁶⁰ = 0.054 of the bit and its row is not monotone; trained by Topic
+    5's protocol at lag 60, attention is right on every fresh sequence, at lag 60 and at lag 600; the recurrent
+    accuracies quoted here equal Topic 5's lab data."""
     for L in (1, 10, 60, 600, 6000):
         r, rb = lag_construction(L, 50.0), lag_construction(L, 50.0, 3.0)
         assert r["accuracy"] == rb["accuracy"] == 1.0
@@ -1413,8 +1500,11 @@ def test_lag_attention():
     assert all(x > y for x, y in zip(sw["elman"], sw["elman"][1:])) and sw["elman"][-1] / sw["elman"][0] < 1e-30
     i60, i480 = sw["lags"].index(60), sw["lags"].index(480)
     assert sw["lstm-3"][i60] > sw["attention"][i60] and sw["lstm-3"][i480] < sw["attention"][i480]
+    assert 0.054 < float(special.expit(3.0)) ** 60 < 0.0545 and sw["lstm-3"][i60] > sw["lstm-3"][i60 - 1]
     lt = lag_attention_training()
     assert lt["accuracy"] == 1.0 and lt["accuracy_lag600"] == 1.0 and lt["test_loss"] < 0.01
+    t5 = json.loads((VIZ_JSON.parent / "neural-lm-lab.json").read_text())["long_lag"]["models"]
+    assert all(t5[k]["accuracy"] == v for k, v in TOPIC5_LAG_ACCURACY.items())
 
 
 def _truncate(doc: Doc, n: int) -> Doc:
@@ -1429,9 +1519,9 @@ def test_kernel_cache():
     cannot tell apart, counted in key_classes); dev chooses an interior (β, λ); held out, the cache beats
     KN by more than 3 standard errors clustered by document, the dev-chosen bandwidth beats both limits, the gain is on
     repeated targets and grows with the distance back to the previous mention, and nearly every repeat's previous
-    mention is in an earlier sentence."""
+    mention is in an earlier sentence; the open-vocabulary gain per token is smaller than the closed one."""
     kc = key_classes()
-    assert kc["pairs"] > 0 and kc["shared_words"] < 0.5 * kc["words"]
+    assert kc["pairs"] > 0 and kc["shared_words"] < 0.5 * kc["words"] and kc["once_seen"] > 0.9 * kc["shared_words"]
     for d in doc_events("held")[:10]:
         p0, pinf = cache_probs(d, 0.0), cache_probs(d, math.inf)
         for t in range(1, len(d.targets)):
@@ -1451,6 +1541,8 @@ def test_kernel_cache():
     assert all(b["cross_sentence"] > 0.85 for b in cb["bands"])
     assert cb["gain_from_cross_sentence"] > 0.9
     assert cb["cache_bpc"][0] < cb["kn_bpc"][0]
+    assert 0 < cb["open_gain"][0] < cb["gain"][0]
+    assert math.isclose(cb["open_gain_bpc"][0], cb["kn_bpc"][0] - cb["cache_bpc"][0], rel_tol=1e-9)
 
 
 def test_learned_kernel():
@@ -1566,16 +1658,22 @@ def test_random_feature_cache():
 
 
 def test_finance_findings():
-    """§7: on EDGAR, KN ⊕ cache beats KN with Topic 5's PPM-C spelling cache, which beats KN; the learned kernel helps
-    further; lzma and Topic 5's best still code it shorter; nearly all of the cache's gain is on repeated OOV words; the
-    in-domain λ under-trusts the cache on real text; each curated term's second mention costs less than half its KN
-    bits; and the cache helps every filing."""
+    """§7: on EDGAR, KN ⊕ cache beats KN with Topic 5's PPM-C spelling cache, which beats KN; the learned kernel's row
+    is lower only because its dev-chosen λ differs, and at equal λ it is worse than the fixed kernel, at both λ; lzma
+    and Topic 5's best still code it shorter; nearly all of the cache's gain is on repeated OOV words; the in-domain λ
+    under-trusts the cache on real text; each curated term's second mention costs less than half its KN bits, as does
+    the mean over every OOV word's second mention; the cache stays above Topic 5's spelling floor, the bound it
+    escapes; and the cache helps every filing."""
     f = finance_summary()
     assert f["cache_bpc"] < f["kn_ppm_bpc"] < f["kn_bpc"] and f["learned_bpc"] < f["cache_bpc"]
+    assert f["learned_lambda"] != tune_cache()[1]
+    assert f["learned_bpc_at_cache_lambda"] > f["cache_bpc"] and f["learned_bpc"] > f["cache_bpc_at_learned_lambda"]
     assert f["lzma_bpc"] < f["topic5_best_bpc"] < f["cache_bpc"]
     assert f["gain_share_oov_repeat"] > 0.9
     assert f["oracle_lambda"] < tune_cache()[1] and f["oracle_bpc"] < f["cache_bpc"]
     assert len(f["curated"]) == 6 and all(c["cache_bits"][1] < c["kn_bits"][1] / 2 for c in f["curated"])
+    assert f["second_mentions"]["n"] == 77 and f["second_mentions"]["cache_bits"] < f["second_mentions"]["kn_bits"] / 2
+    assert abs(f["spelling_floor_bpc"] - 3.6538) < 5e-5 and f["cache_bpc"] > f["spelling_floor_bpc"]
     assert all(r["cache_bpc"] < r["kn_bpc"] for r in f["per_filing"])
 
 

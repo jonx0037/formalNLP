@@ -17,13 +17,13 @@ tags:
   - "cache-language-model"
 domain: "attention-transformers"
 financeCaseStudy: true
-rigorFlag: "Propositions 1 and 2 are exact for one head with given keys, but a trained transformer learns its keys, so its design points are fitted and the asymptotics of kernel regression do not describe it. Theorem 1 is exact only for equispaced keys and one frequency of position; the trained denoiser is a one-layer toy from one seed, and Collins and colleagues' theorem concerns their setting, not this one. Theorem 2's saturation result is about Gaussian queries and keys at initialization. The long-lag task is built for content addressing, since its bit symbols differ from its noise symbols, and the trained recurrent accuracies are quoted from the neural-language-models topic rather than re-run. The document cache adds information, not only a method: its gain comes from memory across sentences that Kneser–Ney and the per-sentence recurrent network never had, so it does not show that attention beats recurrence. On the synthetic corpus, which repeats itself little within a document, the gain is 0.027 nats per token (0.005 bits per character); on three EDGAR filings it is 1.16 bits per character, almost all from copying words the synthetic training text never contained, with the mixture weight tuned in domain, and lzma and the adaptive recurrent network still code the filings shorter. As the inverse bandwidth grows the cache pools words whose vectors coincide, not only identical words. Positive random features are least accurate exactly where the kernel is sharp, and every trained result is one seed."
+rigorFlag: "Propositions 1 and 2 are exact for one head with given keys, but a trained transformer learns its keys, so its design points are fitted and the asymptotics of kernel regression do not describe it. Theorem 1 is exact only for equispaced keys and one frequency of position; the trained denoiser is a one-layer toy from one seed, and Collins and colleagues' theorem concerns their setting, not this one. Theorem 2's saturation result is about Gaussian queries and keys at initialization. The long-lag task is built for content addressing, since its bit symbols differ from its noise symbols, and the trained recurrent accuracies are quoted from the neural-language-models topic rather than re-run. The document cache adds information, not only a method: its gain comes from memory across sentences that Kneser–Ney and the per-sentence recurrent network never had, so it does not show that attention beats recurrence. On the synthetic corpus, which repeats itself little within a document, the gain is 0.027 nats per token over the closed vocabulary, and 0.0229 nats per token or 0.0049 bits per character over the open one; on three EDGAR filings it is 1.16 bits per character, almost all from copying words the synthetic training text never contained, with the mixture weight tuned on synthetic development data, not on the filings, and lzma and the adaptive recurrent network still code the filings shorter. As the inverse bandwidth grows the cache pools words whose vectors coincide, not only identical words. Positive random features are least accurate exactly where the kernel is sharp, and every trained result is one seed."
 videoId: null
 notebookPath: "notebooks/attention-as-kernel-smoothing/01_attention_as_kernel_smoothing.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/attention-as-kernel-smoothing.mdx"
 datePublished: 2026-10-23
 estimatedReadTime: 40
-abstract: "A recurrent language model compresses its whole prefix into one state vector; attention instead looks up every earlier position, weighting each by the exponential of a query–key dot product. We prove that this lookup is the Nadaraya–Watson kernel smoother: the exponential kernel is a Gaussian in the distance between query and key, tilted by the keys' lengths, and its weights are the posterior responsibilities of a Gaussian mixture centered on the keys. The temperature is the bandwidth. On equispaced keys around a circle the smoother is diagonalized by the Fourier basis, with gains that are ratios of modified Bessel functions, so its bias–variance trade-off is a closed form whose optimal concentration grows like the two-fifths power of the number of keys; a one-layer attention model trained to denoise random functions finds that optimum to within half a percent. The scale 1/√d keeps random dot products from saturating the softmax, whose Jacobian vanishes as it saturates. A lookup's gradient reaches an earlier position in one step, diluted by the number of competitors rather than decayed through a product of Jacobians, so one attention layer trained on the recurrent topic's long-lag task reads the bit at ten times the training lag. On text, a kernel cache over a document's own earlier words, mixed with Kneser–Ney, helps a little on synthetic filings and a lot on real ones, by copying words the training text never contained. Factoring the kernel with positive random features turns the lookup back into a fixed-size recurrent state, at a cost that grows exponentially with the kernel's sharpness."
+abstract: "A recurrent language model compresses its whole prefix into one state vector; attention instead looks up every earlier position, weighting each by the exponential of a query–key dot product. We prove that this lookup is the Nadaraya–Watson kernel smoother: the exponential kernel is a Gaussian in the distance between query and key, tilted by the keys' lengths, and its weights are the posterior responsibilities of a Gaussian mixture centered on the keys. The temperature is the bandwidth. On equispaced keys around a circle the smoother is diagonalized by the Fourier basis, with gains that are ratios of modified Bessel functions, so its bias–variance trade-off is a closed form whose optimal concentration grows like the two-fifths power of the number of keys; a one-layer attention model trained to denoise random functions finds that optimum to within 0.53%. The scale 1/√d keeps random dot products from saturating the softmax, whose Jacobian vanishes as it saturates. A lookup's gradient reaches an earlier position in one step, diluted by the number of competitors rather than decayed through a product of Jacobians, so one attention layer trained on the recurrent topic's long-lag task reads the bit at ten times the training lag. On text, a kernel cache over a document's own earlier words, mixed with Kneser–Ney, helps a little on synthetic filings and a lot on real ones, by copying words the training text never contained. Factoring the kernel with positive random features turns the lookup back into a fixed-size recurrent state, at a cost that grows exponentially with the kernel's sharpness."
 connections: []
 references:
   - type: "paper"
@@ -261,7 +261,7 @@ $$
 P(J = j \mid Q = q) = \alpha_j(q) \qquad \text{and} \qquad E[V \mid Q = q] = o(q).
 $$
 
-Equivalently, $o$ is the conditional mean of $V$ under the joint density $\hat p(q, v) = \sum_j \pi_j \varphi_\tau(q - k_j)\, \delta_{v_j}(v)$, a kernel density estimate in $q$ with point masses in $v$, where $\varphi_\tau$ is the $N(0, \tau I)$ density.
+Equivalently, $o$ is the conditional mean of $V$ under the joint law $\hat p(q, v) = \sum_j \pi_j \varphi_\tau(q - k_j)\, \delta_{v_j}(v)$, a kernel density estimate in $q$ with point masses in $v$, where $\varphi_\tau$ is the $N(0, \tau I)$ density.
 
 </TheoremBlock>
 
@@ -271,7 +271,7 @@ By Bayes' rule, $P(J = j \mid Q = q) \propto \pi_j \varphi_\tau(q - k_j) \propto
 
 </TheoremBlock>
 
-The attention weights are the responsibilities of an isotropic Gaussian mixture whose means are the keys: one soft assignment of the query to a key, then the mean of the assigned values. Gabbur, Bilkhu, and Movellan (2021) give a probabilistic reading of dot-product attention along these lines. The joint $\hat p$ is a valid density, as formalStatistics proves for kernel density estimates ([Kernel Density Estimation](https://www.formalstatistics.com/topics/kernel-density-estimation), its Theorem 1). The notebook checks the conditional mean the way it is defined: on $10^5$ draws from the mixture, the residual $V - o(Q)$ is uncorrelated with $1$, $Q_1$, and $Q_2$, while the smoother that drops the design weights fails the same test.
+The attention weights are the responsibilities of an isotropic Gaussian mixture whose means are the keys: one soft assignment of the query to a key, then the mean of the assigned values. Gabbur, Bilkhu, and Movellan (2021) give a probabilistic reading of dot-product attention along these lines. The joint $\hat p$ has atoms in $v$, so it is not a density. Its marginal in $q$ is a weighted kernel density estimate, a valid density by the argument formalStatistics gives for kernel density estimates ([Kernel Density Estimation](https://www.formalstatistics.com/topics/kernel-density-estimation), its Theorem 1). The notebook checks the conditional mean the way it is defined: on $10^5$ draws from the mixture, the residual $V - o(Q)$ is uncorrelated with $1$, $Q_1$, and $Q_2$, while the smoother that drops the design weights fails the same test.
 
 A smoother averages over a set, and a set has no order. The next proposition is why the positional-encodings topic exists.
 
@@ -291,7 +291,7 @@ For (i), relabeling the positions relabels the scores, and the softmax and the s
 
 </TheoremBlock>
 
-One causal layer without positions reads *the dog bit the man* exactly as it reads *the man bit the dog*. The notebook reverses the held-out prefix *good morning and welcome to the brightwater analytics*, keeping its last word, and one random causal layer's output at the last position is unchanged to rounding. Two layers differ by more than $10^{-3}$, asserted. The causal mask itself leaks order, which is why causal language models trained without positional encodings still learn some (Haviv et al. 2022).
+At the last word, one causal layer without positions reads *the dog bit the man today* exactly as it reads *the man bit the dog today*. The last word has to match, because that is the $x_t$ of (ii). The notebook reverses a corpus sentence's prefix, *good morning and welcome to the brightwater analytics*, keeping its last word, and one random causal layer's output at the last position is unchanged to rounding. Two layers differ by more than $10^{-3}$, asserted. The causal mask itself leaks order, which is why causal language models trained without positional encodings still learn some (Haviv et al. 2022).
 
 ---
 
@@ -301,7 +301,7 @@ Take one query and a fixed set of scores, and turn the temperature. At $\tau \to
 
 <TheoremBlock type="proposition" number={4} title="The two temperature limits">
 
-Fix scores $s_j$ over a set $\mathcal{J}$ of $n$ positions. Let $S^*$ be the set of maximizers, $\Delta$ the gap between the maximum and the largest score off $S^*$, and $R$ the range of the scores. Write $\bar v_A$ for the mean of the values over $A$. Then
+Fix raw scores $s_j$ over a set $\mathcal{J}$ of $n$ positions, undivided by $\tau$, and let $\alpha_j \propto e^{s_j/\tau}$ and $o_\tau = \sum_j \alpha_j v_j$. Let $S^*$ be the set of maximizers, $\Delta$ the gap between the maximum and the largest score off $S^*$, and $R$ the range of the scores. Write $\bar v_A$ for the mean of the values over $A$. Then
 
 $$
 \lVert o_\tau - \bar v_{S^*} \rVert \le \frac{2 V_{\max} (n - \lvert S^* \rvert)}{\lvert S^* \rvert} e^{-\Delta/\tau} \qquad \text{and} \qquad \lVert o_\tau - \bar v_{\mathcal{J}} \rVert \le V_{\max}\bigl(e^{R/\tau} - 1\bigr).
@@ -369,13 +369,21 @@ as $n \to \infty$. So the angular bandwidth $1/\sqrt{c^*}$ is of order $n^{-1/5}
 
 <TheoremBlock type="proof">
 
-The large-argument expansion $I_\nu(c) = \frac{e^c}{\sqrt{2\pi c}}\bigl(1 - \frac{4\nu^2 - 1}{8c} + O(c^{-2})\bigr)$ (DLMF 10.40.1) gives $I_k(c)/I_0(c) = 1 - k^2/(2c) + O(c^{-2})$ and $I_0(2c)/I_0(c)^2 = \sqrt{\pi c}\,\bigl(1 + O(c^{-1})\bigr)$. The aliased terms $I_{k + mn}(c)$ with $m \ne 0$ are super-exponentially smaller than $I_k(c)$ while $c = o(n^2)$. So
+The large-argument expansion $I_\nu(c) = \frac{e^c}{\sqrt{2\pi c}}\bigl(1 - \frac{4\nu^2 - 1}{8c} + O(c^{-2})\bigr)$ (DLMF 10.40.1) gives $I_k(c)/I_0(c) = 1 - k^2/(2c) + O(c^{-2})$ and $I_0(2c)/I_0(c)^2 = \sqrt{\pi c}\,\bigl(1 + O(c^{-1})\bigr)$. The aliased terms $I_{k + mn}(c)$ with $m \ne 0$ are smaller than $I_k(c)$ by about $e^{-n^2/2c}$. That is not always tiny: at $n = 1{,}000$ and $c = n^2/\log n$ it is about $0.03$. But it vanishes while $c = o(n^2)$. So do the errors it causes: in $1 - \rho_k$ the leading aliased terms nearly cancel, leaving a relative error of order $(n^2/c) e^{-n^2/2c}$, and the sum at $2c$ has a relative error of order $e^{-n^2/4c}$. So, uniformly as $c \to \infty$ with $c = o(n^2)$,
 
 $$
 R(c) = \frac{B}{c^2} + \frac{\sigma^2 \sqrt{\pi c}}{n} + o\Bigl(\frac{1}{c^2} + \frac{\sqrt c}{n}\Bigr).
 $$
 
-For bounded $c$ the bias term is bounded away from $0$, while $R(n^{2/5}) \to 0$, so $c^*(n) \to \infty$. Setting the derivative of the two leading terms to zero gives $c^{5/2} = 4Bn/(\sigma^2\sqrt\pi)$.
+This expansion applies at the optimum. For bounded $c$ the bias term is bounded away from $0$, while $R(n^{2/5}) \to 0$, so $c^*(n) \to \infty$. And $c$ of order $n^2$ keeps the variance term bounded away from $0$. Fix $\varepsilon \gt 0$ and take $c \ge \varepsilon n^2$. Numbering the positions so that $\lvert m \rvert \le n/2$, the bound $1 - \cos x \ge 2x^2/\pi^2$ on $[-\pi, \pi]$ gives
+
+$$
+\frac{1}{a_0} = \sum_m e^{-c(1 - \cos(2\pi m/n))} \le \sum_{m \in \mathbb{Z}} e^{-8\varepsilon m^2} = A_\varepsilon \lt \infty,
+$$
+
+so the variance term $\sigma^2 \sum_m a_m^2$ is at least $\sigma^2 / A_\varepsilon^2$. So $c^* = o(n^2)$.
+
+Write $L(c)$ for the two leading terms. Setting its derivative to zero gives its minimizer $c_0$, with $c_0^{5/2} = 4Bn/(\sigma^2\sqrt\pi)$, and $L(t c_0) = L(c_0)(t^{-2} + 4\sqrt t)/5$, which falls on $(0, 1)$ and rises on $(1, \infty)$. Since $R = L \cdot (1 + o(1))$ uniformly on the range that holds both $c^*$ and $c_0$, the inequality $R(c^*) \le R(c_0)$ forces $c^*/c_0 \to 1$.
 
 </TheoremBlock>
 
@@ -388,7 +396,7 @@ The asymptote is approached quickly. Two spectra are used below: a *smooth* one,
 
 Between $n = 10^6$ and $10^8$ the log–log slope of $c^*$ is $0.4001$ for the smooth spectrum and $0.4003$ for the rough one.
 
-Does a trained attention layer find this optimum? Collins and colleagues (2024) prove that a softmax attention unit trained on regression tasks learns a window that narrows as the tasks' functions grow less smooth and widens with label noise. Here the optimum is known exactly. One attention layer reads the tokens $(\cos\theta_j, \sin\theta_j, y_j)$; its queries and keys see the position only, so its scores are $u(\theta_i) M u(\theta_j)^\top$ with $M = W_Q W_K^\top/\sqrt2$, and its values are the $y_j$. Adam trains it on fresh random functions from one spectrum, at random rotations $\theta_0$, to minimize the squared error against the clean $f$. Because the task distribution is invariant under rotations and reflections, the population optimum is $M = c^* I$, with $c^*$ from Theorem 1.
+Does a trained attention layer find this optimum? Collins and colleagues (2024) prove that a softmax attention unit trained on regression tasks learns a window that narrows as the tasks' functions grow less smooth and widens with label noise. Here the optimum is known exactly. One attention layer reads the tokens $(\cos\theta_j, \sin\theta_j, y_j)$; its queries and keys see the position only, so its scores are $u(\theta_i) M u(\theta_j)^\top$ with $M = W_Q W_K^\top/\sqrt2$, and its values are the $y_j$. Adam trains it on fresh random functions from one spectrum, at random rotations $\theta_0$, to minimize the squared error against the clean $f$. The task distribution is invariant under rotations and reflections, which points to a population optimum of $M = c^* I$, with $c^*$ from Theorem 1. Invariance alone doesn't prove that, since a symmetric objective can have asymmetric minimizers. So the harness searches: it minimizes the exact population risk over all $2 \times 2$ matrices $M$, from one isotropic and five random starts, for each row below, and every search ends within $0.1\%$ of $c^* I$, at Theorem 1's risk to $10^{-6}$. That is numerical evidence, not a proof that the minimum is global.
 
 | spectrum, $n$ | learned $c$ | Theorem 1's $c^*$ | $\lVert M - c^* I \rVert / \lVert c^* I \rVert$ | $R(c^*)$ |
 |---|---|---|---|---|
@@ -396,7 +404,7 @@ Does a trained attention layer find this optimum? Collins and colleagues (2024) 
 | smooth, $64$ | $13.320$ | $13.391$ | $0.53\%$ | $0.0316$ |
 | rough, $32$ | $57.201$ | $57.130$ | $0.13\%$ | $0.1405$ |
 
-The trained layer lands on the theorem's optimum, nearly isotropic, from a start near uniform attention. It learns a kernel more than five times sharper for the rough functions than for the smooth ones, and a sharper one for the longer context.
+Here $M$ is the average over the second half of training, and the learned $c$ is half its trace. The trained layer lands within $0.53\%$ of the theorem's optimum at worst, from a start near uniform attention. That worst case is nearly all the miss in $c$ itself, $0.525\%$ of $c^*$. Anisotropy is a separate and smaller effect: $\lVert M - cI \rVert / \lVert M \rVert$ is at most $0.11\%$. The layer learns a kernel more than five times sharper for the rough functions than for the smooth ones, and a sharper one for the longer context.
 
 ---
 
@@ -414,7 +422,7 @@ $$
 \lVert J \rVert_2 \le \operatorname{tr} J = 1 - \lVert \alpha \rVert^2 \le 2(1 - \alpha_{\max}).
 $$
 
-**(iii)** Let $q \sim N(0, I_d)$, and let $k_1, \dots, k_n$ be i.i.d. $N(0, I_d)$, independent of $q$, with $n$ fixed. For the unscaled scores $\langle q, k_j \rangle$, $1 - \alpha_{\max} \to 0$ almost surely as $d \to \infty$. For the scaled scores $\langle q, k_j \rangle/\sqrt d$, $\alpha$ converges in distribution to $\operatorname{softmax}(g)$, with $g_1, \dots, g_n$ i.i.d. standard normal.
+**(iii)** Let $q \sim N(0, I_d)$, and let $k_1, \dots, k_n$ be i.i.d. $N(0, I_d)$, independent of $q$, with $n \ge 2$ fixed. For the unscaled scores $\langle q, k_j \rangle$, $1 - \alpha_{\max} \to 0$ in probability as $d \to \infty$. For the scaled scores $\langle q, k_j \rangle/\sqrt d$, $\alpha$ converges in distribution to $\operatorname{softmax}(g)$, with $g_1, \dots, g_n$ i.i.d. standard normal.
 
 </TheoremBlock>
 
@@ -422,9 +430,17 @@ $$
 
 For (i), $\langle q, k \rangle = \sum_i q_i k_i$ is a sum of $d$ independent terms of mean $0$ and variance $E q_i^2\, E k_i^2 = 1$. For (ii), $J$ is the covariance of the one-hot vector of a draw from $\alpha$ (the neural-language-models topic's Proposition 2), so it is positive semidefinite, and its largest eigenvalue is at most its trace, $\sum_j \alpha_j(1 - \alpha_j) = 1 - \lVert \alpha \rVert^2$. And $1 - \lVert \alpha \rVert^2 \le 1 - \alpha_{\max}^2 = (1 - \alpha_{\max})(1 + \alpha_{\max})$.
 
-For (iii), condition on $q$. The scores $\langle q, k_j \rangle$ are then i.i.d. $N(0, \lVert q \rVert^2)$, which is the law of $\lVert q \rVert g_j$ with $g$ i.i.d. standard normal and independent of $q$. If $G \gt 0$ is the gap between the two largest $g_j$, every non-maximal weight is at most $e^{-\lVert q \rVert G}$ times the largest, so $1 - \alpha_{\max} \le (n - 1) e^{-\lVert q \rVert G}$. By the strong law of large numbers $\lVert q \rVert^2 / d \to 1$ almost surely, so $\lVert q \rVert \to \infty$, and $G \gt 0$ almost surely. Scaled, the scores are $(\lVert q \rVert/\sqrt d)\, g$, which converges almost surely to $g$, and the softmax is continuous.
+For (iii), condition on $q$. The scores $\langle q, k_j \rangle$ are then i.i.d. $N(0, \lVert q \rVert^2)$, which is the law of $\lVert q \rVert g_j$ with $g$ i.i.d. standard normal and independent of $q$. If $G \gt 0$ is the gap between the two largest $g_j$, every non-maximal weight is at most $e^{-\lVert q \rVert G}$ times the largest, so $1 - \alpha_{\max} \le (n - 1) e^{-\lVert q \rVert G}$. Fix $\varepsilon \in (0, 1)$ and let $a = \log(n/\varepsilon)$. Then $1 - \alpha_{\max} \gt \varepsilon$ forces $\lVert q \rVert G \lt a$, so for every $M \gt 0$,
+
+$$
+P(1 - \alpha_{\max} \gt \varepsilon) \le P(\lVert q \rVert \lt M) + P(G \lt a/M).
+$$
+
+By the law of large numbers $\lVert q \rVert^2 / d \to 1$ in probability, so the first term tends to $0$ for each $M$. The gap $G$ has the same law at every $d$, and $G \gt 0$ almost surely, so the second term is as small as we like for large $M$. Scaled, the scores have the law of $(\lVert q \rVert/\sqrt d)\, g$. The factor tends to $1$ in probability, so by Slutsky's theorem and the continuity of the softmax, $\alpha$ converges in distribution to $\operatorname{softmax}(g)$.
 
 </TheoremBlock>
+
+Part (iii) stops at convergence in probability for a reason. The keys change with $d$, and the theorem states no coupling across dimensions. With $n = 2$, $1 - \alpha_{\max} = 1/(1 + e^{\lvert S_d \rvert})$ with $S_d = \langle q, k_1 - k_2 \rangle$. If the draws are nested, one coordinate added at each $d$, then $S_d$ is a recurrent random walk. If they are independent across $d$, then $P(\lvert S_d \rvert \lt 1)$ is of order $1/\sqrt d$, whose sum diverges, so the Borel–Cantelli lemma applies. Either way $\lvert S_d \rvert \lt 1$ infinitely often, almost surely, and then $1 - \alpha_{\max} \gt 1/(1 + e)$: almost sure convergence fails.
 
 Without the scale, the kernel's bandwidth shrinks like $d^{-1/2}$ in units of the scores, attention collapses into a lookup at initialization, and by (ii) the gradient through the scores vanishes with it. The neural-language-models topic's covariance identity, there a fact about the output layer, is here a cost. With $16$ keys, mean $1 - \alpha_{\max}$ and mean $\lVert J \rVert_2$ over $600$ random draws at each dimension are:
 
@@ -469,7 +485,7 @@ The lookup's path from $t$ back to $k$ has length one. Its only loss is the fact
 
 <TheoremBlock type="proposition" number={6} title="Content addressing solves the lag task">
 
-In the neural-language-models topic's task, the input is $x_0 \in \{0, 1\}$, then $L$ noise symbols drawn from $\{2, 3\}$, and the target is $x_0$. Take one causal layer read at the last position, with one-hot inputs, equal scores, values $+1$ for the symbol $0$, $-1$ for the symbol $1$, and $0$ for noise, and logits $(w\, o, -w\, o)$. Then
+In the neural-language-models topic's task, the input is $x_0 \in \{0, 1\}$, then $L$ noise symbols drawn from $\{2, 3\}$, and the target is $x_0$. Take one causal layer read at the last position, with one-hot inputs, equal scores, values $+1$ for the symbol $0$, $-1$ for the symbol $1$, and $0$ for noise, and logits $(w\, o, -w\, o)$ with $w \gt 0$. Then
 
 $$
 o = \frac{1 - 2x_0}{L + 1},
@@ -494,9 +510,9 @@ The bit symbols differ from the noise symbols, so the layer can find the bit by 
 | LSTM, forget bias $1$ | $1.98 \times 10^{-4}$ | $3.28 \times 10^{-5}$ | $2.42 \times 10^{-7}$ | $3.35 \times 10^{-11}$ | $1.73 \times 10^{-16}$ | $1.83 \times 10^{-31}$ |
 | LSTM, forget bias $3$ | $1.12 \times 10^{-3}$ | $8.73 \times 10^{-4}$ | $1.42 \times 10^{-3}$ | $2.36 \times 10^{-4}$ | $1.51 \times 10^{-4}$ | $1.29 \times 10^{-7}$ |
 
-Attention's gradient times $L + 1$ stays between $1.77 \times 10^{-3}$ and $3.35 \times 10^{-3}$ across the whole range: dilution, as Proposition 5 says. The Elman network's falls by $41$ orders of magnitude. The LSTM with forget bias $3$ is ahead of attention at lag $60$, because its cell path carries the bit almost undamped for a while (that topic's Proposition 4), but its gradient still decays geometrically, and by lag $480$ attention has overtaken it. A forget gate postpones the decay; a lookup has none.
+Attention's gradient times $L + 1$ stays between $1.77 \times 10^{-3}$ and $3.35 \times 10^{-3}$ across the whole range: dilution, roughly $1/(L + 1)$, the equal-score case of Proposition 5. The scores at initialization are not exactly equal, so the match is only rough. The Elman network's falls by $41$ orders of magnitude. The LSTM with forget bias $3$ is ahead of attention at lag $60$, because its cell path damps the bit far less, keeping $\sigma(3)^{60} = 0.054$ of it over that lag (that topic's Proposition 4). But its gradient still falls, unevenly from lag to lag, and by lag $480$ attention has overtaken it. A forget gate postpones the decay; a lookup has none.
 
-Trained by the same protocol, $600$ Adam steps at lag $60$, the attention layer answers all $2{,}000$ fresh test sequences correctly, at a test loss of $3.0 \times 10^{-6}$. That topic reported $0.485$ for the Elman network, $0.531$ for the LSTM with forget bias $1$, and $1.000$ with forget bias $3$. The attention layer also answers every sequence correctly at lag $600$, ten times the lag it was trained on: a lookup never counted the steps.
+Trained by the same protocol, $600$ Adam steps at lag $60$, the attention layer answers all $2{,}000$ fresh test sequences correctly, at a test loss of $3.0 \times 10^{-6}$. That topic reported $0.486$ for the Elman network, $0.531$ for the LSTM with forget bias $1$, and $1.000$ with forget bias $3$. The attention layer also answers every sequence correctly at lag $600$, ten times the lag it was trained on: a lookup never counted the steps.
 
 ---
 
@@ -506,7 +522,7 @@ The recurrent network of the neural-language-models topic reset its state at eve
 
 <TheoremBlock type="definition" number={3} title="Kernel cache">
 
-A document's predicted positions run across its sentences in the n-gram topic's order: each word, then each sentence's end marker. Position $t$ has the target $w_t$ and the preceding token $u_t$, which is the sentence-start marker at the start of a sentence. Its **key** $\hat e(u_t)$ is the unit vector of $u_t$ in the distributional-semantics topic's truncated SVD (positive PMI shifted by $\log 5$, a two-word window, $d = 100$), with one extra coordinate for the sentence-start marker and one for each distinct out-of-vocabulary string. The **kernel cache** with inverse bandwidth $\beta \ge 0$ is
+A document's predicted positions, numbered from $0$, run across its sentences in the n-gram topic's order: each word, then each sentence's end marker. Position $t$ has the target $w_t$ and the preceding token $u_t$, which is the sentence-start marker at the start of a sentence. Its **key** $\hat e(u_t)$ is the unit vector of $u_t$ in the distributional-semantics topic's truncated SVD (positive PMI shifted by $\log 5$, a two-word window, $d = 100$), with one extra coordinate for the sentence-start marker and one for each distinct out-of-vocabulary string. The **kernel cache** with inverse bandwidth $\beta \ge 0$ is
 
 $$
 p_\beta(w \mid t) = \sum_{i \lt t} \alpha_{ti}\, \mathbb{1}[w_i = w], \qquad \alpha_{ti} \propto \exp\bigl(\beta \langle \hat e(u_t), \hat e(u_i) \rangle\bigr),
@@ -520,7 +536,7 @@ This is attention with fixed queries and keys, a value per position, and Nadaray
 
 <TheoremBlock type="corollary" number={2} title="The cache's two limits">
 
-At $\beta = 0$, Definition 3 is the unigram document cache, $p_0(w \mid t) = \#\{i \lt t : w_i = w\}/t$. As $\beta \to \infty$, if some earlier position has the key $\hat e(u_t)$, the cache puts all its weight on those positions: it is the document's bigram cache over the key's occurrences. Otherwise it puts its weight on the earlier positions whose keys are nearest to $\hat e(u_t)$.
+At $\beta = 0$, Definition 3 is the unigram document cache, $p_0(w \mid t) = \#\{i \lt t : w_i = w\}/t$, since positions are numbered from $0$. As $\beta \to \infty$, if some earlier position has the key $\hat e(u_t)$, the cache puts all its weight on those positions: it is the document's bigram cache over the key's occurrences. Otherwise it puts its weight on the earlier positions whose keys are nearest to $\hat e(u_t)$.
 
 </TheoremBlock>
 
@@ -530,7 +546,7 @@ At $\beta = 0$ every weight is $1/t$. As $\beta \to \infty$, Proposition 4 (i) s
 
 </TheoremBlock>
 
-The unigram cache is Kuhn and De Mori's (1990). The exact-context limit is a bigram cache, with one caveat that the corpus forces: $1{,}225$ pairs of training words, $358$ of the $3{,}425$, have identical vectors, because they were seen in identical contexts (once-seen pseudo-words, and first names in fixed templates), so the limit pools them. Between the limits, a context never seen before in the document borrows from the earlier contexts nearest to it, the neural-language-models topic's smoothing by geometry, now over a document.
+The unigram cache is Kuhn and De Mori's (1990). The exact-context limit is a bigram cache, with one caveat that the corpus forces: $1{,}225$ pairs of training words, among $358$ of the $3{,}425$, have identical vectors, because they were seen in identical contexts, so the limit pools them. Of the $358$, $348$ were seen only once, many of them pseudo-words such as *bondbook*. The other ten are names such as *aisha* and *rahman* and ordinary words such as *field* and *offshore*. Between the limits, a context never seen before in the document borrows from the earlier contexts nearest to it, the neural-language-models topic's smoothing by geometry, now over a document.
 
 Inverse bandwidth $\beta$ and mixture weight $\lambda$ are chosen on the development documents, never on held-out text. For each $\beta$, the table gives the dev-chosen $\lambda$, the development loss, and the held-out loss, in nats per token over the closed vocabulary.
 
@@ -612,7 +628,7 @@ For the kernel $e^{\beta\langle \hat x, \hat y \rangle}$ on unit vectors, $m$ in
 
 <TheoremBlock type="proof">
 
-For $w \sim N(0, I)$, $E e^{\langle w, a \rangle} = e^{\lVert a \rVert^2/2}$. At $a = x + y$, $E[\varphi_w(x)\varphi_w(y)] = e^{\lVert x + y \rVert^2/2 - \lVert x \rVert^2/2 - \lVert y \rVert^2/2} = e^{\langle x, y \rangle}$. At $a = 2(x + y)$ the second moment is $e^{2\lVert x + y \rVert^2 - \lVert x \rVert^2 - \lVert y \rVert^2}$, and subtracting the squared mean gives the variance. Apply it to $x = \sqrt\beta\, \hat x$ and $y = \sqrt\beta\, \hat y$, and use $\lVert \hat x + \hat y \rVert^2 \le 4$. Positivity is immediate; the notebook exhibits trigonometric features, those of Rahimi and Recht (2007), with a negative denominator.
+For $w \sim N(0, I)$, $E e^{\langle w, a \rangle} = e^{\lVert a \rVert^2/2}$. At $a = x + y$, $E[\varphi_w(x)\varphi_w(y)] = e^{\lVert x + y \rVert^2/2 - \lVert x \rVert^2/2 - \lVert y \rVert^2/2} = e^{\langle x, y \rangle}$. At $a = 2(x + y)$ the second moment is $e^{2\lVert x + y \rVert^2 - \lVert x \rVert^2 - \lVert y \rVert^2}$, and subtracting the squared mean gives the variance. Apply it to $x = \sqrt\beta\, \hat x$ and $y = \sqrt\beta\, \hat y$, and use $\lVert \hat x + \hat y \rVert^2 \le 4$. Positivity is immediate; the module's test exhibits trigonometric features, those of Rahimi and Recht (2007), with a negative denominator.
 
 </TheoremBlock>
 
@@ -620,7 +636,7 @@ These are Choromanski and colleagues' (2021) features. Their variance is largest
 
 <TheoremBlock type="proposition" number={9} title="Causal linear attention is a recurrence">
 
-With a kernel $\varphi(q)^\top \varphi(k)$ for nonnegative features $\varphi: \mathbb{R}^{d_k} \to \mathbb{R}^m$, the causal smoother is
+With a kernel $\varphi(q)^\top \varphi(k)$ for positive features $\varphi: \mathbb{R}^{d_k} \to \mathbb{R}^m$, the causal smoother is
 
 $$
 \hat o_t = \frac{\varphi(q_t)^\top S_t}{\varphi(q_t)^\top z_t}, \qquad S_t = S_{t-1} + \varphi(k_t)\, v_t^\top, \quad z_t = z_{t-1} + \varphi(k_t),
@@ -661,9 +677,11 @@ The three EDGAR excerpts are the MD&A sections of Apple's, ExxonMobil's, and Mic
 | Kneser–Ney | $5.660$ |
 | Kneser–Ney with the neural-language-models topic's PPM-C spelling cache | $4.767$ |
 | **Kneser–Ney ⊕ kernel cache** | $\mathbf{4.498}$ |
-| Kneser–Ney ⊕ learned kernel | $4.480$ |
+| Kneser–Ney ⊕ learned kernel, at $\lambda = 0.97$ | $4.480$ |
 | recurrent network with dynamic evaluation and the spelling cache (that topic) | $3.650$ |
 | lzma, given the training text | $2.908$ |
+
+The learned row is lower only because development data chose it a different $\lambda$. At equal $\lambda$ the learned kernel is worse on the filings: $4.503$ against the fixed kernel's $4.498$ at $\lambda = 0.98$, and $4.480$ against $4.475$ at $\lambda = 0.97$. Its gain on held-out synthetic text does not carry over.
 
 By filing, the cache takes Apple from $5.650$ to $4.153$, ExxonMobil from $5.647$ to $4.575$, and Microsoft from $5.682$ to $4.764$. Of the gain, $97.7\%$ comes from repeated out-of-vocabulary words, $2.5\%$ from repeated vocabulary words, and $-0.2\%$ from first mentions. The words are mostly not exotic. Ranked by repetition, the two most repeated out-of-vocabulary words of at least three letters in each filing include *other*, *are*, *our*, and *that*, ordinary English the synthetic generator never writes. Their second mentions:
 
@@ -676,9 +694,9 @@ By filing, the cache takes Apple from $5.650$ to $4.153$, ExxonMobil from $5.647
 | Microsoft | *our* | $8$ | $43.2$ | $12.5$ |
 | Microsoft | *that* | $4$ | $52.1$ | $11.3$ |
 
-A first mention costs the cache about $0.03$ bits more than Kneser–Ney. After that, the word is copied from the filing for about $10$ bits instead of spelled for $30$ to $50$. The neural-language-models topic's spelling floor (its Proposition 6) is lowered by copying, not by spelling better.
+Those six are curated. Across all $77$ out-of-vocabulary second mentions, the word is copied from the filing for a mean of $12.3$ bits instead of $55.1$, where Kneser–Ney's bits include the probability of `<unk>` as well as the spelling. A first mention costs the cache about $0.03$ bits more than Kneser–Ney. The neural-language-models topic's spelling floor (its Proposition 6) binds a code that spells every unknown word. Copying escapes that hypothesis, not by spelling better but by not spelling, though $4.498$ stays above the floor's $3.654$.
 
-The development data under-trusts the cache. Tuned on the filings themselves, which is a diagnostic and not a result, $\lambda$ would be $0.6$, giving $4.353$: real filings repeat themselves far more than the synthetic generator does. And the cache does not close the gap. lzma, which copies every byte string it has seen, and that topic's recurrent network, which adapts its weights to the text, both still code the filings shorter.
+The development data under-trusts the cache. Tuned on the filings themselves, which is a diagnostic and not a result, $\lambda$ would be $0.6$, giving $4.353$. Two things push it there: real filings repeat themselves more than the synthetic generator does, and Kneser–Ney fails on their out-of-vocabulary words. And the cache does not close the gap. lzma, which copies every byte string it has seen, and that topic's recurrent network, which adapts its weights to the text, both still code the filings shorter.
 
 </FinanceCaseStudy>
 
@@ -686,7 +704,7 @@ The development data under-trusts the cache. Tuned on the filings themselves, wh
 
 ## Where this goes next
 
-- **Positions.** Proposition 3 says one layer of attention cannot tell *the dog bit the man* from *the man bit the dog*. The positional-encodings topic adds position, and Theorem 1's features $(\cos\theta, \sin\theta)$ are already a sinusoidal encoding of one frequency: several frequencies, and rotations of the queries and keys, are its subject.
+- **Positions.** Proposition 3 says that at the last word, one layer of attention cannot tell *the dog bit the man today* from *the man bit the dog today*. The positional-encodings topic adds position, and Theorem 1's features $(\cos\theta, \sin\theta)$ are already a sinusoidal encoding of one frequency: several frequencies, and rotations of the queries and keys, are its subject.
 - **The transformer block.** A block runs several heads, each a smoother with its own kernel (Proposition 7), and adds their outputs to a residual stream; the transformer-block topic assembles it.
 - **Contextual embeddings.** Stacking blocks gives each occurrence of a word its own vector, the subject of the contextual-embeddings topic.
 - **Aspect-based sentiment.** Attention to the words that carry an aspect's sentiment is a kernel lookup whose query is the aspect; the aspect-based sentiment topic asks how far its weights explain its predictions.
@@ -703,7 +721,7 @@ The development data under-trusts the cache. Tuned on the filings themselves, wh
 3. **Theorem 2 (iii) is about initialization.** Its queries and keys are Gaussian; trained scores are not.
 4. **The lag task suits a lookup.** Its bit symbols differ from its noise symbols, so content alone finds the bit. With identical symbols, finding position $0$ needs positional information. The trained recurrent accuracies are quoted from the neural-language-models topic, not re-run.
 5. **The cache adds information, not only a method.** Its gain comes from memory across sentences that Kneser–Ney and the per-sentence recurrent network never had, so it does not show that attention beats recurrence.
-6. **The in-domain gain is small, and the large one is out of domain.** On the synthetic corpus, which repeats itself little within a document, the cache gains $0.027$ nats per token ($0.005$ bits per character). On three EDGAR filings it gains $1.16$ bits per character, almost all from copying words the synthetic training text never contained, with $\lambda$ tuned in domain, and lzma and the adaptive recurrent network still code the filings shorter.
+6. **The in-domain gain is small, and the large one is out of domain.** On the synthetic corpus, which repeats itself little within a document, the cache gains $0.027$ nats per token over the closed vocabulary, and $0.0229$ nats per token or $0.0049$ bits per character over the open one. On three EDGAR filings it gains $1.16$ bits per character, almost all from copying words the synthetic training text never contained, with $\lambda$ tuned on synthetic development data, not on the filings, and lzma and the adaptive recurrent network still code the filings shorter.
 7. **The exact-context limit pools look-alikes.** As $\beta \to \infty$ the cache pools words whose vectors coincide ($1{,}225$ pairs here), not only identical words.
 8. **Factored kernels fail where they are needed.** Positive random features are least accurate exactly where the kernel is sharp.
 9. **One seed.** Every trained result is one run.
@@ -714,10 +732,10 @@ The development data under-trusts the cache. Tuned on the filings themselves, wh
 
 ## Implementation
 
-The companion notebook (`notebookPath`) imports `attention_as_kernel_smoothing.py`, which owns every number on this page. It imports the neural-language-models topic's module for its gradient checkers, its long-lag task and census, its Kneser–Ney scores, and its spelling cache; the distributional-semantics topic's module for the word vectors; and the perplexity topic's speller and ratio estimator. It trains the circle denoiser, the lag-task attention layer, and the learned kernel from scratch in NumPy, and runs a harness of $19$ assertion-based tests in under a minute on a laptop CPU. The tests cover:
+The companion notebook (`notebookPath`) imports `attention_as_kernel_smoothing.py`, which owns every number on this page. It imports the neural-language-models topic's module for its gradient checkers, its long-lag task and census, its Kneser–Ney scores, and its spelling cache; the distributional-semantics topic's module for the word vectors; and the perplexity topic's speller and ratio estimator. It trains the circle denoiser, the lag-task attention layer, and the learned kernel from scratch in NumPy, and runs a harness of $21$ assertion-based tests in under a minute on a laptop CPU. The tests cover:
 
-- Propositions 1–3 on random instances and a held-out prefix; Proposition 2's conditional mean by Monte Carlo.
-- Proposition 4's bounds; Theorem 1 against numpy's FFT and simulated noise; Corollary 1 on the exact formula to $n = 10^8$; the trained denoiser against Theorem 1's optimum.
+- Propositions 1–3 on random instances and a corpus sentence's prefix; Proposition 2's conditional mean by Monte Carlo.
+- Proposition 4's bounds; Theorem 1 against numpy's FFT and simulated noise; Corollary 1 on the exact formula to $n = 10^8$; the trained denoiser against Theorem 1's optimum; a search over general $M$ on the exact population risk.
 - Theorem 2 by Monte Carlo; Proposition 5 against complex-step derivatives; Proposition 6, the census, the lag sweep, and training.
 - Definition 3's limits, the development grid, and the held-out benchmark with document-clustered standard errors; Definition 4's gradient and training.
 - Propositions 7–9 on random instances; the random-feature cache; the finance case study.
