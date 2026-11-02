@@ -340,9 +340,9 @@ export default function MaskedLMLab() {
               <Readout id="formula-p" label="Theorem 2 from the [MASK] guess" value={f3(W.formula_p[wpos])} />
             </Readouts>
             <Note>
-              With {CH.filing_vocab} tokens a random substitute almost never lands on a plausible word, so Theorem 2 says
-              the optimum keeps nearly all its mass on a visible word. The encoder keeps less: visible positions carry
-              little of its training signal. Its [MASK] guesses are where the context shows: in the “rose” windows, “rose”
+              With {CH.filing_vocab} tokens a random substitute almost never lands on a plausible word, so Theorem 2’s
+              formula, applied to the encoder’s own [MASK] guess, keeps nearly all the mass on a visible word. The encoder
+              keeps less. Its [MASK] guesses are where the context shows: in the “rose” windows, “rose”
               competes with “fell” and its synonyms, and the aspect before it is what a probe reads.
             </Note>
           </>
@@ -469,7 +469,8 @@ export default function MaskedLMLab() {
                   rows={Object.entries(NEWS.words).map(([w, v]) => [w, String(v.n), String(v.good), f3(v.cap), f3(v.layer1)])} />
                 <Note>
                   “Costs rose” is bad news and “revenue rose” good. The direction words, with over a hundred occurrences each,
-                  are read almost perfectly; the evaluative verbs, with 26 to 45 each, are not.
+                  are read almost perfectly; the evaluative verbs, with 26 to 45 each, are not, and sample size alone does
+                  not explain it.
                 </Note>
               </>
             )}
@@ -490,7 +491,8 @@ export default function MaskedLMLab() {
                 </Readouts>
                 <Note>
                   No representation leaves the chance band, because the text barely carries a word’s dictionary polarity: even a
-                  whole document’s other lexicon words vote it right only {f3(SW.vote_doc)} of the time.
+                  whole document’s other lexicon words vote it right only {f3(SW.vote_doc)} of the time, with a tie scored
+                  as half.
                 </Note>
               </>
             )}

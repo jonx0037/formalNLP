@@ -11,7 +11,7 @@ from ``viz_payload``. The sections follow the page:
    the posterior of the original token given the corrupted sequence (Thm 1); under the channel that posterior has a
    closed form (Thm 2): the context's prediction at a [MASK], shrunk toward the visible token elsewhere, and ρ drops
    out. A pre-LN bidirectional encoder (Topic 11's blocks, a learned position table, tied embeddings) trained on an
-   HMM language whose exact posteriors come from forward–backward, so the theorems are checked against the truth.
+   HMM language whose exact posteriors come from forward–backward, so Thms 1–2 are checked against the truth.
 3. Pseudo-likelihood and the missing joint: one mask per sequence is Besag's pseudo-likelihood, Fisher-consistent
    (Thm 3, checked on an Ising chain); Brook's lemma rebuilds a positive joint from its full conditionals (Thm 4);
    the four-cycle compatibility gap δ vanishes for any joint's conditionals and does not for the MLM's (Cor 2).
@@ -799,13 +799,13 @@ DIRECTION_WORDS = ("rose", "increased", "climbed", "fell", "declined", "decrease
 EVAL_VERBS = ("exceeded", "beat", "surpassed", "outperformed", "missed", "trailed", "undershot")
 
 
-@lru_cache(maxsize=1)
-def news_labels() -> dict[int, bool]:
-    """Token index → good news?, for every direction word or evaluative verb that reports a gold aspect: the first such
-    word within six tokens after a non-neutral aspect term carries that aspect's polarity (fc's aspect gold: "costs
-    rose" is −1, "revenue rose" +1)."""
+def _news_pairs() -> list[tuple[int, int, bool]]:
+    """(token index, gap, good news?) in document order, for every direction word or evaluative verb that reports a
+    gold aspect: the first such word within six tokens after a non-neutral aspect term carries that aspect's polarity
+    (fc's aspect gold: "costs rose" is −1, "revenue rose" +1). A gap of 1 is the token right after the aspect term.
+    A word two aspects reach appears twice; the later aspect, the nearer one, wins in news_labels and news_gaps."""
     targets = set(DIRECTION_WORDS) | set(EVAL_VERBS)
-    out, base = {}, 0
+    out, base = [], 0
     for d in ds._generator_run()[0]:
         toks = _token_offsets(d.text)
         for a in d.aspects:
@@ -814,10 +814,22 @@ def news_labels() -> dict[int, bool]:
             j = next(k for k, t in enumerate(toks) if t.start() >= a.end)
             for k in range(j, min(j + 6, len(toks))):
                 if toks[k].group() in targets:
-                    out[base + k] = a.polarity > 0
+                    out.append((base + k, k - j + 1, a.polarity > 0))
                     break
         base += len(toks)
     return out
+
+
+@lru_cache(maxsize=1)
+def news_labels() -> dict[int, bool]:
+    """Token index → good news?, by _news_pairs."""
+    return {t: good for t, _, good in _news_pairs()}
+
+
+@lru_cache(maxsize=1)
+def news_gaps() -> dict[int, int]:
+    """Token index → the gap to the aspect term that labels it, by _news_pairs."""
+    return {t: gap for t, gap, _ in _news_pairs()}
 
 
 SGNS_BASELINE = w2v.SGNSConfig("L2", 25)  # Topic 7's d = 25 grid model with the ±2 window: a local static baseline
@@ -921,11 +933,42 @@ def news_polarity() -> dict:
     return out
 
 
+NEWS_SUBSAMPLE, NEWS_DRAWS = (26, 35, 45), 30  # the evaluative verbs' smallest, middling, and largest counts
+
+
+@lru_cache(maxsize=1)
+def news_subsample() -> dict:
+    """§7(b): do the evaluative verbs fail for lack of examples? Cut each direction word to NEWS_SUBSAMPLE occurrences,
+    NEWS_DRAWS random cuts per word (one stream), and rerun the layer-1 probe; beside the seven verbs pooled on all
+    their occurrences, and the gaps that separate the two groups."""
+    lab, gaps = news_labels(), news_gaps()
+    words, _, _ = filing_tokens()
+    rng = np.random.default_rng([SEED, 1581])
+    out = {}
+    per: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for w in DIRECTION_WORDS:
+        k = np.array([t for t in sorted(lab) if words[t] == w])
+        per[w] = (_rows(k)[1], np.array([lab[t] for t in k]))
+    for n in NEWS_SUBSAMPLE:
+        hits = []
+        for X, y in per.values():
+            for _ in range(NEWS_DRAWS):
+                c = rng.choice(len(y), n, replace=False)
+                hits.append(cv_accuracy(X[c], y[c], rng))
+        out[f"direction_{n}"] = float(np.mean(hits))
+    ev = news_polarity()["words"]
+    out["evaluative"] = sum(ev[w]["layer1"] * ev[w]["n"] for w in EVAL_VERBS) / sum(ev[w]["n"] for w in EVAL_VERBS)
+    out["gaps_direction"] = sorted({g for t, g in gaps.items() if words[t] in DIRECTION_WORDS})
+    out["gaps_evaluative"] = sorted({g for t, g in gaps.items() if words[t] in EVAL_VERBS})
+    return out
+
+
 @lru_cache(maxsize=1)
 def strong_weak() -> dict:
     """§7(b), Topic 7's question: its leave-one-out polarity probe (w2v.polarity_probe) on each lexicon word's mean
     vector at layers 0–2 (layer 0 is the static table), beside SGNS; and how much the text carries — for each
-    lexicon occurrence, the vote of the other lexicon words within ±8 tokens, ±32, and the whole document."""
+    lexicon occurrence, the vote of the other lexicon words within ±8 tokens, ±32, and the whole document. A tie
+    scores half in vote*; vote*_decided is the accuracy on the occurrences without one."""
     pw = ds.polarity_words()
     pos, neg = pw["positive"], pw["negative"]
     words, _, tones = filing_tokens()
@@ -949,14 +992,15 @@ def strong_weak() -> dict:
         bounds.append((base, base + nt))
         base += nt
     for half, name in ((8, "vote8"), (32, "vote32"), (10**9, "vote_doc")):
-        hits = []
+        votes = []
         for lo, hi in bounds:
             for k in range(lo, hi):
                 if pol[k] == 0:
                     continue
                 v = pol[max(lo, k - half): k].sum() + pol[k + 1: min(hi, k + 1 + half)].sum()
-                hits.append(0.5 if v == 0 else float((v > 0) == (pol[k] > 0)))
-        out[name] = float(np.mean(hits))
+                votes.append(0.5 if v == 0 else float((v > 0) == (pol[k] > 0)))
+        votes = np.array(votes)
+        out[name], out[f"{name}_decided"] = float(votes.mean()), float(votes[votes != 0.5].mean())
     out["n_occurrences"] = int((pol != 0).sum())
     toned = [k for k in range(len(words)) if pol[k] != 0 and tones[k] != 0]
     out["word_matches_tone"] = float(np.mean([(pol[k] > 0) == (tones[k] > 0) for k in toned]))
@@ -985,20 +1029,25 @@ FIT_VISIBLE = 512
 
 @lru_cache(maxsize=1)
 def filing_fit() -> dict:
-    """The filing encoder's masked-token cross-entropy on 200 fresh corrupted windows (one stream), beside the
-    unigram entropy of the same targets; and Thm 2 at visible words, where the encoder falls short of the optimum."""
+    """The filing encoder's cross-entropy at the selected positions of 200 fresh corruptions of training windows (one
+    stream; filing_batch samples the training stream, so this is a fit, not a held-out score), beside the unigram
+    cross-entropy of the same targets, the [MASK] positions' alone, and the share of selected positions that are kept;
+    and Thm 2 at visible words, where the encoder falls short of the formula applied to its own [MASK] guess."""
     m = train_mlm(FILING_MLM)
+    V = filing_vocab()[1]
     xt, x, sel = filing_batch(np.random.default_rng([SEED, 1591]), 200, FILING_MLM.n)
     lq = mlm_log_probs(m.P, m.blocks, xt).astype(float)
     ce = -np.take_along_axis(lq, x[..., None], -1)[..., 0][sel]
     cnt = Counter(filing_stream()[0].tolist())
     tot = sum(cnt.values())
     uni = -np.array([math.log(cnt[int(t)] / tot) for t in x[sel]])
-    out = {"ce": float(ce.mean()), "unigram_ce": float(uni.mean()), "n": int(sel.sum())}
+    is_mask, kept = (xt == V)[sel], (xt == x)[sel]
+    out = {"ce": float(ce.mean()), "unigram_ce": float(uni.mean()), "n": int(sel.sum()),
+           "ce_mask": float(ce[is_mask].mean()), "n_mask": int(is_mask.sum()), "kept_share": float(kept.mean())}
     # Thm 2 at visible words: FIT_VISIBLE word tokens, each at the center of a clean window; the encoder's q(v) with
     # the word visible, its [MASK] guess p̂(v), and Thm 2's optimum from p̂.
     seq, word_at = filing_stream()
-    n, half, V = FILING_MLM.n, FILING_MLM.n // 2, filing_vocab()[1]
+    n, half = FILING_MLM.n, FILING_MLM.n // 2
     t = word_at[(word_at >= half) & (word_at < len(seq) - half)]
     t = np.random.default_rng([SEED, 1593]).choice(t, FIT_VISIBLE, replace=False)
     X = seq[t[:, None] + np.arange(-half, half)]
@@ -1027,6 +1076,7 @@ def summary() -> dict:
         out.update({f"{prefix}_{k}": v for k, v in d.items() if isinstance(v, (int, float))})
     out.update({f"compat_{k}": v for k, v in compatibility().items() if isinstance(v, float)})
     out.update({f"news_{k}": v for k, v in news_polarity().items() if isinstance(v, (int, float))})
+    out.update({f"nsub_{k}": v for k, v in news_subsample().items() if isinstance(v, (int, float))})
     out.update({f"sw_{k}": v for k, v in strong_weak().items() if isinstance(v, (int, float))})
     return out
 
@@ -1223,7 +1273,8 @@ def test_static_cap():
 
 def test_proper_scoring():
     """Thm 1: E_p[−log q] = H(p) + KL(p‖q) for random p, q, minimized only at q = p; on the HMM the exact Bayes
-    predictor's held-out cross-entropy is below the trained encoder's by its mean KL (Monte Carlo agreement)."""
+    predictor's held-out cross-entropy is below the trained encoder's. Their gap (0.022) scores one sampled token per
+    position, so it only estimates the mean KL (0.032), which hmm_fit computes directly."""
     rng = np.random.default_rng([SEED, 1501])
     p, q = rng.dirichlet(np.ones(9), size=2)
     ce = -(p * np.log(q)).sum()
@@ -1251,8 +1302,8 @@ def _enumerated_posterior(xt: np.ndarray, i: int, rho: float) -> np.ndarray:
 
 def test_bayes_80_10_10():
     """Thm 2 against brute force: the closed form q(y) ∝ p(y)(κ1[y = v] + r/V) at a visible token and q = p at a
-    [MASK], for two selection rates (ρ drops out of the formula, only p moves); and the corollaries: r = 0 copies
-    the visible token, κ = 0 ignores it."""
+    [MASK], for two selection rates (ρ drops out of the formula, only p moves); and the corollaries: r = 0 with κ > 0
+    copies the visible token, κ = 0 ignores it."""
     rng = np.random.default_rng([SEED, 1502])
     for rho in (RHO, 0.4):
         for _ in range(6):
@@ -1319,13 +1370,15 @@ def test_hmm_mlm_matches_bayes():
 
 
 def test_filing_visible_shortfall():
-    """Thm 2 on the filing encoder: with V = 879, r/V ≈ 1e-4, so the optimum keeps nearly all its mass on a visible
-    word (0.950 on average over FIT_VISIBLE words); the trained encoder keeps far less, so it has not reached the channel's optimum at
-    visible positions, which carry under 3% of its training signal. Its [MASK] cross-entropy is well below the
-    unigram's."""
+    """Thm 2 on the filing encoder: with V = 879, r/V ≈ 1e-4, so the formula applied to the encoder's own [MASK] guess
+    (a plug-in: the true p is unknown) keeps 0.950 on a visible word on average over FIT_VISIBLE words; the trained
+    encoder keeps far less, so it has not reached the channel's optimum at visible positions. Kept tokens are one
+    selected position in ten. Its cross-entropy at the selected positions, a fit on fresh corruptions of the training
+    stream, is well below the unigram's, and the [MASK] positions' alone hardly differ."""
     f = filing_fit()
     assert f["visible_formula"] > 0.9 and f["visible_model"] < f["visible_formula"] - 0.15
     assert f["visible_model"] > f["visible_masked"] and f["ce"] < f["unigram_ce"] - 3
+    assert abs(f["kept_share"] - KAPPA) < 0.02 and abs(f["ce_mask"] - f["ce"]) < 0.05
 
 
 def test_pseudo_likelihood():
@@ -1359,7 +1412,8 @@ def test_compatibility():
 def test_mev_geometry():
     """Prop 2: MEV lies in [1/rank, 1], is 1 exactly for collinear rows, and the mean is the least-squares constant
     summary; on the HMM the token table is static (MEV = self-similarity = 1 for one repeated row), and context
-    spreads the polyseme's occurrences."""
+    spreads the polyseme's occurrences once it enters, not further with depth: the similarities rebound at layer 2. The
+    filing encoder's top layer has no shared cone, yet is not isotropic: its MEV baseline is far above 1/d."""
     rng = np.random.default_rng([SEED, 1505])
     A = rng.normal(size=(30, 6))
     assert 1 / 6 <= mev(A) <= 1 and abs(mev(np.outer(rng.normal(size=30), rng.normal(size=6))) - 1) < 1e-12
@@ -1367,8 +1421,11 @@ def test_mev_geometry():
     assert all(((A - c) ** 2).sum() <= ((A - (c + e)) ** 2).sum() for e in rng.normal(size=(20, 6)) * 0.1)
     E = np.asarray(train_mlm(HMM_MLM).P["E"][POLYSEME], float)
     assert abs(mev(np.tile(E, (5, 1))) - 1) < 1e-12 and abs(self_similarity(np.tile(E, (5, 1))) - 1) < 1e-12
-    g = hmm_geometry()
+    g, fg = hmm_geometry(), filing_geometry()
     assert g["mev_2"] < g["mev_0"] and g["self_sim_2"] < g["self_sim_0"]
+    assert g["self_sim_1"] < g["self_sim_2"] and g["self_sim_adj_1"] < g["self_sim_adj_2"]
+    assert fg["self_sim_adj_1"] < fg["self_sim_adj_2"]
+    assert fg["aniso_2"] < 0.1 and fg["mev_base_2"] > 4 / FILING_MLM.d
 
 
 def test_hmm_probe():
@@ -1405,6 +1462,19 @@ def test_news_polarity():
     r = news_polarity()
     assert r["layer1"] > r["cap"] + 5 * binom_se(r["cap"], r["n"])
     assert r["control1"] < r["cap"] + 0.02
+    texts = [d.text.lower() for d in ds._generator_run()[0]]  # the page quotes a real form of the evaluative template
+    assert any("income taxes in power surpassed expectations" in t for t in texts)
+    assert not any("costs exceeded expectations" in t for t in texts)
+
+
+def test_news_subsample():
+    """§7(b): sample size alone does not explain the evaluative verbs. Direction words cut to the verbs' counts stay
+    far above the verbs and improve with n; what still separates the groups is the gap to the aspect term, 1 for every
+    labeled direction word and 3 to 6 for every labeled verb."""
+    r = news_subsample()
+    means = [r[f"direction_{n}"] for n in NEWS_SUBSAMPLE]
+    assert means == sorted(means) and means[0] > 0.85 and means[0] > r["evaluative"] + 0.25
+    assert r["gaps_direction"] == [1] and r["gaps_evaluative"] == [3, 4, 5, 6]
 
 
 def test_strong_weak():
@@ -1412,6 +1482,7 @@ def test_strong_weak():
     vote reaches under 0.6), and no representation's type-level probe reaches two standard errors above chance."""
     s = strong_weak()
     assert s["vote_doc"] < 0.6 and s["vote8"] < s["vote_doc"]
+    assert all(0.5 < s[k] < s[f"{k}_decided"] < 0.6 for k in ("vote8", "vote32", "vote_doc"))
     assert all(s[k] < 0.5 + 2 * s["chance_se"] for k in ("sgns", "layer0", "layer1", "layer2"))
 
 
