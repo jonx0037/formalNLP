@@ -17,7 +17,7 @@ tags:
   - "transformers"
 domain: "attention-transformers"
 financeCaseStudy: true
-rigorFlag: "Every theorem here is exact, but several are fragile in practice. The commutant theorem holds in exact arithmetic over any window of d + 1 positions, yet over a window shorter than the slow planes' wavelengths its constraint is nearly void. RoPE's long-term decay is a property of an envelope and of matched query–key pairs, not a guarantee: unrelated keys do not fade at all. Herglotz's theorem, the real normal form of orthogonal matrices, and the cosine integral's definition are cited, not proved. NTK-aware scaling and YaRN are heuristics, YaRN's logit scale is a fitted constant, every rescaling here is applied without fine-tuning, and which one wins depends on the task. The tournament is one attention head with d = 16, eight symbols, and three seeds: it shows mechanisms and measures nothing about language models at scale. The finance case uses synthetic filings with hashed distractor words, and leaves out the EDGAR excerpts, which carry no entity annotations. ALiBi's horizon bounds an attention weight, not an answer, and past it how much a head still reads depends on what the nearer tokens' values carry. Chen and colleagues' published interpolation bound is false as stated for head dimensions up to 128; this page proves the corrected bound, under which their conclusion stands."
+rigorFlag: "Every theorem here is exact, but several are fragile in practice. The commutant theorem holds in exact arithmetic over any window of d + 1 positions, yet over a window shorter than the slow planes' wavelengths its constraint is nearly void. RoPE's long-term decay is a property of an envelope and of matched query–key pairs, not a guarantee: unrelated keys do not fade at all. Herglotz's theorem, the real normal form of orthogonal matrices, and the integral form of the cosine integral are cited, not proved. NTK-aware scaling and YaRN are heuristics, YaRN's logit scale is a fitted constant, every rescaling here is applied without fine-tuning, and which one wins depends on the task. The tournament is one attention head with d = 16, eight symbols, and three seeds: it shows mechanisms and measures nothing about language models at scale. The finance case uses synthetic filings with hashed distractor words, and leaves out the EDGAR excerpts, which carry no entity annotations. ALiBi's horizon bounds an attention weight, not an answer, and past it how much a head still reads depends on what the nearer tokens' values carry. Chen and colleagues' published interpolation bound is false as stated for head dimensions up to 128; this page proves the corrected bound, under which their conclusion stands."
 videoId: null
 notebookPath: "notebooks/positional-encodings-geometry/01_positional_encodings_geometry.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/positional-encodings-geometry.mdx"
@@ -120,7 +120,7 @@ references:
     title: "NIST Digital Library of Mathematical Functions, §6"
     authors: "F. W. J. Olver et al., eds."
     url: "https://dlmf.nist.gov/6"
-    note: "The cosine integral and its series (6.2.11), Theorem 1 (ii)"
+    note: "The cosine integral (6.2.11) and its integral form (6.2.12–13), Theorem 1 (ii)"
   - type: "paper"
     title: "Random Features for Large-Scale Kernel Machines"
     authors: "Ali Rahimi and Benjamin Recht"
@@ -145,7 +145,7 @@ formalstatisticsPrereqs:
 formalcalculusPrereqs:
   - topic: "fourier-series"
     site: "formalcalculus"
-    relationship: "Its orthogonality theorem holds for integer harmonics over a full period; the positional code's frequencies are geometric, not harmonic, so its Gram matrix is a stationary kernel rather than the identity."
+    relationship: "Its orthogonality theorem holds for integer harmonics over a full period; the positional code's frequencies are geometric, not harmonic, and a window is not a period, so its columns are not orthogonal. The Gram matrix of its positions is a stationary kernel, which is a separate fact."
   - topic: "linear-algebra"
     site: "formalcalculus"
     relationship: "A 2-D rotation is a linear map whose matrix composes by multiplication, so shifting a sinusoidal code is one block-diagonal rotation and RoPE scores pick up R(n − m)."
@@ -184,14 +184,14 @@ The answer we develop is that **every positional encoding is a kernel over offse
 | RoPE, positions interpolated | $1.000$ | $0.917$ |
 | ALiBi (a linear penalty on distance) | $0.999$ | $0.978$ |
 
-Each row is explained by a theorem below.
+Each row is taken up below.
 
 1. **Sinusoids are a stationary kernel.** The sinusoidal code turns the hands of $d/2$ clocks. Shifting every position is one rotation, and the inner product of two positions depends only on their offset. As $d$ grows it becomes a ruler that is logarithmic in distance.
-2. **Adding a stationary code does not make attention relative.** Only a $d$-dimensional family of score matrices sees offsets alone, and trained heads sit as far from it as random matrices. That is why the added code collapses at twice its training length.
+2. **Adding a stationary code does not make attention relative.** Only a $d$-dimensional family of score matrices sees offsets alone, and trained heads sit as far from it as random matrices. The added code collapses at twice its training length, because absolute positions it never saw enter the score, through this term and through the content–position terms.
 3. **ALiBi is a product kernel.** Its weights are the attention topic's smoother with a content kernel times an exponential kernel in time. One inequality says both why it extrapolates and why it cannot look far.
 4. **RoPE is relative by construction**, and up to the learned projections it is the only linear encoding that is. Its score is a trigonometric polynomial in the offset, and past the training window the polynomial does what training never constrained it to do.
 
-Then we take the heads to text. Synthetic company filings name a parent and its subsidiaries and then refer back to "the company". Asked at every position which company was named most recently, heads trained on $32$-token windows read whole filings. Past the training window, RoPE with interpolated positions reads $0.986$ of the answers, and ALiBi, the length tournament's winner, reads $0.580$.
+Then we take the heads to text. Synthetic company filings name a parent and its subsidiaries and then refer back to "the company". Asked at every position which company was named most recently, heads trained on $32$-token windows read whole filings. Past the training window, RoPE with interpolated positions reads $0.986$ of the answers, and ALiBi, which held at $0.978$ through the length tournament, reads $0.580$.
 
 ---
 
@@ -203,17 +203,17 @@ The attention topic's Proposition 3 says bidirectional attention is permutation-
 
 **(i)** Suppose a causal attention layer's scores are all equal, the value at position $0$ is a vector $e$ (a beginning-of-sequence token's), and every other value is $0$. Then its output at position $t$ is $o_t = e/(t+1)$, so $t = 1/\langle o_t, e\rangle - 1$ is recovered exactly from $o_t$ when $\lVert e \rVert = 1$.
 
-**(ii)** In general, one causal layer's output at $t$ is a function of the multiset of its prefix. The multiset's size is the position, and its order is invisible.
+**(ii)** In general, given the token at $t$, one causal layer's output at $t$ is a function of the multiset of its prefix. The multiset's size is the position, and its order is invisible.
 
 </TheoremBlock>
 
 <TheoremBlock type="proof">
 
-For (i), equal scores make the weights uniform over the $t + 1$ positions $0, \dots, t$, and only the value at position $0$ is nonzero. For (ii), the attention topic's Proposition 3 (ii) gives the dependence on the multiset, and the number of its elements is a function of it.
+For (i), equal scores make the weights uniform over the $t + 1$ positions $0, \dots, t$, and only the value at position $0$ is nonzero. For (ii), the attention topic's Proposition 3 (ii) gives the dependence on the multiset, given the token at $t$, and the number of its elements is a function of it.
 
 </TheoremBlock>
 
-So the causal mask itself leaks position, as Haviv and colleagues (2022) observed: a causal stack without any positional encoding can write absolute position into its first layer's output and use it in the second (Kazemnejad et al. 2023 give a construction). A single causal head cannot. On the task of the overview, where the target is the symbol on the most recent marked token, a head without positions sees a bag of tokens. Every ordering of a bag is equally likely, so the best it can do is guess the most frequent marked symbol. That reader's accuracy is $0.545$ at length $32$ and $0.234$ at $256$; the trained heads without positions reach $0.542$ and $0.237$, matching it within sampling error at every length.
+So the causal mask itself leaks position, as Haviv and colleagues (2022) observed: a causal stack without any positional encoding can write absolute position into its first layer's output and use it in the second (Kazemnejad et al. 2023 give a construction). A single causal head cannot. On the task of the overview, where the target is the symbol on the most recent marked token, a head without positions sees a bag of tokens. Every ordering of a bag is equally likely, so the best it can do is guess the most frequent marked symbol. That reader's accuracy, computed exactly by counting, is $0.547$ at length $32$ and $0.234$ at $256$; the trained heads without positions reach $0.542$ and $0.237$, matching it within sampling error at every length.
 
 ---
 
@@ -243,7 +243,7 @@ This is Vaswani and colleagues' (2017) code. They put the sine first in each pla
 
 **(i)** For all integers $m$ and $k$, $p(m + k) = R_\omega(k)\, p(m)$.
 
-**(ii)** The map $k \mapsto R_\omega(k)$ is a homomorphism from $\mathbb{Z}$ into the rotation group $SO(d)$: $R_\omega(a) R_\omega(b) = R_\omega(a + b)$ and $R_\omega(k)^\top = R_\omega(-k)$.
+**(ii)** The map $k \mapsto R_\omega(k)$ is a homomorphism from $\mathbb{Z}$ into the rotation group $SO(d)$: $R_\omega(k) R_\omega(\ell) = R_\omega(k + \ell)$ and $R_\omega(k)^\top = R_\omega(-k)$.
 
 **(iii)** Every position lies on the same sphere, $\lVert p(m) \rVert^2 = d/2$.
 
@@ -267,7 +267,7 @@ $$
 \kappa_d(\Delta) = \sum_{j=0}^{d/2-1} \cos(\Delta\omega_j).
 $$
 
-Every Gram matrix $[\kappa_d(m_i - m_k)]$ is a positive semidefinite Toeplitz matrix, and $(2/d)\kappa_d(\Delta) = E\cos(\Delta\Omega_d)$ is the characteristic function of a random frequency $\Omega_d$ uniform on the $d$ points $\pm\omega_j$.
+Every Gram matrix $[\kappa_d(m_i - m_k)]$ is positive semidefinite, and Toeplitz over consecutive or evenly spaced positions, and $(2/d)\kappa_d(\Delta) = E\cos(\Delta\Omega_d)$ is the characteristic function of a random frequency $\Omega_d$ uniform on the $d$ points $\pm\omega_j$.
 
 **(ii)** Fix $b$ and $\Delta \ne 0$. As $d \to \infty$,
 
@@ -287,7 +287,7 @@ with $\gamma$ Euler's constant.
 
 <TheoremBlock type="proof">
 
-For (i), angle subtraction gives $\cos m\omega \cos n\omega + \sin m\omega \sin n\omega = \cos((n - m)\omega)$ in each plane. A Gram matrix of vectors is positive semidefinite, since $\sum_{i,k} c_i c_k \kappa_d(m_k - m_i) = \lVert \sum_i c_i\, p(m_i) \rVert^2 \ge 0$, and its entries depend only on index differences. The characteristic-function form is the average of $\cos(\pm\Delta\omega_j)$ over the $d$ points.
+For (i), angle subtraction gives $\cos m\omega \cos n\omega + \sin m\omega \sin n\omega = \cos((n - m)\omega)$ in each plane. A Gram matrix of vectors is positive semidefinite, since $\sum_{i,k} c_i c_k \kappa_d(m_k - m_i) = \lVert \sum_i c_i\, p(m_i) \rVert^2 \ge 0$, and over consecutive or evenly spaced positions $m_i - m_k$ depends only on $i - k$, which is the Toeplitz form. The characteristic-function form is the average of $\cos(\pm\Delta\omega_j)$ over the $d$ points.
 
 For (ii), write $\Omega_d = \pm b^{-U_d}$ with a fair sign and $U_d$ uniform on the grid $\{0, 2/d, \dots, 1 - 2/d\}$. The grid's uniform law converges to the uniform law on $[0, 1]$, so by continuous mapping $\Omega_d$ converges in distribution to $\Omega = \pm b^{-U}$, $U$ uniform on $[0, 1]$. Since $\omega \mapsto \cos(\Delta\omega)$ is bounded and continuous, $E\cos(\Delta\Omega_d) \to E\cos(\Delta\Omega)$. Substituting $\omega = b^{-u}$, so $du = -d\omega/(\omega \ln b)$, and then $t = \lvert\Delta\rvert\omega$,
 
@@ -295,11 +295,11 @@ $$
 E\cos(\Delta\Omega) = \int_0^1 \cos(\Delta b^{-u})\, du = \frac{1}{\ln b}\int_{1/b}^1 \frac{\cos(\lvert\Delta\rvert\omega)}{\omega}\, d\omega = \frac{1}{\ln b}\int_{\lvert\Delta\rvert/b}^{\lvert\Delta\rvert} \frac{\cos t}{t}\, dt = I_b(\Delta).
 $$
 
-For the bound, integration by parts gives $\operatorname{Ci}(x) = \sin x/x - \int_x^\infty \sin t\, dt/t^2$, so $\lvert \operatorname{Ci}(x) \rvert \le 2/x$. The series form $\operatorname{Ci}(x) = \gamma + \ln x - \int_0^x (1 - \cos t)\, dt/t$ (DLMF 6.2.11), with $0 \le 1 - \cos t \le t^2/2$, gives $\operatorname{Ci}(x) = \gamma + \ln x - \epsilon$ with $0 \le \epsilon \le x^2/4$. Put $x = \lvert\Delta\rvert/b$ in the second and $x = \lvert\Delta\rvert$ in the first, and divide by $\ln b$.
+For the bound, integration by parts gives $\operatorname{Ci}(x) = \sin x/x - \int_x^\infty \sin t\, dt/t^2$, so $\lvert \operatorname{Ci}(x) \rvert \le 2/x$. The integral form $\operatorname{Ci}(x) = \gamma + \ln x - \int_0^x (1 - \cos t)\, dt/t$ (DLMF 6.2.12–13), with $0 \le 1 - \cos t \le t^2/2$, gives $\operatorname{Ci}(x) = \gamma + \ln x - \epsilon$ with $0 \le \epsilon \le x^2/4$. Put $x = \lvert\Delta\rvert/b$ in the second and $x = \lvert\Delta\rvert$ in the first, and divide by $\ln b$.
 
 </TheoremBlock>
 
-Two readings. First, by Herglotz's theorem (Brockwell and Davis 1991, §4.3), every positive-definite function of an integer offset is the characteristic function of some measure on the circle, so a stationary position code is a choice of spectral measure. The sinusoidal code chooses $d$ atoms at geometric frequencies, and Rahimi and Recht's (2007) random features, which the attention topic used, would sample them instead. The stationarity, positive definiteness, and spectral picture are the ones formalML builds for Gaussian processes ([Gaussian Processes](https://www.formalml.com/topics/gaussian-processes), its Definition 2).
+Two readings. First, by Herglotz's theorem (Brockwell and Davis 1991, §4.3), every positive-definite function of an integer offset is the characteristic function of some measure on the circle, so a stationary position code is a choice of spectral measure. The sinusoidal code chooses $d$ atoms at geometric frequencies, and Rahimi and Recht's (2007) random features, which the attention topic set aside for positive ones, would sample them instead. Positive definiteness, stationarity, and the spectral picture are the ones formalML builds for Gaussian processes ([Gaussian Processes](https://www.formalml.com/topics/gaussian-processes): positive definiteness is its Definition 2, and the other two come later in that article).
 
 Second, (ii) says the similarity of two positions is a **logarithmic ruler**: past a few positions it is a straight line in $\ln\lvert\Delta\rvert$, and each doubling of the distance costs the same $\ln 2/\ln b \approx 0.075$ of similarity, because geometric frequencies give every octave of distance its own few planes. The notebook computes:
 
@@ -311,7 +311,7 @@ Second, (ii) says the similarity of two positions is a **logarithmic ruler**: pa
 | limit $I_b(\Delta)$ | $0.974$ | $0.772$ | $0.635$ | $0.487$ | $0.335$ | $0.185$ |
 | ruler $1 - (\gamma + \ln\Delta)/\ln b$ | $0.937$ | $0.787$ | $0.636$ | $0.486$ | $0.335$ | $0.185$ |
 
-The convergence in $d$ is not uniform in $\Delta$: at $\Delta = 256$, $d = 512$ is farther from the limit than $d = 64$ is. Large offsets need many planes. Note also what the table says against a common claim. The columns of the code are not orthogonal, and the Gram matrix is $\kappa_d(m - n)$, not the identity. The orthogonality of sines and cosines ([Fourier Series](https://www.formalcalculus.com/topics/fourier-series), its Theorem 1) holds for integer harmonics over a full period, and the code's frequencies are neither.
+The convergence in $d$ is not uniform in $\Delta$: at $\Delta = 256$, $d = 512$ is farther from the limit than $d = 64$ is. Large offsets need many planes. Note also what the table says against a common claim. Stack the code's vectors as the rows of a matrix $P$. The Gram matrix of the positions is $PP^\top = [\kappa_d(m - n)]$, not a multiple of the identity, which is what the table shows. The columns are a separate matter, and $P^\top P$ is not diagonal either: at $d = 16$ the largest cosine between two columns exceeds $0.999$ over $64$ positions and is still $0.739$ over $4096$. The orthogonality of sines and cosines ([Fourier Series](https://www.formalcalculus.com/topics/fourier-series), its Theorem 1) holds for integer harmonics over a full period; these frequencies are geometric, and a window is not a period.
 
 The kernel is stationary, but attention does not compare positions directly. A head with query map $W_Q$ and key map $W_K$ scores position $t$ against position $j$ by $h_t M h_j^\top/\tau$, with $M = W_Q W_K^\top$ and $\tau = \sqrt{d_k}$. With $h = xE + p$, the score is the sum of four terms, content against content, content against position, position against content, and $p(t) M p(j)^\top$. Is that last term at least a function of the offset?
 
@@ -341,9 +341,9 @@ For (b) ⇔ (c), $R$ has the $d$ distinct eigenvalues $e^{\pm i\omega_j}$, so a 
 
 </TheoremBlock>
 
-The theorem says that adding a stationary code to the content does not make attention relative. The position-against-position term is relative only if the learned $M$ lands in a $d$-dimensional subspace of a $d^2$-dimensional space, and the content-against-position terms are not relative at all (Ke, He, and Liu 2021). The **relativity defect** $\delta(M) = \lVert M - \Pi M \rVert_F / \lVert M \rVert_F$, with $\Pi$ the orthogonal projection onto the subspace (keep each diagonal block's $(\operatorname{tr} B/2) I + ((B_{21} - B_{12})/2) J$, zero the rest), measures the miss. For a random Gaussian $M$, $\lVert \Pi M \rVert^2 / \lVert M \rVert^2$ has a Beta distribution with mean $1/d$, so $E\,\delta^2 = 1 - 1/d$, and at $d = 16$ a random matrix has $\delta \approx 0.968$. The three sinusoidal heads of the tournament, after training, have $\delta = 0.971$, $0.955$, and $0.973$. Training never moved them toward relativity, because within the training window nothing rewards it.
+The theorem says that adding a stationary code to the content does not make attention relative. The position-against-position term is relative only if the learned $M$ lands in a $d$-dimensional subspace of a $d^2$-dimensional space, and the content-against-position terms are not relative at all (Ke, He, and Liu 2021). The **relativity defect** $\delta(M) = \lVert M - \Pi M \rVert_F / \lVert M \rVert_F$, with $\Pi$ the orthogonal projection onto the subspace (keep each diagonal block's $(\operatorname{tr} B/2) I + ((B_{21} - B_{12})/2) J$, zero the rest), measures the miss. For a random Gaussian $M$, $\lVert \Pi M \rVert^2 / \lVert M \rVert^2$ has a Beta distribution with mean $1/d$, so $E\,\delta^2 = 1 - 1/d$, and at $d = 16$ a random matrix has $\delta \approx 0.968$. The three sinusoidal heads of the tournament, after training, have $\delta = 0.971$, $0.955$, and $0.973$. Training barely moved them: at initialization they were $0.970$, $0.956$, and $0.979$. Within the training window, nothing rewards relativity.
 
-The attention topic's trained circle denoiser is the opposite case. Its task was rotation-invariant, and it learned $M = cI$, which is the commutant of a single plane. Exactness is also fragile in another way: over a window short against the slow planes' wavelengths, the window's vectors are nearly dependent. The $16$-dimensional code over $64$ positions has numerical rank $14$, and its condition number falls from $1.9 \times 10^{19}$ over $16$ positions to $17.7$ over $4096$. A window constrains a slow plane only once the window has watched it turn.
+The attention topic's trained circle denoiser is the opposite case. Its task was rotation-invariant, and it learned $M = cI$, which lies in the commutant of a single plane. Exactness is also fragile in another way: over a window short against the slow planes' wavelengths, the window's vectors are nearly dependent. The $16$-dimensional code over $64$ positions has numerical rank $14$. Its exact condition number falls from $3.69 \times 10^{29}$ over $16$ positions, through $7.14 \times 10^{18}$ over $64$, to $1.24 \times 10^{11}$ over $256$ and $17.7$ over $4096$. The first two are past what double precision resolves, so the notebook computes them in $200$-digit arithmetic. A window constrains a slow plane only once the window has watched it turn.
 
 ---
 
@@ -361,13 +361,13 @@ For a causal head scoring position $t$ against $j \le t$, with offset $r = t - j
 
 </TheoremBlock>
 
-T5's buckets show the pattern of the section in miniature. With $32$ buckets, offsets below $16$ get their own bucket and the rest share log-spaced ones, the last of which holds every offset from $113$ on (the logarithmic map reaches it at $16 \cdot 8^{15/16} \approx 113$, not at $128$). Offsets that far back are indistinguishable. Transformer-XL (Dai et al. 2019) puts relative terms into the score in yet another way. ALiBi is the cleanest, because its penalty multiplies the attention topic's kernel by a second kernel. Our single head uses $s = 1/2$, ALiBi's first slope at $H = 8$.
+T5's buckets show the pattern of the section in miniature. With $32$ buckets, offsets below $16$ get their own bucket and the rest share log-spaced ones, the last of which holds every offset from $113$ on (the logarithmic map reaches it at $16 \cdot 8^{15/16} \approx 112.4$, not at $128$). Offsets that far back are indistinguishable. Transformer-XL (Dai et al. 2019) puts relative terms into the score in yet another way. ALiBi is the cleanest, because its penalty multiplies the attention topic's kernel by a second kernel. Our single head uses $s = 1/2$, ALiBi's first slope at $H = 8$.
 
 <TheoremBlock type="theorem" number={3} title="ALiBi is a product kernel">
 
 Let one causal ALiBi head with slope $s \gt 0$ have content scores $c_{tj} = q_t k_j^\top/\tau$ lying in an interval of width $W$. Write $\alpha_r$ for the weight on offset $r$ from a fixed query $t$.
 
-**(i)** $\alpha_{tj} \propto e^{c_{tj}} \cdot e^{-s(t - j)}$: a Nadaraya–Watson smoother whose kernel is the product of a content kernel and an exponential kernel in time. In bidirectional form, $e^{-s\lvert t - j \rvert}$ is a positive-definite kernel, and so is its product with the content kernel.
+**(i)** $\alpha_{tj} \propto e^{c_{tj}} \cdot e^{-s(t - j)}$: a Nadaraya–Watson smoother whose kernel is the product of a content kernel and an exponential kernel in time. In bidirectional form, $e^{-s\lvert t - j \rvert}$ is a positive-definite kernel, and so is its product with any positive-definite content kernel.
 
 **(ii)** At every length, the weight on offsets $r \ge D$ is at most $e^{W} e^{-sD}/(1 - e^{-s})$.
 
@@ -377,7 +377,7 @@ Let one causal ALiBi head with slope $s \gt 0$ have content scores $c_{tj} = q_t
 
 <TheoremBlock type="proof">
 
-Part (i) is the softmax of $c_{tj} - s(t - j)$. The bidirectional kernel $e^{-s\lvert u \rvert}$ is the Matérn kernel with smoothness $1/2$, positive definite ([Gaussian Processes](https://www.formalml.com/topics/gaussian-processes), its Definition 3), and a product of positive-definite kernels is positive definite (that topic's Proposition 2). For (iii), $\alpha_r/\alpha_0 = e^{c_r - c_0 - sr} \le e^{W - sr}$, since the two content scores differ by at most $W$. For (ii), sum (iii) over $r \ge D$ and use $\alpha_0 \le 1$: the sum is at most $e^{W} \sum_{r \ge D} e^{-sr} = e^{W} e^{-sD}/(1 - e^{-s})$.
+Part (i) is the softmax of $c_{tj} - s(t - j)$. The bidirectional kernel $e^{-s\lvert u \rvert}$ is the Matérn kernel with smoothness $1/2$, positive definite ([Gaussian Processes](https://www.formalml.com/topics/gaussian-processes), its Definition 3), and a product of positive-definite kernels is positive definite (that topic's Proposition 2). The content kernel has to be one for this to apply. With $W_Q = W_K$ the scores are a Gram matrix and $e^{c_{tj}}$ is positive definite, but with $W_Q \ne W_K$ the matrix $[c_{tj}]$ is not even symmetric, and only the time factor is a kernel in this sense. For (iii), $\alpha_r/\alpha_0 = e^{c_r - c_0 - sr} \le e^{W - sr}$, since the two content scores differ by at most $W$. For (ii), sum (iii) over $r \ge D$ and use $\alpha_0 \le 1$: the sum is at most $e^{W} \sum_{r \ge D} e^{-sr} = e^{W} e^{-sD}/(1 - e^{-s})$.
 
 </TheoremBlock>
 
@@ -437,10 +437,10 @@ Let $L_m \in \mathbb{R}^{d \times d}$, for $m \in \mathbb{Z}$, with $L_0 = I$. T
 
 **(b)** $L_m = U^m$ for some orthogonal matrix $U$.
 
-**(c)** There are an orthogonal $Q$, angles $\theta_1, \dots, \theta_k \in (0, \pi)$, and integers $p, p' \ge 0$ with
+**(c)** There are an orthogonal $Q$, angles $\theta_1, \dots, \theta_\ell \in (0, \pi)$, and integers $p, p' \ge 0$ with
 
 $$
-L_m = Q \Bigl( \bigoplus_{i=1}^{k} R(m\theta_i) \oplus I_p \oplus (-1)^m I_{p'} \Bigr) Q^\top.
+L_m = Q \Bigl( \bigoplus_{i=1}^{\ell} R(m\theta_i) \oplus I_p \oplus (-1)^m I_{p'} \Bigr) Q^\top.
 $$
 
 </TheoremBlock>
@@ -455,29 +455,29 @@ $$
 
 </TheoremBlock>
 
-The orthogonal $Q$ is absorbed by the learned maps $W_Q$ and $W_K$, so up to the projections every linear encoding that makes scores relative is RoPE with some frequencies. It may also leave planes unrotated, as partial rotary embeddings do, or turn a plane by $\pi$ per step. RoPE's only free choice is the spectrum, and it takes Definition 2's. Su and colleagues derive the two-dimensional case under further assumptions on the encoding; (b) needs none.
+The orthogonal $Q$ is absorbed by the learned maps $W_Q$ and $W_K$, so up to the projections every linear encoding that makes scores relative is RoPE with some frequencies. It may also leave planes unrotated, as partial rotary embeddings do, or flip a coordinate's sign at every step, since $I_{p'}$ can have odd size. RoPE's only free choice is the spectrum, and it takes Definition 2's. Su and colleagues derive the two-dimensional case under further assumptions on the encoding; (b) needs none.
 
 Su and colleagues also argue that RoPE gives a "long-term decay" of scores with distance. The argument is a bound, and it is worth seeing exactly what it bounds.
 
 <TheoremBlock type="proposition" number={4} title="What long-term decay means">
 
-In complex form, let $h_j = q_j \bar k_j$ for planes $j = 0, \dots, d/2 - 1$, let $h_{d/2} = 0$, and let $S_j = \sum_{l \lt j} e^{i\Delta\theta_l}$.
+In complex form, let $h_j = \bar q_j k_j$ for planes $j = 0, \dots, d/2 - 1$, let $h_{d/2} = 0$, and let $S_j = \sum_{l \lt j} e^{i\Delta\theta_l}$. The offset score is $s(\Delta) = \operatorname{Re} \sum_j h_j e^{i\Delta\theta_j}$.
 
 **(i)** $\bigl\lvert \sum_j h_j e^{i\Delta\theta_j} \bigr\rvert \le \bigl(\max_j \lvert h_{j+1} - h_j \rvert\bigr) \sum_{j=1}^{d/2} \lvert S_j \rvert$.
 
 **(ii)** If $q = k$ and each plane has $E\lVert q_j \rVert^2 = \sigma^2$, then $E\langle q, R_\theta(\Delta) q \rangle = \sigma^2 \kappa_d(\Delta)$.
 
-**(iii)** If $q$ and $k$ are independent and each plane of $k$ is rotation-invariant in distribution, then the distribution of $\langle q, R_\theta(\Delta) k \rangle$ does not depend on $\Delta$.
+**(iii)** If $q$ and $k$ are independent, and the planes of $k$ are independent and each rotation-invariant in distribution, then the distribution of $\langle q, R_\theta(\Delta) k \rangle$ does not depend on $\Delta$.
 
 </TheoremBlock>
 
 <TheoremBlock type="proof">
 
-For (i), sum by parts: $\sum_{j} h_j (S_{j+1} - S_j) = -\sum_{j} S_{j+1}(h_{j+1} - h_j)$, since $S_0 = 0$ and $h_{d/2} = 0$, and bound each term. For (ii), $u^\top R(\varphi) u = \lVert u \rVert^2 \cos\varphi$ in each plane, so the expectation is $\sum_j \sigma^2 \cos(\Delta\theta_j)$. For (iii), $R_\theta(\Delta) k$ has the same distribution as $k$ and is independent of $q$.
+For (i), sum by parts: $\sum_{j} h_j (S_{j+1} - S_j) = -\sum_{j} S_{j+1}(h_{j+1} - h_j)$, since $S_0 = 0$ and $h_{d/2} = 0$, and bound each term. For (ii), $u^\top R(\varphi) u = \lVert u \rVert^2 \cos\varphi$ in each plane, so the expectation is $\sum_j \sigma^2 \cos(\Delta\theta_j)$. For (iii), independence lets each plane turn on its own, so $R_\theta(\Delta) k$ has the same distribution as $k$, and it is independent of $q$.
 
 </TheoremBlock>
 
-The bound in (i) depends on $\Delta$ through the **envelope** $\sum_j \lvert S_j \rvert$, which falls with distance on average. At $d = 128$ its mean over each octave of $\Delta$ falls from $31.5$ at $\Delta = 1$ to $4.9$ over offsets $2048$ to $4095$, though not monotonically within an octave. That is a measurement, not a theorem. Parts (ii) and (iii) say what the envelope is about. A key that matches its query decays as Theorem 1's logarithmic ruler, and a key unrelated to its query does not decay at all. "Long-term decay" is a property of envelopes and matched pairs, and a trained head decays only where it has learned to.
+The bound in (i) depends on $\Delta$ through the **envelope** $\sum_j \lvert S_j \rvert$, which falls with distance on average. At $d = 128$ its mean over each octave of $\Delta$ falls from $2018$ at $\Delta = 1$ to $312$ over offsets $2048$ to $4095$, or from $31.5$ to $4.9$ per plane, though not monotonically within an octave. That is a measurement, not a theorem. The independence in (iii) is needed: take $d = 4$, $k_0 = k_1 = (\cos\beta, \sin\beta)$ with $\beta$ uniform, and $q = (1, 0, 1, 0)$. Each plane of $k$ is rotation-invariant, but the score has variance $1 + \cos(\Delta(\theta_0 - \theta_1))$. Parts (ii) and (iii) say what the envelope is about. A key that matches its query decays as Theorem 1's logarithmic ruler, and a key unrelated to its query does not decay at all. "Long-term decay" is a property of envelopes and matched pairs, and a trained head decays only where it has learned to.
 
 ---
 
@@ -493,9 +493,9 @@ Now train. The task needs both content and order. Each sequence holds $n - 1$ to
 | RoPE | $1.000$ | $0.947$ | $0.872$ | $0.466$ |
 | ALiBi | $0.999$ | $0.979$ | $0.978$ | $0.978$ |
 
-Every scheme but the first reads the task within the window. Past it, the learned table has nothing to say, and the added sinusoidal code collapses at twice the length, as Theorem 2 predicts: its trained score depends on absolute position, and the absolute positions are new. ALiBi holds, as Theorem 3 (ii) predicts. RoPE degrades steadily, from $0.947$ to $0.466$, and at $256$ its three seeds range from about $0.31$ to $0.68$.
+Every scheme but the first reads the task within the window. Past it, the learned table has nothing to say, and the added sinusoidal code collapses at twice the length: its trained score depends on absolute position, and the absolute positions are new. Theorem 2 accounts for one part of that dependence, not all of it. Replace only the position-against-position term with its projection onto the commutant, and the head still reads $0.202$, $0.136$, and $0.143$ at $64$, $128$, and $256$, because the position-against-content term separates keys as strongly: at length $32$ their spreads across keys are within $6\%$ of each other in every seed. Training always put the query at position $31$. Shift a long sequence so that the query sits there again, keeping every offset, and the head reads $0.769$ at $64$, but only $0.313$ at $256$, where older keys land on positions training never saw. ALiBi holds, as Theorem 3 (ii) predicts. RoPE degrades steadily, from $0.947$ to $0.466$, and at $256$ its three seeds range from about $0.31$ to $0.68$.
 
-Why does a relative encoding fail to generalize in length? Because "relative" constrains the score to be a function of the offset, not to be a sensible one. Training sees offsets $0$ to $31$ only. By Proposition 3 (iii), the head's score for a marked token at offset $r$ is a trigonometric polynomial, and training pins it down on $[0, 31]$ alone. In seed $0$ the score falls from $114.10$ at $r = 1$ to a trough of $5.91$ at $r = 34$, as the task rewards. Then it rises again, to $84.14$ at $r = 181$, higher than the score of any recent marked token sixteen or more back. All three seeds behave alike: troughs at $32$ to $34$, peaks at $181$ to $182$, and the largest amplitude in plane $3$. The census in Theorem 5 explains the shape. Only planes $0$ and $1$ turn a whole circle in $32$ positions, so the head carries its sense of recency in planes $2$ and $3$, whose wavelengths, $62.8$ and $198.7$, are long enough that half a turn spans the window. Past the window plane $2$ turns back first, and its trough at half its wavelength, $31.4$, is the window's edge. Near $r = 190$, after three turns of plane $2$ ($188.5$ positions) and one of plane $3$ ($198.7$), the two come nearly back into phase.
+Why does a relative encoding fail to generalize in length? Because "relative" constrains the score to be a function of the offset, not to be a sensible one. Training sees offsets $0$ to $31$ only. By Proposition 3 (iii), the head's score for a marked token at offset $r$ is a trigonometric polynomial, and training pins it down on $[0, 31]$ alone. In seed $0$ the score falls from $114.10$ at $r = 1$ to a first trough of $5.91$ at $r = 34$, as the task rewards. Past the window it dives to $-55.86$ at $r = 90$, and only then climbs, to $84.14$ at $r = 181$, higher than the score of any recent marked token sixteen or more back. All three seeds behave alike: first troughs at $32$ to $34$, deepest points of $-55.86$, $-38.96$, and $-19.39$ at $89$ to $90$, peaks at $181$ to $182$, and the largest amplitude in plane $3$. The census in Theorem 5 explains the shape. Only planes $0$ and $1$ turn a whole circle in $32$ positions, so the head carries its sense of recency in planes $2$ and $3$, whose wavelengths, $62.8$ and $198.7$, are long enough that half a turn spans the window. A causal head reads the score at $\Delta = -r$, so where a plane bottoms depends on its trained phase, not on its half wavelength of $31.4$ alone. Plane $2$ bottoms near $r = 27$ in seed $0$, and plane $3$, still falling, carries the sum to the first trough. One turn later plane $2$ bottoms again, near $r = 90$, which is the dive. After three turns of plane $2$ ($188.5$ positions) and one of plane $3$ ($198.7$), the two come back toward phase, and both crest near $r = 180$.
 
 The fixes that practitioners use to extend RoPE's context change the angles the head sees.
 
@@ -519,7 +519,7 @@ Let $\lambda_j = 2\pi/\theta_j$ be the wavelength of plane $j$.
 
 **(iii)** NTK-aware scaling gives plane $j$ the frequency $\theta_j \kappa^{-2j/(d-2)}$: plane $0$ is unchanged, and the slowest plane is divided by exactly $\kappa$.
 
-**(iv)** For $a(\Delta) = \operatorname{Re} \sum_j h_j e^{i\Delta\theta_j}$ and integers $\Delta_1 \lt \Delta_2$, the linear interpolation $\ell$ of $a$ between them satisfies
+**(iv)** For $a(\Delta) = \operatorname{Re} \sum_j h_j e^{i\Delta\theta_j}$, which with Proposition 4's $h_j$ is the offset score, and integers $\Delta_1 \lt \Delta_2$, the linear interpolation $\ell$ of $a$ between them satisfies
 
 $$
 \lvert a(\Delta) - \ell(\Delta) \rvert \le \tfrac{1}{2} (\Delta - \Delta_1)(\Delta_2 - \Delta) \sum_j \lvert h_j \rvert \theta_j^2 \quad\text{for } \Delta_1 \le \Delta \le \Delta_2,
@@ -548,7 +548,7 @@ Re-reading the trained RoPE heads with each map, with no further training:
 | NTK-aware | $0.970$ | $0.966$ | $0.977$ |
 | YaRN | $0.998$ | $0.979$ | $0.914$ |
 
-Each map rescues the head, and on this task NTK-aware scaling rescues it best at $256$: it stretches the slow planes just enough to push the rebound past the longest sequence while keeping the fast planes sharp. The next section's task ranks them differently.
+Each map rescues the head, and on this task NTK-aware scaling rescues it best at $256$, where its $0.977$ ties ALiBi's $0.978$ within sampling error on the same test sequences: it stretches the slow planes just enough to push the rebound past the longest sequence while keeping the fast planes sharp. The next section's task ranks them differently.
 
 ---
 
@@ -564,7 +564,7 @@ The laboratory has two figures. Figure A is the geometry. Drag two positions and
 
 <FinanceCaseStudy title="Finance case study: which company was named last?">
 
-A filing names a parent company, then its subsidiaries and competitors, and then refers back to "the company". Which company is meant is, to a first approximation, the one named most recently. That is the cue task of the previous section, on the geometry of real documents, where mentions come in bursts and the gaps between them run long.
+A filing names a parent company, then its subsidiaries and competitors, and then refers back to "the company". As a first approximation of which company is meant, take the one named most recently. It is only an approximation, and the question we score is the literal one: which company was named last? That is the cue task of the previous section, on synthetic documents shaped like filings, where mentions come in bursts and the gaps between them run long.
 
 The documents are the shared synthetic corpus's MD&A sections, earnings calls, and 8-K reports. We train on $300$ of them and test on $100$ held out, with a median length of $198$ tokens and $8$ company mentions. Each entity mention becomes one token. A company mention is marked, with the company's order of first appearance in its document as its symbol, and every other word carries a hashed symbol. The heads are trained afresh on $32$-token windows of the training filings, so at test time the only change is length. At every held-out position after the first mention we ask which company was named last: $19{,}285$ queries, of which $7{,}895$, or $41\%$, have their answer more than $32$ tokens back. Accuracy, as the mean of three seeds:
 
@@ -578,7 +578,7 @@ The documents are the shared synthetic corpus's MD&A sections, earnings calls, a
 | RoPE + NTK-aware | $0.913$ | $0.788$ |
 | RoPE + YaRN | $0.990$ | $0.985$ |
 
-The length tournament's winner loses $42\%$ of the filing's far queries. Theorem 3 (iii) says where. Each trained ALiBi head has a content width $W$, which the notebook reads off its weights, and a horizon $W/s$. Here is each head's accuracy on the queries inside half its horizon and beyond it. We read heads trained on the filings, and also the tournament's heads, trained on the synthetic stream:
+ALiBi, which held at every length of the tournament, loses $42\%$ of the filing's far queries. Theorem 3 (iii) says where. Each trained ALiBi head has a content width $W$, which the notebook reads off its weights, and a horizon $W/s$. Here is each head's accuracy on the queries inside half its horizon and beyond it. We read heads trained on the filings, and also the tournament's heads, trained on the synthetic stream:
 
 | trained on | horizon $W/s$ | inside half of it | beyond it |
 |---|---|---|---|
@@ -591,7 +591,7 @@ The length tournament's winner loses $42\%$ of the filing's far queries. Theorem
 
 Inside half the horizon every head answers every query, more than $8{,}000$ each. Beyond the horizon every head degrades, but by how much depends on its training. Theorem 3 bounds a weight, not an answer: a mention past the horizon still gets some weight, and whether that is enough depends on how little the nearer words' values say. The heads trained on filings saw long stretches without a mention and learned to keep those values quiet; the heads trained on the dense synthetic stream did not.
 
-One held-out filing, the one in the laboratory, shows the pattern in miniature. It names Marrow Freight six times, Dunmore Aerospace and Siskin Apparel once each, and at token $64$ Fenwick Logistics, never to be named again. Forty-six tokens later it reports that liquidity decreased, "a result the company called disappointing". Asked there which company was named last, the heads without position, with the added code, with RoPE, and with ALiBi all answer Marrow Freight, the company named most often. RoPE with interpolated positions answers Fenwick Logistics, as it does at every one of the filing's $209$ positions.
+One held-out filing, the one in the laboratory, shows the pattern in miniature. It names Marrow Freight six times, Dunmore Aerospace and Siskin Apparel once each, and at token $64$ Fenwick Logistics, never to be named again. Forty-five tokens later it reports that liquidity decreased, "a result the company called disappointing". Ask there the literal question, which company was named last. In seed $0$ the heads without position, with the added code, with RoPE, and with ALiBi all answer Marrow Freight, the first company named. That answer is right on $76.6\%$ of all held-out queries and $73.9\%$ of the far ones, so a head that has lost the trail falls back on it. Seeds $1$ and $2$ split, and $5$ of the $12$ answers across seeds are Fenwick. RoPE with interpolated positions answers Fenwick Logistics in all three seeds, at all $145$ positions from token $64$ on, and it is right at every one of the filing's $209$ positions. A person reading that clause would take "the company" to mean the filer, Marrow Freight. The task scores who was named last, and that is all it scores.
 
 The EDGAR excerpts used elsewhere in this curriculum carry no entity annotations, so they sit this case study out.
 
@@ -613,12 +613,12 @@ The EDGAR excerpts used elsewhere in this curriculum carry no entity annotations
 <RigorFlag>
 
 1. **Long-term decay is about envelopes and matched pairs** (Proposition 4). RoPE does not make unrelated keys fade.
-2. **The commutant theorem is exact but fragile.** Theorem 2 holds in exact arithmetic on any window of $d + 1$ positions, but over a window shorter than the slow planes' wavelengths its constraint on them is nearly void (condition numbers between $10^{17}$ and $10^{19}$ for windows of $16$ to $64$ positions at $d = 16$).
-3. **Three results are cited, not proved:** Herglotz's theorem (the converse reading of Theorem 1 (i)), the real normal form of orthogonal matrices (Theorem 4), and the series for the cosine integral (Theorem 1 (ii)).
+2. **The commutant theorem is exact but fragile.** Theorem 2 holds in exact arithmetic on any window of $d + 1$ positions, but over a window shorter than the slow planes' wavelengths its constraint on them is nearly void (exact condition numbers from $3.69 \times 10^{29}$ to $7.14 \times 10^{18}$ for windows of $16$ to $64$ positions at $d = 16$, past what double precision resolves).
+3. **Three results are cited, not proved:** Herglotz's theorem (the converse reading of Theorem 1 (i)), the real normal form of orthogonal matrices (Theorem 4), and the integral form of the cosine integral (Theorem 1 (ii)).
 4. **The rescalings are heuristics.** NTK-aware scaling and YaRN have no theorem behind their particular choices, and YaRN's logit scale is a fitted constant. Every rescaling here is applied without fine-tuning, where practice fine-tunes after rescaling, and which one wins depends on the task: NTK-aware scaling on the synthetic stream, PI on the filings.
 5. **The tournament is a toy.** It is one attention head of width $16$, eight symbols, and three seeds. It shows mechanisms and measures nothing about language models at scale.
-6. **The filings are synthetic.** The case study uses the shared synthetic corpus, with hashed symbols for ordinary words and first-appearance labels for companies. The EDGAR excerpts are left out, since they carry no entity annotations.
-7. **A common claim, corrected.** Sinusoidal codes are often said to let a model extrapolate to unseen lengths and to have orthogonal columns. The added code here falls from $0.996$ to $0.201$ at twice its training length, and its Gram matrix is the stationary kernel of Theorem 1, not the identity.
+6. **The filings are synthetic.** The case study uses the shared synthetic corpus, with hashed symbols for ordinary words and first-appearance labels for companies. The EDGAR excerpts are left out, since they carry no entity annotations. The question scored, which company was named last, is a proxy for which company a clause refers to.
+7. **A common claim, corrected.** Sinusoidal codes are often said to let a model extrapolate to unseen lengths and to have orthogonal columns. The added code here falls from $0.996$ to $0.201$ at twice its training length. The Gram matrix of its positions is the stationary kernel of Theorem 1, not a multiple of the identity, and its columns are not orthogonal either.
 8. **A published bound, corrected.** Chen and colleagues' Theorem 2.1 is false as stated for head dimensions up to $128$, as Theorem 5 (iv) shows; with the corrected constant their conclusion holds.
 9. **The horizon bounds a weight, not an answer.** Past Theorem 3's horizon, how much an ALiBi head still reads depends on what the nearer values carry: $0.32$ to $0.72$ for the heads trained on filings, about $0.1$ for those trained on the synthetic stream.
 
@@ -628,14 +628,14 @@ The EDGAR excerpts used elsewhere in this curriculum carry no entity annotations
 
 ## Implementation
 
-The companion notebook (`notebookPath`) imports `positional_encodings_geometry.py`, which owns every number on this page. That module imports the attention topic's module for its attention function and its harness conventions, the neural-language-models topic's gradient checker and Adam constants, and the shared finance corpus. It trains $27$ single-head models from scratch in NumPy, $15$ for the tournament and $12$ for the filings, and runs a harness of $21$ assertion-based tests in about half a minute on a laptop CPU. The tests cover:
+The companion notebook (`notebookPath`) imports `positional_encodings_geometry.py`, which owns every number on this page. That module imports the attention topic's module for its attention function and its harness conventions, the neural-language-models topic's gradient checker and Adam constants, and the shared finance corpus. It trains $27$ single-head models from scratch in NumPy, $15$ for the tournament and $12$ for the filings, and runs a harness of $24$ assertion-based tests in about half a minute on a laptop CPU. The tests cover:
 
-- Proposition 1 exactly, and the heads without positions against the best multiset reader.
+- Proposition 1 exactly, and the heads without positions against the best multiset reader, computed exactly.
 - Proposition 2 and Theorem 1 on random instances, the cosine-integral limit at $d = 8192$, and the logarithmic ruler.
-- Theorem 2: the window's null space at random frequencies, a random matrix's defect, the trained heads' defects, and the condition numbers.
+- Theorem 2: the window's null space at random frequencies, a random matrix's defect, the trained heads' defects before and after training, and the condition numbers in $200$-digit arithmetic; what projecting one term and moving the query do to the added code.
 - T5's buckets, and Theorem 3 on random instances up to length $8192$.
-- Proposition 3 against the attention topic's attention function; Theorem 4 through scipy's real Schur form; Proposition 4 by Monte Carlo.
+- Proposition 3 against the attention topic's attention function; Theorem 4 through scipy's real Schur form; Proposition 4 by Monte Carlo, including the counterexample that makes (iii) need independent planes.
 - Theorem 5's census and rescalings, the interpolation bound on random instances, and the counterexample to the stated constant.
-- Every hand-written gradient against central differences; the tournament, the RoPE rebound, and the filings, including the one-pass filing reader against the plain forward pass at every position.
+- Every hand-written gradient against central differences; the tournament, the RoPE rebound through its dive, and the filings, including the one-pass filing reader against the plain forward pass at every position and the case study's one filing.
 
 The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.

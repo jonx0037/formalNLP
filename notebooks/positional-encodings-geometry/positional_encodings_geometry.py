@@ -36,11 +36,12 @@ import re
 import sys
 import zlib
 from dataclasses import dataclass
+from decimal import Decimal, getcontext, localcontext
 from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
-from scipy import linalg, special
+from scipy import integrate, linalg, special
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent / "attention-as-kernel-smoothing"))
@@ -139,9 +140,66 @@ def window_conditions(freqs: np.ndarray, deltas) -> np.ndarray:
 
 
 def window_condition(n: int, freqs: np.ndarray) -> float:
-    """The 2-norm condition number of the n × d sinusoid matrix over positions 0, …, n − 1: Thm 2 (a′) is exact in
-    exact arithmetic, but its constraint on the slow planes is weak when the window is short against them."""
+    """The 2-norm condition number of the n × d sinusoid matrix over positions 0, …, n − 1, in double precision: it
+    saturates near 10¹⁸ for windows under about 128 positions, so quote window_condition_exact there."""
     return float(np.linalg.cond(sinusoidal(np.arange(n), freqs)))
+
+
+def _decimal_cos_sin(x: Decimal) -> tuple[Decimal, Decimal]:
+    """cos x and sin x by their Taylor series, to the working precision (|x| ≤ 1 here)."""
+    series, term, k = [Decimal(0), Decimal(0)], Decimal(1), 0
+    while abs(term) > Decimal(10) ** -getcontext().prec:
+        series[k % 2] += term if k % 4 < 2 else -term
+        k += 1
+        term = term * x / k
+    return series[0], series[1]
+
+
+@lru_cache(maxsize=None)
+def window_condition_exact(n: int, d: int = 16, base: float = BASE, digits: int = 200) -> float:
+    """The same condition number in `digits`-digit decimal arithmetic, as √(λ_max/λ_min) of PᵀP from cyclic Jacobi
+    rotations: Thm 2 (a′) is exact in exact arithmetic, but its constraint on the slow planes is weak when the window
+    is short against them. κ² reaches 10⁶⁰ at d = 16, which is why PᵀP needs this many digits."""
+    with localcontext() as ctx:
+        ctx.prec = digits
+        steps = [_decimal_cos_sin(Decimal(base) ** (Decimal(-2 * j) / d)) for j in range(d // 2)]
+        G = [[Decimal(0)] * d for _ in range(d)]
+        hands = [(Decimal(1), Decimal(0)) for _ in steps]
+        for _ in range(n):
+            row = [x for hand in hands for x in hand]
+            for a in range(d):
+                for b in range(a, d):
+                    G[a][b] += row[a] * row[b]
+            hands = [(c * cw - s * sw, s * cw + c * sw) for (c, s), (cw, sw) in zip(hands, steps)]
+        for a in range(d):
+            for b in range(a):
+                G[a][b] = G[b][a]
+        tiny = Decimal(10) ** -(digits - 30)
+        while max(abs(G[a][b]) for a in range(d) for b in range(a)) > tiny:
+            for p in range(d):
+                for q in range(p + 1, d):
+                    if G[p][q] == 0:
+                        continue
+                    theta = (G[q][q] - G[p][p]) / (2 * G[p][q])
+                    t = 1 / (abs(theta) + (theta * theta + 1).sqrt())
+                    t = -t if theta < 0 else t
+                    c = 1 / (t * t + 1).sqrt()
+                    s = t * c
+                    for r in range(d):
+                        G[r][p], G[r][q] = c * G[r][p] - s * G[r][q], s * G[r][p] + c * G[r][q]
+                    for r in range(d):
+                        G[p][r], G[q][r] = c * G[p][r] - s * G[q][r], s * G[p][r] + c * G[q][r]
+        eig = [G[a][a] for a in range(d)]
+        return float((max(eig) / min(eig)).sqrt())
+
+
+def column_coherence(n: int, freqs: np.ndarray) -> float:
+    """The largest |cosine| between two columns of the n × d sinusoid matrix P: PᵀP, the columns' Gram matrix, is a
+    different object from Thm 1's PPᵀ, the positions' Gram matrix κ_d(m − n)."""
+    C = sinusoidal(np.arange(n), freqs)
+    C = C.T @ C
+    D = np.sqrt(np.diag(C))
+    return float(np.abs((C / np.outer(D, D)) - np.eye(len(D))).max())
 
 
 # --------------------------------------------------------------------------------------------
@@ -228,14 +286,19 @@ def normal_form_power(Q: np.ndarray, angles: np.ndarray, p: int, r: int, m: int)
     return Q @ D @ Q.T
 
 
+def complex_form(q: np.ndarray, k: np.ndarray) -> np.ndarray:
+    """Prop 4: h_j = q̄_j k_j per plane, so s(Δ) = ⟨q, R_θ(Δ)k⟩ = Re Σ_j h_j e^{iΔθ_j} under Prop 3's Δ = n − m."""
+    return np.conj(q[0::2] + 1j * q[1::2]) * (k[0::2] + 1j * k[1::2])
+
+
 def abel_envelope(h: np.ndarray, delta: float, freqs: np.ndarray) -> dict[str, float]:
     """Prop 4 (i): |Σ_j h_j e^{iΔθ_j}| ≤ (max_j |h_{j+1} − h_j|) Σ_{j=1}^{J} |S_j|, S_j = Σ_{l<j} e^{iΔθ_l}, h_J = 0.
-    Also returns the envelope (1/J)Σ_j |S_j|."""
+    Also returns the envelope Σ_j |S_j| ("sum") and its mean per plane (1/J)Σ_j |S_j| ("envelope")."""
     e = np.exp(1j * delta * freqs)
     S = np.cumsum(e)  # S_1, …, S_J
     dh = np.abs(np.diff(np.append(h, 0)))
     return {"value": float(abs((h * e).sum())), "bound": float(dh.max() * np.abs(S).sum()),
-            "envelope": float(np.abs(S).mean())}
+            "sum": float(np.abs(S).sum()), "envelope": float(np.abs(S).mean())}
 
 
 # --------------------------------------------------------------------------------------------
@@ -331,6 +394,25 @@ def bag_bayes_accuracy(n: int, rate: float, trials: int, rng: np.random.Generato
     counts = (X[:, :, :N_SYMBOLS] * X[:, :, CUE:CUE + 1]).sum(1)
     acc = counts.max(1) / counts.sum(1)
     return float(acc.mean()), float(acc.std(ddof=1) / math.sqrt(trials))
+
+
+def bag_bayes_exact(n: int, rate: float = CUE_RATE) -> float:
+    """The accuracy of bag_bayes_accuracy, by counting: the number of cues is Binomial(n − 1, rate) with 0 moved to 1
+    (cue_data forces one), and given c cues, P(max_s c_s ≤ m) = c! [xᶜ] (Σ_{i≤m} (x/8)ⁱ/i!)⁸. c stops at 110, past
+    which the binomial has no mass that shows at any test length."""
+    cmax = min(n - 1, 110)
+    cs = np.arange(cmax + 1)
+    weight = np.array([math.comb(n - 1, c) * rate**c * (1 - rate) ** (n - 1 - c) for c in cs])
+    weight[1] += weight[0]
+    egf = np.exp(-cs * math.log(N_SYMBOLS) - special.gammaln(cs + 1))
+    cdf = []
+    for m in cs:
+        a = np.where(cs <= m, egf, 0.0)
+        for _ in range(3):  # 8 = 2³ symbols
+            a = np.convolve(a, a)[:cmax + 1]
+        cdf.append(a * np.exp(special.gammaln(cs + 1)))
+    emax = (1 - np.array(cdf)).sum(0)  # E[max] = Σ_{m ≥ 0} P(max > m)
+    return float((weight[1:] * emax[1:] / cs[1:]).sum())
 
 
 def causal_counter(t_max: int) -> np.ndarray:
@@ -547,12 +629,17 @@ class TrainedHead:
     final_loss: float
 
 
-@lru_cache(maxsize=None)
-def train_head(cfg: HeadConfig) -> TrainedHead:
-    """Adam (Topic 5's constants) on fresh batches at L = 32; one stream per (source, scheme, seed)."""
+def _head_start(cfg: HeadConfig) -> tuple[np.random.Generator, Params]:
+    """The head's stream, one per (source, scheme, seed), and its initial parameters."""
     k = 1100 + (100 if cfg.source == "filings" else 0) + 10 * cfg.seed + SCHEMES.index(cfg.scheme)
     rng = np.random.default_rng([SEED, k])
-    P = init_head(rng, cfg.scheme)
+    return rng, init_head(rng, cfg.scheme)
+
+
+@lru_cache(maxsize=None)
+def train_head(cfg: HeadConfig) -> TrainedHead:
+    """Adam (Topic 5's constants) on fresh batches at L = 32."""
+    rng, P = _head_start(cfg)
     m = {key: np.zeros_like(v) for key, v in P.items()}
     s = {key: np.zeros_like(v) for key, v in P.items()}
     losses = []
@@ -584,6 +671,58 @@ def tournament() -> dict:
     for rescue in RESCUES:
         out["rescues"][rescue] = {n: [head_accuracy(train_head(HeadConfig("rope", s)).P, *cue_test_set(n)[:2], "rope",
                                                     rescue) for s in TOUR_SEEDS] for n in TEST_LENGTHS}
+    return out
+
+
+def sinusoidal_defects() -> dict[str, list[float]]:
+    """Thm 2's reading: δ(W_Q W_Kᵀ) of the sinusoidal heads at initialization and after training."""
+    start = [_head_start(HeadConfig("sinusoidal", s))[1] for s in TOUR_SEEDS]
+    done = [train_head(HeadConfig("sinusoidal", s)).P for s in TOUR_SEEDS]
+    return {k: [relativity_defect(P["Wq"] @ P["Wk"].T) for P in Ps] for k, Ps in (("init", start), ("trained", done))}
+
+
+def added_code_terms(P: Params, X: np.ndarray) -> dict[str, np.ndarray]:
+    """The query's four score terms under the added sinusoidal code (§2), each of shape (batch, n): content × content,
+    content × position, position × content (the query's position against the key's content), position × position."""
+    n, tau = X.shape[1], math.sqrt(D_TOUR)
+    c, p = X @ P["E"], sinusoidal(np.arange(n), TOUR_FREQS)
+    M = P["Wq"] @ P["Wk"].T
+    return {"cc": np.einsum("bi,ij,btj->bt", c[:, -1], M, c) / tau, "cp": c[:, -1] @ M @ p.T / tau,
+            "pc": c @ M.T @ p[-1] / tau, "pp": np.broadcast_to(p[-1] @ M @ p.T / tau, c.shape[:2])}
+
+
+def _term_spread(z: np.ndarray) -> float:
+    """How much a score term separates keys: its root-mean-square deviation across keys, over the batch."""
+    return float(np.sqrt(((z - z.mean(1, keepdims=True)) ** 2).mean()))
+
+
+def projected_head_accuracy(P: Params, X: np.ndarray, y: np.ndarray) -> float:
+    """The sinusoidal head with only its position × position term replaced by Π(M)'s: Thm 2's fix applied to the one
+    term Thm 2 is about, with the content × position terms and the values left alone."""
+    n, tau = X.shape[1], math.sqrt(D_TOUR)
+    terms = added_code_terms(P, X)
+    p = sinusoidal(np.arange(n), TOUR_FREQS)
+    relative = p[-1] @ commutant_projection(P["Wq"] @ P["Wk"].T) @ p.T / tau
+    a = ak._softmax(terms["cc"] + terms["cp"] + terms["pc"] + relative)
+    o = (a[..., None] * ((X @ P["E"] + p) @ P["Wv"])).sum(1)
+    return float(((o @ P["Wo"] + P["bo"]).argmax(1) == y).mean())
+
+
+@lru_cache(maxsize=1)
+def added_code_collapse() -> dict:
+    """§5: per seed, the sinusoidal head at every test length (a) with position × position projected onto the commutant
+    and (b) with the query moved back to position 31, where training always had it, keeping every offset; and the
+    position × content and position × position spreads across keys at L = 32."""
+    Ps = [train_head(HeadConfig("sinusoidal", s)).P for s in TOUR_SEEDS]
+    out: dict = {"projected": {}, "pinned": {}}
+    for n in TEST_LENGTHS:
+        X, y = cue_test_set(n)[:2]
+        shift = np.arange(n) - (n - L_TRAIN)
+        out["projected"][n] = [projected_head_accuracy(P, X, y) for P in Ps]
+        out["pinned"][n] = [float((_head_forward(P, X, "sinusoidal", positions=shift)[6].argmax(1) == y).mean())
+                            for P in Ps]
+    terms = [added_code_terms(P, cue_test_set(L_TRAIN)[0]) for P in Ps]
+    out["spread_pc"], out["spread_pp"] = [[_term_spread(t[k]) for t in terms] for k in ("pc", "pp")]
     return out
 
 
@@ -708,6 +847,8 @@ def filing_benchmark() -> dict:
                          "bands": [float(ok[(gaps[valid] >= a) & (gaps[valid] <= b)].mean()) for a, b in GAP_BANDS]})
         out["variants"][name] = rows
     out["band_counts"] = [int(((gaps[valid] >= a) & (gaps[valid] <= b)).sum()) for a, b in GAP_BANDS]
+    out["label0"] = float((truth[valid] == 0).mean())  # right if a reader always names the first company named
+    out["label0_far"] = float((truth[valid] == 0)[gaps[valid] > L_TRAIN].mean())
     return out
 
 
@@ -763,6 +904,27 @@ def lab_filing() -> int:
             n = int((v & (read_filing(Pa, "alibi", f) != f.label) & (read_filing(Pr, "rope", f, "pi") == f.label)).sum())
             best = max(best, (n, i))
     return best[1]
+
+
+@lru_cache(maxsize=1)
+def lab_filing_readout() -> dict:
+    """§6's one filing: the token 45 after the last company mention, and every reader's answer there and overall, per
+    seed. answers[reader][seed] is the label; right[reader][seed] counts the positions it gets right."""
+    f = filings("held")[lab_filing()]
+    tokens = [w for w, _ in _segments(documents("held")[lab_filing()])]
+    mentions = np.flatnonzero(f.X[:, CUE])
+    t = int(mentions[-1]) + 45
+    readers = [(s, None) for s in FILING_SCHEMES] + [("rope", "pi"), ("rope", "yarn")]
+    answers, right = {}, {}
+    for scheme, rescue in readers:
+        name = scheme if rescue is None else f"rope+{rescue}"
+        reads = [read_filing(train_head(HeadConfig(scheme, s, "filings")).P, scheme, f, rescue) for s in TOUR_SEEDS]
+        answers[name] = [int(a[t]) for a in reads]
+        right[name] = [int((a == f.label).sum()) for a in reads]
+    named = [str(tokens[j]) for j in mentions]
+    return {"t": t, "word": tokens[t], "last_mention": int(mentions[-1]), "mentions": named, "truth": int(f.label[t]),
+            "n": len(tokens), "answers": answers, "right": right,
+            "after_last": int((f.label == f.label[t]).sum())}
 
 
 def _mean_r(vals, nd: int = 3):
@@ -850,6 +1012,13 @@ def summary() -> dict[str, float]:
         out[f"{tag}_within"], out[f"{tag}_beyond"] = a["within"], a["beyond"]
     sinP = train_head(HeadConfig("sinusoidal", 0)).P
     out["sinusoidal_head_defect"] = relativity_defect(sinP["Wq"] @ sinP["Wk"].T)
+    for n in TEST_LENGTHS:
+        out[f"bag_reader_{n}"] = bag_bayes_exact(n)
+    collapse = added_code_collapse()
+    for n in TEST_LENGTHS[1:]:
+        out[f"sinusoidal_projected_{n}"] = float(np.mean(collapse["projected"][n]))
+        out[f"sinusoidal_pinned_{n}"] = float(np.mean(collapse["pinned"][n]))
+    out["filing_label0_all"], out["filing_label0_gap>32"] = fb["label0"], fb["label0_far"]
     return out
 
 
@@ -870,14 +1039,18 @@ def test_causal_counter():
 
 
 def test_nope_reads_a_bag():
-    """Prop 1 (ii) with Topic 9's Prop 3 (ii): a single NoPE head is a multiset reader, so its accuracy is at most the
-    best multiset reader's at every length (within Monte Carlo error)."""
+    """Prop 1 (ii) with Topic 9's Prop 3 (ii): a single NoPE head reads the query token and the multiset before it, so
+    its accuracy is at most the best multiset reader's at every length, and the three heads' mean matches it, both
+    within the test set's sampling error. The exact reader agrees with Monte Carlo, whose 20,000 trials are noisy."""
     rng = np.random.default_rng([SEED, 1001])
     tour = tournament()["schemes"]["nope"]
+    head_se = math.sqrt(0.25 / TEST_N)
     for n in TEST_LENGTHS:
-        bayes, se = bag_bayes_accuracy(n, CUE_RATE, 20_000, rng)
-        head_se = math.sqrt(0.25 / TEST_N)
-        assert max(tour[n]) <= bayes + 4 * math.hypot(se, head_se), (n, tour[n], bayes)
+        bayes = bag_bayes_exact(n)
+        mc, se = bag_bayes_accuracy(n, CUE_RATE, 20_000, rng)
+        assert abs(mc - bayes) <= 4 * se, (n, mc, bayes)
+        assert max(tour[n]) <= bayes + 4 * head_se and abs(np.mean(tour[n]) - bayes) <= head_se, (n, tour[n], bayes)
+    assert abs(bag_bayes_exact(32) - 0.5466) < 1e-4 and abs(bag_bayes_exact(256) - 0.2341) < 1e-4
 
 
 def test_shift_is_rotation():
@@ -902,8 +1075,9 @@ def test_shift_is_rotation():
 
 
 def test_stationary_kernel():
-    """Thm 1 (i): ⟨p(m), p(n)⟩ = κ_d(n − m); the Gram matrix on any window is Toeplitz and PSD; (2/d)κ_d(Δ) is the
-    characteristic function of the d atoms ±ω_j."""
+    """Thm 1 (i): ⟨p(m), p(n)⟩ = κ_d(n − m); every Gram matrix is PSD, and Toeplitz over evenly spaced positions but not
+    over irregular ones; (2/d)κ_d(Δ) is the characteristic function of the d atoms ±ω_j. And the columns, a separate
+    object from the rows, are not orthogonal either: PᵀP is not diagonal."""
     rng = np.random.default_rng([SEED, 1003])
     for d in (16, 64):
         w = frequencies(d)
@@ -911,15 +1085,21 @@ def test_stationary_kernel():
         G = sinusoidal(pos, w) @ sinusoidal(pos, w).T
         assert np.allclose(G, kernel(pos[None, :] - pos[:, None], w), atol=1e-9)
         assert np.linalg.eigvalsh(G).min() > -1e-9
+        even = sinusoidal(3 + 5 * np.arange(12), w)
+        assert all(np.ptp(np.diagonal(even @ even.T, r)) < 1e-9 for r in range(12))
+        uneven = sinusoidal([0, 1, 3, 7], w)
+        assert np.ptp(np.diagonal(uneven @ uneven.T, 1)) > 0.1
         atoms = np.concatenate([w, -w])
         for dlt in rng.integers(-2000, 2000, 10):
             cf = np.mean(np.exp(1j * dlt * atoms))
             assert abs(cf.imag) < 1e-12 and abs(cf.real - kernel(dlt, w) / (d / 2)) < 1e-12
+    assert column_coherence(64, TOUR_FREQS) > 0.999 and 0.7 < column_coherence(4096, TOUR_FREQS) < 0.75
 
 
 def test_logarithmic_ruler():
     """Thm 1 (ii): at d = 8,192 the normalized kernel is the Ci limit to 10⁻³ for |Δ| ≤ 1,024; the largest gap over
-    |Δ| ≤ 64 shrinks along d = 64, 512, 8,192; the limit is 1 − (γ + ln|Δ|)/ln b to 0.01 on 16 ≤ |Δ| ≤ 1,024."""
+    |Δ| ≤ 64 shrinks along d = 64, 512, 8,192; the limit is 1 − (γ + ln|Δ|)/ln b to 0.01 on 16 ≤ |Δ| ≤ 1,024; and the
+    cited identity Ci(x) = γ + ln x − ∫₀ˣ (1 − cos t) dt/t (DLMF 6.2.12–13) holds numerically."""
     grid = np.array([x for x in LAB_KERNEL_GRID if x <= 1024])
     assert np.max(np.abs(kernel(grid, frequencies(8192)) / 4096 - kernel_limit(grid))) < 1e-3
     small = np.arange(1, 65)
@@ -930,12 +1110,17 @@ def test_logarithmic_ruler():
     every = np.arange(1, 5000)  # the explicit error bound of Thm 1 (ii)
     assert np.all(np.abs(kernel_limit(every) - log_ruler(every)) <= (2 / every + every**2 / (4 * BASE**2)) / math.log(BASE))
     assert np.allclose(kernel_limit(-big), kernel_limit(big))
+    for x in (0.01, 0.5, 3.0, 40.0):
+        cin = integrate.quad(lambda t: (1 - np.cos(t)) / t, 0, x, limit=500)[0]
+        assert abs(special.sici(x)[1] - (np.euler_gamma + math.log(x) - cin)) < 1e-10
 
 
 def test_commutant():
     """Thm 2: on a window of d + 1 positions the relative-only M form exactly the commutant (dimension d), at
     well-separated frequencies; every M in it scores offsets only; a Gaussian M has E δ² = 1 − 1/d; with Def 2's
-    geometric frequencies the window matrix is badly conditioned until the window outruns the slow planes."""
+    geometric frequencies the window matrix is badly conditioned until the window outruns the slow planes, past what
+    double precision resolves under about 128 positions, and two of its singular values over 64 positions are below
+    rounding, so its numerical rank is 14."""
     rng = np.random.default_rng([SEED, 1004])
     d = 8
     w = np.sort(rng.uniform(0.3, 2.8, d // 2))
@@ -954,21 +1139,50 @@ def test_commutant():
     dd = 16
     defects = np.array([relativity_defect(rng.normal(size=(dd, dd))) ** 2 for _ in range(4000)])
     assert _within(defects.mean() - (1 - 1 / dd), defects.std(ddof=1) / math.sqrt(len(defects)))
-    conds = [window_condition(n, TOUR_FREQS) for n in (16, 32, 64, 256, 4096)]
-    assert all(a > b for a, b in zip(conds, conds[1:])) and conds[0] > 1e3 * conds[-1], conds
+    exact = {16: 3.692e29, 32: 2.018e23, 64: 7.144e18, 128: 5.735e14, 256: 1.243e11, 1024: 2.484e5, 4096: 17.657}
+    for n, want in exact.items():
+        assert abs(window_condition_exact(n) / want - 1) < 1e-3, (n, window_condition_exact(n))
+    for n in (16, 32, 64):  # double precision saturates
+        assert window_condition(n, TOUR_FREQS) < window_condition_exact(n) / 5
+    for n in (128, 256, 1024, 4096):
+        assert abs(window_condition(n, TOUR_FREQS) / window_condition_exact(n) - 1) < 1e-3
+    assert np.linalg.matrix_rank(sinusoidal(np.arange(64), TOUR_FREQS)) == 14
 
 
 def test_sinusoidal_head_defect():
     """Thm 2's reading: the trained sinusoidal-absolute heads' W_Q W_Kᵀ sit far outside the commutant (δ near a
-    random matrix's √(1 − 1/d)) — their position–position scores are not functions of the offset."""
+    random matrix's √(1 − 1/d)) — their position–position scores are not functions of the offset — and training
+    barely moved them: under 0.01 per seed, by 0.001, 0.001, and 0.006, two of the three toward the commutant."""
+    d = sinusoidal_defects()
+    assert np.allclose(d["init"], [0.970, 0.956, 0.979], atol=5e-4), d
+    assert np.allclose(d["trained"], [0.971, 0.955, 0.973], atol=5e-4), d
+    moved = np.array(d["trained"]) - np.array(d["init"])
+    assert np.all(np.abs(moved) < 0.01) and (moved < 0).sum() == 2, moved
+
+
+def test_added_code_collapse():
+    """§5: Thm 2 does not by itself explain the added code's collapse. The four terms sum to the head's score; with only
+    position × position projected onto the commutant, the head stays within 0.015 of its collapsed accuracy past
+    the window, because at L = 32 the position × content term separates keys as much as position × position (spreads
+    within 6% in every seed). Moving the query back to position 31, where training always had it, lifts length 64
+    past 0.7 and leaves 256 under 0.35, so the query's position is a large part of the collapse but not all of it."""
+    c, tour = added_code_collapse(), tournament()["schemes"]["sinusoidal"]
     for s in TOUR_SEEDS:
         P = train_head(HeadConfig("sinusoidal", s)).P
-        assert relativity_defect(P["Wq"] @ P["Wk"].T) > 0.8
+        X = cue_test_set(L_TRAIN)[0]
+        a = _head_forward(P, X, "sinusoidal")[4]
+        assert np.allclose(a, ak._softmax(sum(added_code_terms(P, X).values())), atol=1e-12)
+    for n in TEST_LENGTHS[1:]:
+        assert abs(np.mean(c["projected"][n]) - np.mean(tour[n])) < 0.015 and max(c["projected"][n]) < 0.3, n
+    ratio = np.array(c["spread_pc"]) / np.array(c["spread_pp"])
+    assert np.all(np.abs(ratio - 1) < 0.06), ratio
+    assert np.mean(c["pinned"][64]) > 0.7 and np.mean(c["pinned"][256]) < 0.35, c["pinned"]
 
 
 def test_t5_buckets():
     """Def 3: T5's causal buckets are the identity below 16 and monotone; past 16 each bucket starts about 8^{1/16}
-    times later than the one before, and the last bucket holds every offset from 113 on (16·8^{15/16} ≈ 113)."""
+    times later than the one before, and the last bucket holds every offset from 113 on, the first integer past
+    16·8^{15/16} ≈ 112.4."""
     b = [t5_bucket(r) for r in range(1000)]
     assert b[:16] == list(range(16)) and all(x <= y for x, y in zip(b, b[1:]))
     assert b[112] == 30 and set(b[113:]) == {31} and math.ceil(16 * 8 ** (15 / 16)) == 113
@@ -976,8 +1190,8 @@ def test_t5_buckets():
 
 def test_alibi_product_kernel():
     """Thm 3: ALiBi's weights are content kernel × e^{−sr} normalized; the bidirectional e^{−s|i−j|} and its product
-    with a content Gram matrix are PSD; the weight beyond offset D obeys e^{W}e^{−sD}/(1 − e^{−s}) at every length
-    to 8,192; and α_r/α_0 ≤ e^{W − sr}."""
+    with a symmetric PSD content kernel are PSD, and with W_Q ≠ W_K the content matrix is not even symmetric; the
+    weight beyond offset D obeys e^{W}e^{−sD}/(1 − e^{−s}) at every length to 8,192; and α_r/α_0 ≤ e^{W − sr}."""
     rng = np.random.default_rng([SEED, 1005])
     for _ in range(30):
         n, s, W = int(rng.integers(8, 8192)), float(rng.uniform(0.05, 1)), float(rng.uniform(0.5, 12))
@@ -993,6 +1207,9 @@ def test_alibi_product_kernel():
     lap = np.exp(-0.3 * np.abs(pos[:, None] - pos[None, :]))
     X = rng.normal(size=(30, 4))
     assert np.linalg.eigvalsh(lap).min() > 0 and np.linalg.eigvalsh(lap * np.exp(X @ X.T / 2)).min() > -1e-9
+    Wq, Wk = rng.normal(size=(2, 4, 4))
+    S = X @ Wq @ Wk.T @ X.T
+    assert not np.allclose(S, S.T, atol=1e-3)
 
 
 def test_rope_relative_isometric():
@@ -1043,11 +1260,19 @@ def test_general_relative_encoding():
 
 
 def test_long_term_decay():
-    """Prop 4: (i) the summation-by-parts bound holds, and the envelope's octave means fall (d = 128); (ii) a matched
-    pair with isotropic planes has E⟨q, R(Δ)q⟩ = σ²κ_d(Δ); (iii) for independent q, k the law of ⟨q, R(Δ)k⟩ does not
-    depend on Δ: mean 0, variance dσ⁴/4."""
+    """Prop 4: h_j = q̄_j k_j gives s(Δ) under Prop 3's Δ = n − m, and q_j k̄_j would give s(−Δ); (i) the
+    summation-by-parts bound holds, and the envelope's octave means fall (d = 128), from 2018 to 312, or 31.5 to 4.9 per
+    plane; (ii) a matched pair with isotropic planes has E⟨q, R(Δ)q⟩ = σ²κ_d(Δ); (iii) for independent Gaussian q, k
+    the law of ⟨q, R(Δ)k⟩ does not depend on Δ: mean 0, variance dσ⁴/4 (test_independent_planes tests the hypothesis)."""
     rng = np.random.default_rng([SEED, 1008])
     w = frequencies(128)
+    for _ in range(20):
+        q, k = rng.normal(size=128), rng.normal(size=128)
+        dl = rng.integers(1, 5000, 8)
+        h, turn = complex_form(q, k), np.exp(1j * np.multiply.outer(dl, w))
+        assert np.allclose((h * turn).sum(1).real, offset_score(q, k, dl, w), atol=1e-9)
+        assert np.allclose((np.conj(h) * turn).sum(1).real, offset_score(q, k, -dl, w), atol=1e-9)
+        assert not np.allclose(offset_score(q, k, dl, w), offset_score(q, k, -dl, w), atol=1e-3)
     for _ in range(200):
         h = rng.normal(size=64) + 1j * rng.normal(size=64)
         e = abel_envelope(h, float(rng.uniform(0, 5000)), w)
@@ -1055,6 +1280,9 @@ def test_long_term_decay():
     env = np.array([abel_envelope(np.ones(64), dl, w)["envelope"] for dl in range(1, 4096)])
     octaves = [env[2**k - 1:2 ** (k + 1) - 1].mean() for k in range(12)]
     assert all(a > b for a, b in zip(octaves, octaves[1:])), np.round(octaves, 3)
+    assert (round(64 * octaves[0]), round(64 * octaves[-1])) == (2018, 312) and abs(octaves[0] - 31.5) < 0.05
+    assert abs(octaves[-1] - 4.9) < 0.05
+    assert abel_envelope(np.ones(64), 1, w)["sum"] == 64 * abel_envelope(np.ones(64), 1, w)["envelope"]
     d, N, sigma = 16, 200_000, 1.3
     q = rng.normal(0, sigma / math.sqrt(2), (N, d))
     k = rng.normal(0, sigma / math.sqrt(2), (N, d))
@@ -1064,6 +1292,25 @@ def test_long_term_decay():
         y = (rotate(k, np.full(N, dl), TOUR_FREQS) * q).sum(1)
         assert _within(y.mean(), y.std(ddof=1) / math.sqrt(N))
         assert abs(y.var() / (d * sigma**4 / 4) - 1) < 0.02
+
+
+def test_independent_planes():
+    """Prop 4 (iii) needs k's planes independent, not only each rotation-invariant. Each plane uniform on the circle,
+    all on one shared angle β (d = 4, q = (1, 0, 1, 0)): every plane is rotation-invariant, and the variance is
+    1 + cos(Δ(θ₀ − θ₁)), so it moves with Δ. With a fresh angle per plane it stays at 1, and the laws at two offsets
+    coincide. The iid Gaussian k of test_long_term_decay cannot tell these apart, since its planes are independent."""
+    rng = np.random.default_rng([SEED, 1011])
+    N, w, q = 400_000, frequencies(4), np.array([1.0, 0.0, 1.0, 0.0])
+    circle = lambda a: np.stack([np.cos(a), np.sin(a)], -1)  # noqa: E731
+    beta = rng.uniform(0, 2 * np.pi, (N, 2))
+    shared, fresh = np.hstack([circle(beta[:, 0])] * 2), np.hstack([circle(beta[:, 0]), circle(beta[:, 1])])
+    laws = {}
+    for dl in (0, 1, 3, 10):
+        y, z = rotate(shared, np.full(N, dl), w) @ q, rotate(fresh, np.full(N, dl), w) @ q
+        assert abs(y.var() - (1 + math.cos(dl * (w[0] - w[1])))) < 0.01, (dl, y.var())
+        assert abs(z.var() - 1) < 0.01, (dl, z.var())
+        laws[dl] = np.quantile(z, [0.1, 0.25, 0.5, 0.75, 0.9])
+    assert all(np.allclose(laws[0], v, atol=0.015) for v in laws.values())
 
 
 def test_wavelength_census():
@@ -1137,7 +1384,8 @@ def test_filing_reader_matches_forward():
 
 def test_tournament():
     """§5: in distribution every scheme but NoPE reads the cue; past the window the sinusoidal-absolute heads
-    collapse, the ALiBi heads hold, the RoPE heads degrade, and every rescue lifts RoPE at 256."""
+    collapse, the ALiBi heads hold, the RoPE heads degrade, and every rescue lifts RoPE at 256. RoPE + NTK-aware ties
+    ALiBi at 256: on the same test sequences their means differ by under two paired standard errors."""
     t = tournament()
     S, R = t["schemes"], t["rescues"]
     for s in ("sinusoidal", "learned", "rope", "alibi"):
@@ -1151,22 +1399,40 @@ def test_tournament():
         assert all(a > b for a, b in zip(rope, rope[1:])), rope
         for r in RESCUES:
             assert R[r][256][seed] > S["rope"][256][seed] + 0.2, (r, seed)
+    X, y = cue_test_set(256)[:2]
+    hits = lambda scheme, kw: np.mean([_head_forward(train_head(HeadConfig(scheme, s)).P, X, scheme, **kw)[6].argmax(1)  # noqa: E731
+                                       == y for s in TOUR_SEEDS], axis=0)
+    gap = hits("alibi", {}) - hits("rope", rescue_kwargs("ntk", 256))
+    assert abs(gap.mean()) < 2 * gap.std(ddof=1) / math.sqrt(TEST_N), gap.mean()
 
 
 def test_rope_rebound():
     """§5 with Prop 3 (iii) and Thm 5 (i): each trained RoPE head's cue score falls monotonically from offset 1 to a
-    trough within 3 of λ₂/2 ≈ 31.4 (half a turn of the fastest plane that never completes one in training), then
-    rises again; its largest amplitude is in plane 3 (λ₃ ≈ 199); the rebound peaks between 170 and 200, near 3λ₂ ≈ 188
-    and λ₃, above the score of every in-window cue 16 or more back."""
+    first trough at 32–34, just past the window, and does not climb from there to its peak: it first dives to its
+    lowest point at 89–90, below 0 and below the first trough, then climbs to a peak at 181–182, above the score of
+    every in-window cue 16 or more back. A causal head reads s(−r), so a plane's trough sits where its trained phase
+    puts it, not at half a wavelength: plane 2 (λ₂ ≈ 62.8) bottoms at 25–28 and again one turn later, within 3 of the
+    dive. The largest amplitude is in plane 3 (λ₃ ≈ 199), and planes 2 and 3 crest within 10 of each other near 180,
+    after three turns of plane 2 and one of plane 3."""
     lam = wavelength_census(L_TRAIN, D_TOUR)["wavelengths"]
+    deepest = []
     for s in TOUR_SEEDS:
         P = train_head(HeadConfig("rope", s)).P
         sc = learned_offset_score(P, "rope", np.arange(LAB_OFFSETS))
         trough = 1 + int(np.argmax(np.diff(sc[1:]) > 0))
-        assert abs(trough - lam[2] / 2) <= 3 and np.all(np.diff(sc[1:trough + 1]) < 0), (s, trough)
-        peak = L_TRAIN + int(np.argmax(sc[L_TRAIN:]))
-        assert 170 <= peak <= 200 and sc[peak] > sc[16], (s, peak)
-        assert int(np.argmax(trig_form(*cue_query_key(P))[0])) == 3
+        assert L_TRAIN <= trough <= L_TRAIN + 2 and np.all(np.diff(sc[1:trough + 1]) < 0), (s, trough)
+        dive = int(np.argmin(sc))
+        assert 89 <= dive <= 90 and sc[dive] < min(0, sc[trough]), (s, dive, sc[dive])
+        peak = int(np.argmax(sc[L_TRAIN:])) + L_TRAIN
+        assert 181 <= peak <= 182 and peak > dive and sc[peak] > sc[16], (s, peak)
+        rho, phi = trig_form(*cue_query_key(P))
+        assert int(np.argmax(rho)) == 3
+        bottom = ((phi[2] - np.pi) / TOUR_FREQS[2]) % lam[2]  # cos(−rθ + φ) = −1
+        assert 25 <= bottom <= 28 and abs(bottom + lam[2] - dive) <= 3, (s, bottom)
+        crest2, crest3 = (phi[2] / TOUR_FREQS[2]) % lam[2] + 2 * lam[2], (phi[3] / TOUR_FREQS[3]) % lam[3]
+        assert abs(crest2 - crest3) <= 10 and 175 <= min(crest2, crest3) <= 185, (s, crest2, crest3)
+        deepest.append(float(sc[dive]))
+    assert np.allclose(deepest, [-55.856, -38.962, -19.390], atol=1e-3), deepest
 
 
 def test_filings():
@@ -1183,6 +1449,23 @@ def test_filings():
         assert a["n_within"] > 1000 and a["n_beyond"] > 1000, a
         assert a["within"] == 1.0 and a["beyond"] < 0.75, a
         assert a["source"] == "filings" or a["beyond"] < 0.15, a
+
+
+def test_lab_filing_readout():
+    """§6's filing: six mentions of the first company, one each of two others, and a last company at token 64, which
+    holds the answer at all 145 positions from there on. On "company", 45 tokens later, all four seed-0 heads name the
+    first company and 5 of the 12 per-seed answers are right; RoPE + PI and RoPE + YaRN are right there and at all 209
+    positions in every seed. Label 0 is right on 76.6% of all queries and 73.9% of those past the window, and the
+    seed-0 NoPE head answers it at every query."""
+    r, fb = lab_filing_readout(), filing_benchmark()
+    assert r["n"] == 209 and r["last_mention"] == 64 and r["word"] == "company" and r["after_last"] == 145
+    assert sum(m.startswith("Marrow") for m in r["mentions"]) == 6 and len(r["mentions"]) == 9
+    four = [r["answers"][k] for k in FILING_SCHEMES]
+    assert all(a[0] == 0 for a in four) and sum(x == r["truth"] for a in four for x in a) == 5
+    for k in ("rope+pi", "rope+yarn"):
+        assert all(a == r["truth"] for a in r["answers"][k]) and r["right"][k] == [209] * 3, k
+    assert abs(fb["label0"] - 0.766) < 5e-4 and abs(fb["label0_far"] - 0.739) < 5e-4
+    assert fb["variants"]["nope"][0]["all"] == fb["label0"]
 
 
 def test_viz_payload():

@@ -358,7 +358,8 @@ export default function PositionalEncodingLab() {
             <Note>
               A score that sees only the offset would be flat here. Theorem 2 says only the d-dimensional commutant of the
               rotations gives one; the trained head's M sits as far from it as a random matrix (a random 16 × 16 matrix has
-              δ ≈ 0.968), so its score moves with absolute position, and the head fails as soon as positions pass the window.
+              δ ≈ 0.968), so this term moves with absolute position. The content–position terms move with it, and the head fails
+              as soon as positions pass the window.
             </Note>
           </>
         )}
@@ -439,8 +440,8 @@ export default function PositionalEncodingLab() {
             </Readouts>
             <Note>
               Training only sees offsets 0 to 31. The RoPE head's score is a trigonometric polynomial in r (Proposition 3): it falls
-              across the window, as the task rewards, and past it the planes that never completed a turn bring it back up, until a
-              cue 181 positions back outscores a recent one. ALiBi's score is a straight line down. The absolute codes'
+              across the window, as the task rewards, dives past it, and then the planes that never completed a turn bring it back
+              up, until a cue 181 positions back outscores a recent one. ALiBi's score is a straight line down. The absolute codes'
               curves are drawn for a query at the end of a 256-token sequence; the learned table has nothing past 31.
             </Note>
           </>
