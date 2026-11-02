@@ -176,7 +176,7 @@ function CrossoverView() {
   const Vs = [...new Set(CURVES.worlds.map((c) => c.V))];
   return (
     <figure style={{ margin: 0 }} data-view="crossover">
-      <Caption>A · Crossover — naive Bayes leads early; logistic regression overtakes it only where its asymptote is better</Caption>
+      <Caption>A · Crossover — naive Bayes leads early; where words come in bursts, logistic regression overtakes it</Caption>
       <Row>
         {Vs.map((v) => (
           <Pill key={v} active={V === v} onClick={() => setV(v)} data={{ 'data-v': String(v) }}>{`V = ${v.toLocaleString('en-US')}`}</Pill>
@@ -203,10 +203,11 @@ function CrossoverView() {
         <Readout id="crossover" label="crossover n" value={w.crossover === null ? 'none' : w.crossover.toLocaleString('en-US')} emphasis />
       </Readouts>
       <Note>
-        When naive Bayes is the true model, its asymptote is the Bayes accuracy and it leads at every n. When half the
-        words come in bursts of four, logistic regression stays well specified while naive Bayes overcounts the bursty
-        words (Proposition 2): naive Bayes still leads early, and logistic regression passes it once the gap between
-        their asymptotes outweighs the gap in how fast they learn.
+        When naive Bayes is the true model, its asymptote is the Bayes accuracy and it leads at every n shown. When half
+        the words come in bursts of four, logistic regression stays well specified. Naive Bayes loses asymptote because
+        the bursts hit some informative words and not others (Proposition 2), and its noise words get four votes each
+        until it has averaged them out. A gap in asymptotes is not required: on the page, bursts on noise words alone
+        produce a crossover with no gap at all.
       </Note>
     </figure>
   );
@@ -553,9 +554,10 @@ function FinanceView() {
         </table>
       </div>
       <Note>
-        Logistic regression weights, positive minus negative tone. "rose" and "fell" get almost nothing on their own,
-        because revenue rising is good news and costs rising bad (Proposition 4); the bigrams carry the sign. Naive Bayes is
-        overconfident on both feature sets, and logistic regression on bigrams, with more features than documents, is too.
+        Logistic regression weights, positive minus negative tone. "rose" and "fell" stay at the noise level on their own,
+        because sales rising is good news and costs rising bad (Proposition 4); the bigrams carry the sign. Naive Bayes is
+        overconfident on both feature sets. Logistic regression's overconfidence on bigrams here is the small λ this
+        split's grid picked, not the bigrams: at equal λ they are the better calibrated (see the page).
       </Note>
     </figure>
   );
