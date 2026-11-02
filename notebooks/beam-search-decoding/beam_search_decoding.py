@@ -5,24 +5,31 @@ Every claim the topic makes has an executable check here, and every number its D
 
 1. Decoding as a shortest path: with edge weights −log p ≥ 0 the mode of a language model is the cheapest
    root-to-</s> path in its prefix tree. Uniform-cost search pops finished strings in order of probability, so the
-   first one it pops is the mode (Thm 1), after at most (2 + E|Y|)/p(y*) pops. An order-n Markov model's prefixes
-   recombine onto its states, so its mode is a shortest path in a finite graph (Dijkstra, Viterbi).
+   first one it pops is the mode (Thm 1). A prefix of the mode stays on the frontier, so every pop has probability at
+   least p(y*); consistency leaves finitely many such prefixes, so the search ends, within (2 + E|Y|)/p(y*) pops when
+   E|Y| is finite. An inconsistent model can keep it from ending. An order-n Markov model's prefixes recombine onto its
+   states, so its mode is a shortest path in a finite graph (Dijkstra, Viterbi).
 2. Greedy and beam search are uniform-cost search with a pruned frontier. Neither has an approximation guarantee:
    greedy's string can be ε times as probable as the mode, beam(k) misses a mode that beam(k + 1) finds, and beam(k + 1)
    can return a strictly worse string than beam(k) (Thm 2).
 3. A certificate: if beam search's best finished string scores at least every prefix it pruned and every prefix
    still open, it is the global mode (Thm 3). Under length normalization the same holds with a length cap.
 4. Length bias: no completion of a prefix beats stopping once </s> is the likeliest next token, and p(y) ≤ q^|y| when
-   every step's probability is at most q (Thm 4). Length normalization breaks the monotonicity Thms 1 and 3 rest on,
-   and without a length cap its optimum need not exist: a cycle of low mean cost wins in the limit. Greedy decoding is
-   the exact maximizer of log p − λ·R_greedy for large λ (Meister et al.'s regularizer at k = 1).
+   every word's step has probability at most q (Thm 4). |y| counts words; lp counts tokens, so a string of |y| words is
+   scored by lp(|y| + 1). Length normalization breaks the monotonicity Thms 1 and 3 rest on, and on Prop 3's chain with
+   α ≥ 1 no optimum exists without a cap (at α < 1 one does). At α = 1 a repeated cycle's score tends to −6 times its
+   mean cost. Greedy decoding is the exact maximizer of log p − λ·R_greedy for large λ (Meister et al.'s regularizer at
+   k = 1).
 5. Search error against model error on the corpus: Topic 3's trigram (exact by Dijkstra) and a small causal decoder
-   (Topic 13's, exact by best-first search with no recombination). As k grows, search error falls and outputs shrink
-   toward the mode, which is shorter than the text the prompts came from.
-6. Non-termination: greedy decoding on an order-n model is eventually periodic, so it reaches </s> within |V|^(n−1)
-   steps or never (Thm 5). A consistent model (p(</s>) > 0 everywhere) can still make beam(k) run forever.
+   (Topic 13's, exact by best-first search with no recombination, on four training seeds). As k grows, search error
+   falls and outputs shrink toward the mode, which is shorter than the text the prompts came from. Compare lengths on
+   one set of prompts: greedy finishes only 135 of the 188.
+6. Non-termination: greedy decoding on an order-n model is eventually periodic, so it reaches </s> within
+   (|V| + 1)^(n−1) steps or never (Thm 5). A consistent model (p(</s>) > 0 everywhere) can still make beam(k) run
+   forever. The trigram's one loop comes from Kneser–Ney backoff, not from repeated text.
 7. Finance case study, the mode is boilerplate: on MD&A prompts the unnormalized mode stops early, and length
-   normalization pulls outputs toward the corpus's most predictable template sentences.
+   normalization pulls outputs toward the corpus's most predictable template sentences. The corpus objective has an
+   optimum at α = 1: no cycle's limit score reaches the beam's worst answer.
 
 Cross-checks: uniform-cost search against brute-force enumeration on random trees, and graph search against tree
 search on the trigram; every decoder score against one full forward pass of the decoded string (float64, ≤ 1e-9).
@@ -158,6 +165,36 @@ class StationaryLM:
         return ()  # one state: every prefix has the same future
 
 
+class FunctionLM:
+    """A model with infinitely many open prefixes, given by the function from a prefix to its next-token distribution."""
+
+    def __init__(self, alphabet: tuple[str, ...], row):
+        self.alphabet, self.row, self.root = tuple(alphabet), row, ()
+        self.eos = self.alphabet.index(EOS)
+
+    def ranked(self, h: Prefix):
+        with np.errstate(divide="ignore"):
+            lp = np.log(np.asarray(self.row(h), dtype=float))
+        order = np.argsort(-lp, kind="stable")
+        return lp, order[np.isfinite(lp[order])]
+
+    def state(self, h):
+        return None
+
+
+def absorbing_model() -> FunctionLM:
+    """Thm 1 needs consistency. The root goes to "w" (0.9) or "x" (0.1), "x" ends, and "w" repeats with probability 1, so
+    the finished strings sum to 0.1. "x </s>" is the mode, and uniform-cost search walks w, ww, www, … and never reaches
+    it: each of those prefixes has probability 0.9."""
+    return FunctionLM((EOS, "w", "x"), lambda h: (0, 0.9, 0.1) if not h else (0, 1, 0) if h[0] == 1 else (1, 0, 0))
+
+
+def heavy_tailed_model() -> FunctionLM:
+    """A consistent model with E|Y| = ∞: one word, with P(|Y| ≥ t) = 2/(t + 2). Thm 1 still ends, since consistency alone
+    leaves finitely many prefixes as probable as the mode (1/3): those with t ≤ 4."""
+    return FunctionLM((EOS, "w"), lambda h: (1 / (len(h) + 3), (len(h) + 2) / (len(h) + 3)))
+
+
 def enumerate_strings(lm: TableLM, h: Prefix | None = None) -> list[tuple[float, Prefix]]:
     """Every finished string below h (default the root) with its log-probability, by depth-first enumeration."""
     h = lm.root if h is None else h
@@ -236,8 +273,9 @@ def uniform_cost(lm, root: Prefix, *, max_len: int = 10**9, recombine: bool = Fa
 
 
 def pop_bound(lm: TableLM) -> float:
-    """Thm 1's work bound (2 + E|Y|)/p(y*): every pop before the mode has cost ≤ −log p(y*), and at most
-    P(|Y| ≥ t)/p(y*) prefixes of length t (and 1/p(y*) finished strings) are that probable."""
+    """Thm 1's work bound (2 + E|Y|)/p(y*): a prefix of the mode is on the frontier until the mode is popped, so every
+    pop has cost ≤ −log p(y*), and at most P(|Y| ≥ t)/p(y*) prefixes of length t (and 1/p(y*) finished strings) are that
+    probable."""
     return (2 + expected_length(lm)) / math.exp(brute_force_mode(lm)[0])
 
 
@@ -247,7 +285,8 @@ def pop_bound(lm: TableLM) -> float:
 
 
 def length_penalty(n: int, alpha: float) -> float:
-    """Wu et al. (2016)'s lp(Y) = ((5 + |Y|)/6)^α, with |Y| the generated tokens including </s>; α = 0 is plain MAP."""
+    """Wu et al. (2016)'s lp(n) = ((5 + n)/6)^α, with n the generated tokens including </s>, so a string of |y| words
+    takes n = |y| + 1; α = 0 is plain MAP."""
     return ((5 + n) / 6) ** alpha
 
 
@@ -255,7 +294,7 @@ def length_penalty(n: int, alpha: float) -> float:
 class Beam:
     tokens: Prefix | None  # the returned string, ending in </s> (None: nothing finished)
     logp: float  # its log-probability
-    score: float  # its normalized score logp / lp(|y|)
+    score: float  # its normalized score logp / lp(n), n its tokens with </s>
     steps: int
     certified: bool  # Thm 3 (α = 0) or its length-capped form (α > 0) holds: the string is the exact optimum
 
@@ -398,13 +437,22 @@ def stop_dominates(lm: TableLM) -> tuple[int, int]:
 
 
 def step_ceiling(lm: TableLM) -> float:
-    """q: the largest probability any non-</s> step has anywhere in the model (Thm 4(b)'s constant)."""
+    """q: the largest probability any word step (not </s>) has anywhere in the model (Thm 4(b)'s constant)."""
     return max(float(np.delete(row, lm.eos).max()) for row in lm.rows.values())
 
 
 def normalized_chain(p_word: float, n: int, alpha: float = 1.0) -> float:
-    """The normalized score of w^n </s> under the stationary model p(w) = p_word, p(</s>) = 1 − p_word."""
+    """The normalized score of w^n </s>, n words and n + 1 tokens, under the stationary model p(w) = p_word,
+    p(</s>) = 1 − p_word."""
     return (n * math.log(p_word) + math.log(1 - p_word)) / length_penalty(n + 1, alpha)
+
+
+def chain_optimum(p_word: float, alpha: float, n_max: int = 10_000) -> tuple[int, float]:
+    """The best n ≤ n_max and its score on that chain. With a = log p_word and b = log(1 − p_word), the score's derivative
+    in n has the sign of a(1 − α)n + 6a − αb, so at α < 1 it turns negative at a finite n (an optimum), while at α ≥ 1
+    with 6a > αb it stays positive and the best n is always the grid's last."""
+    v = [normalized_chain(p_word, n, alpha) for n in range(n_max + 1)]
+    return int(np.argmax(v)), max(v)
 
 
 def greedy_regret(lm: TableLM, toks: Prefix, h: Prefix | None = None) -> float:
@@ -444,7 +492,8 @@ def greedy_threshold(lm: TableLM) -> float:
 
 class TrigramLM:
     """Topic 3's interpolated Kneser–Ney trigram (Topic 4's vectorized form), conditioned at each step on not
-    emitting <unk>: q(w | u) = p(w | u)/(1 − p(<unk> | u)). The Markov state is the last two words."""
+    emitting <unk>: q(w | u) = p(w | u)/(1 − p(<unk> | u)). The Markov state is the last two words. The alphabet's 3,427
+    types include </s> and <unk>, so a prefix has at most 3,426 children."""
 
     def __init__(self):
         self.vec = pce.word_vector("ikn")
@@ -459,13 +508,17 @@ class TrigramLM:
     def state(self, h: Prefix):
         return h[-2:]
 
+    def masked_row(self, context) -> np.ndarray:
+        """q(· | context) for a tuple of context words: <unk> masked, renormalized."""
+        p = self.vec(context).copy()
+        p[self.unk] = 0.0
+        return p / p.sum()
+
     def _row(self, u):
         hit = self._rows.get(u)
         if hit is None:
-            p = self.vec(tuple(BOS if i == self.bos else self.alphabet[i] for i in u)).copy()
-            p[self.unk] = 0.0
             with np.errstate(divide="ignore"):
-                lp = np.log(p / p.sum())
+                lp = np.log(self.masked_row(tuple(BOS if i == self.bos else self.alphabet[i] for i in u)))
             order = np.argsort(-lp, kind="stable")
             hit = self._rows[u] = (lp, order[np.isfinite(lp[order])])
         return hit
@@ -681,7 +734,7 @@ def curve(name: str, alpha: float) -> dict:
     distinct outputs, and per-word NLL (nats) of the outputs."""
     lm, modes = engine(name), exact_modes(name)
     train = training_sentences()
-    rows = []
+    rows = []  # nll is the mean over prompts; nll_pooled pools all their tokens. Compare each only with its own kind.
     for k, runs in beam_runs(name, alpha).items():
         fin = [(p, b) for p, b in zip(prompts(), runs) if b.tokens is not None]
         err = [b.tokens is None or b.logp < m.logp - 1e-9 for b, m in zip(runs, modes)]
@@ -694,7 +747,8 @@ def curve(name: str, alpha: float) -> dict:
             "length": float(np.mean([len(b.tokens) - 1 for _, b in fin])),
             "copied": float(np.mean([_sentence(lm, p, b.tokens) in train for p, b in fin])),
             "distinct": len({b.tokens for _, b in fin}),
-            "nll": float(np.mean([-b.logp / len(b.tokens) for _, b in fin])),
+            "nll": _per_word([(b.logp, b.tokens) for _, b in fin])[0],
+            "nll_pooled": _per_word([(b.logp, b.tokens) for _, b in fin])[1],
         })
     return {"rows": rows}
 
@@ -703,10 +757,46 @@ def mode_stats(name: str) -> dict:
     lm, modes = engine(name), exact_modes(name)
     L = np.array([len(m.tokens) - 1 for m in modes])
     train = training_sentences()
+    nll, pooled = _per_word([(m.logp, m.tokens) for m in modes])
     return {"length": float(L.mean()), "empty": float((L == 0).mean()),
             "copied": float(np.mean([_sentence(lm, p, m.tokens) in train for p, m in zip(prompts(), modes)])),
             "pops_max": max(m.pops for m in modes), "pops_median": float(np.median([m.pops for m in modes])),
-            "nll": float(np.mean([-m.logp / len(m.tokens) for m in modes]))}
+            "nll": nll, "nll_pooled": pooled, "p_median": float(np.median(np.exp([m.logp for m in modes])))}
+
+
+SEEDS = (0, 1, 2, 3)  # seed 0 is DECODER, the engine every other decoder number on the page comes from
+
+
+@lru_cache(maxsize=1)
+def decoder_seeds() -> tuple[dict, ...]:
+    """The decoder's search numbers on four training seeds. Seed 0 is the hardest of the four: width 64 misses more than
+    twice as often, so the page's decoder rates are one draw, and only seed 0's mode is never empty."""
+    rows = []
+    for seed in SEEDS:
+        lm = DecoderLM(DecoderConfig(seed=seed))
+        roots = [lm.root(p) for p in prompts()]
+        modes = [uniform_cost(lm, r, max_len=lm.max_len(r)) for r in roots]
+        g = [beam_search(lm, r, 1, max_len=lm.max_len(r)) for r in roots]
+        w = [beam_search(lm, r, 64, max_len=lm.max_len(r)) for r in roots]
+        L = np.array([len(m.tokens) - 1 for m in modes])
+        rows.append({"seed": seed, "train_loss": lm.train_loss, "mode_length": float(L.mean()),
+                     "mode_empty": int((L == 0).sum()), "pops_max": max(m.pops for m in modes),
+                     "greedy_error": float(np.mean([b.logp < m.logp - 1e-9 for b, m in zip(g, modes)])),
+                     "k64_error": float(np.mean([b.logp < m.logp - 1e-9 for b, m in zip(w, modes)])),
+                     "k64_length": float(np.mean([len(b.tokens) - 1 for b in w]))})
+    return tuple(rows)
+
+
+@lru_cache(maxsize=1)
+def wide_decoder() -> dict[int, dict]:
+    """Seed 0's decoder past the page's widths, where search error finally reaches zero."""
+    lm, modes = decoder(), exact_modes("decoder")
+    out = {}
+    for k in (256, 1024):
+        runs = [beam_search(lm, lm.root(p), k, max_len=lm.max_len(lm.root(p))) for p in prompts()]
+        out[k] = {"search_error": float(np.mean([b.logp < m.logp - 1e-9 for b, m in zip(runs, modes)])),
+                  "certified": float(np.mean([b.certified for b in runs]))}
+    return out
 
 
 @lru_cache(maxsize=1)
@@ -714,6 +804,35 @@ def eos_argmax_prompts() -> tuple[bool, ...]:
     """For each prompt, whether </s> is the trigram's likeliest next token (Thm 4(a): then the mode is empty)."""
     lm = trigram()
     return tuple(int(lm.ranked(lm.root(p))[1][0]) == lm.eos for p in prompts())
+
+
+def _per_word(rows: list) -> tuple[float, float]:
+    """Nats per token, </s> included, of finished strings given as (logp, tokens): the mean over strings of each string's
+    rate, and the rate pooled over all their tokens. The first counts an empty string as one </s>, so the two differ."""
+    return float(np.mean([-s / len(t) for s, t in rows])), sum(-s for s, _ in rows) / sum(len(t) for _, t in rows)
+
+
+def on_greedys_prompts() -> dict:
+    """The trigram on one set of prompts: those greedy finishes. Greedy's mean length skips the prompts it loops on, so
+    it cannot sit beside the means over all 188. For k and the mode: mean length; nats per token by prompt and pooled;
+    and the pooled cost of a word step and of the final </s>, which move in opposite directions as the beam widens.
+    `miss` is greedy's search error among the prompts it finishes."""
+    lm, runs, modes = trigram(), beam_runs("trigram", 0.0), exact_modes("trigram")
+    fin = [i for i, b in enumerate(runs[1]) if b.tokens is not None]
+
+    def eos_cost(i: int, toks: Prefix) -> float:
+        return -float(lm.next_logp([lm.root(prompts()[i]) + toks[:-1]])[0][lm.eos])
+
+    def row(found) -> dict:
+        strings = [(found[i].logp, found[i].tokens) for i in fin]
+        by_prompt, pooled = _per_word(strings)
+        stops = sum(eos_cost(i, found[i].tokens) for i in fin)
+        words = sum(len(t) - 1 for _, t in strings)
+        return {"length": words / len(fin), "nll": by_prompt, "nll_pooled": pooled, "eos_cost": stops / len(fin),
+                "word_cost": (sum(-s for s, _ in strings) - stops) / words}
+
+    return {"n": len(fin), "miss": float(np.mean([runs[1][i].logp < modes[i].logp - 1e-9 for i in fin])),
+            "k": {k: row(runs[k]) for k in KS}, "mode": row(modes)}
 
 
 def nonmonotone_share(name: str) -> float:
@@ -766,6 +885,33 @@ def trigram_orbits() -> tuple[Orbit, ...]:
     return tuple(greedy_orbit(lm, lm.root(p)) for p in prompts())
 
 
+@lru_cache(maxsize=1)
+def loop_anatomy() -> dict:
+    """Why the trigram's greedy run loops. Neither "include and" nor "and and" occurs in training, so the words after
+    them come from Kneser–Ney's backoff, which weighs a word by how many distinct words precede it, and "and" follows
+    more types than any other word, </s> included. The context "and and" has never been seen, so its row is the bigram
+    row of "and", where "and" (backoff only) edges out "markets" (seen). Half the loops never pass through "include"."""
+    lm = trigram()
+    bigrams: Counter = Counter()
+    before: dict[str, set[str]] = {}
+    for s in ng.corpus()["train"]:
+        padded = (BOS,) + tuple(s) + (EOS,)
+        for u, w in zip(padded, padded[1:]):
+            bigrams[u, w] += 1
+            before.setdefault(w, set()).add(u)
+    top = sorted(((len(v), w) for w, v in before.items() if w != UNK), reverse=True)[:2]
+    q = lm.masked_row(("and", "and"))
+    order = np.argsort(-q)
+    orbits = [o for o in trigram_orbits() if o.period]
+    return {"include_and": bigrams["include", "and"], "and_and": bigrams["and", "and"],
+            "preceders": [(w, n) for n, w in top],
+            "after_and_and": [(lm.alphabet[j], float(q[j])) for j in order[:2]],
+            "unseen_row": bool(np.array_equal(q, lm.masked_row(("include", "and")))
+                               and np.array_equal(q, lm.masked_row(("and",)))),
+            "loops": len(orbits), "via_include": sum("include" in lm.words(o.tokens) for o in orbits),
+            "cycles": len({tuple(lm.words(o.tokens[o.preperiod:])) for o in orbits})}
+
+
 def welleck_model(k: int, eps: float = 0.05) -> StationaryLM:
     """k words, each (1 − ε)/k, and </s> with ε < (1 − ε)/k after every prefix: |Y| is geometric, so the model is
     consistent, yet </s> never ranks among any step's top k candidates."""
@@ -789,24 +935,165 @@ def attractor() -> dict:
     return {"tail": " ".join(tail), "share": n / len(runs)}
 
 
+TEMPLATES = ("to disclose a material event", "line with the prior period")
+
+
 @lru_cache(maxsize=1)
-def reference_nll() -> float:
-    """Per-word NLL (nats, </s> included) of the held-out MD&A sentences the prompts open, continuation only, under
-    the trigram: the text the model is asked to continue, for comparison with what decoding returns."""
+def template_shares() -> dict[int, dict[str, float]]:
+    """The share of prompts whose normalized output (α = 1) ends in each template, by width: a wider beam pulls more
+    prompts onto both."""
+    lm, runs = trigram(), beam_runs("trigram", 1.0)
+    tails = {k: [" ".join(lm.words(b.tokens[:-1])[-5:]) for b in runs[k]] for k in (16, 32, 64)}
+    return {k: {t: t_.count(t) / len(t_) for t in TEMPLATES} for k, t_ in tails.items()}
+
+
+def normalized_runs(k: int, cap: int) -> tuple[Beam, ...]:
+    """The trigram's beam(k) at α = 1 under a length cap of `cap` tokens."""
+    lm = trigram()
+    return tuple(beam_search(lm, lm.root(p), k, max_len=cap, alpha=1.0) for p in prompts())
+
+
+@lru_cache(maxsize=1)
+def certificate_by_cap() -> dict[tuple[int, int], dict]:
+    """Prop 2's certified share and the mean length, by width and cap. Each certifies optimality among strings of at most
+    T tokens, so the rows make different promises: a larger T asks more, and lp(T) weakens the bound on what was pruned."""
+    out = {}
+    for k, cap in ((16, 40), (16, 80), (16, 160), (64, 20), (64, 40), (64, 80)):
+        runs = normalized_runs(k, cap)
+        out[k, cap] = {"certified": float(np.mean([b.certified for b in runs])),
+                       "length": float(np.mean([len(b.tokens) - 1 for b in runs])),
+                       "tokens": tuple(b.tokens for b in runs)}
+    return out
+
+
+def min_mean_cycle(tail, head, cost, n: int, *, eps: float = 1e-9):
+    """The cheapest cycle per edge of a digraph on nodes 0 … n − 1, by Bellman–Ford on the reduced costs c − μ. A cycle in
+    the predecessor graph has mean below μ, so μ drops to just below its mean and the pass restarts. A pass that converges
+    leaves potentials d with d[v] ≤ d[u] + c − μ on every edge; summing that around any cycle shows its mean is at least
+    μ. So the result is exact to eps, and the potentials are its proof. Returns (mean, nodes of the cycle, d)."""
+    tail, head, cost = np.asarray(tail), np.asarray(head), np.asarray(cost, dtype=float)
+    order = np.argsort(head, kind="stable")
+    u, v, c = tail[order], head[order], cost[order]
+    first = np.flatnonzero(np.r_[True, v[1:] != v[:-1]])
+    heads = v[first]
+
+    def predecessor_cycle(edge: np.ndarray) -> list[int] | None:
+        pred = np.where(edge >= 0, u[np.maximum(edge, 0)], -1)
+        seen = np.full(n, -1)
+        for start in range(n):
+            x, path = start, []
+            while x >= 0 and seen[x] < 0:
+                seen[x] = start
+                path.append(x)
+                x = pred[x]
+            if x >= 0 and seen[x] == start:
+                return path[path.index(x):][::-1]
+        return None
+
+    mean, cycle, mu = math.inf, None, float(c.max()) + 1.0
+    while True:
+        d, edge, it, found = np.zeros(n), np.full(n, -1), 0, False
+        while True:
+            it += 1
+            cand = d[u] + c - mu
+            best = np.minimum.reduceat(cand, first)
+            better = best < d[heads]
+            if not better.any():
+                break
+            nd = d.copy()
+            nd[heads[better]] = best[better]
+            tight = (cand == nd[v]) & (nd[v] < d[v])
+            edge[v[tight]] = np.flatnonzero(tight)
+            d = nd
+            if it % 16 == 0 and (hit := predecessor_cycle(edge)) is not None:
+                cycle, mean = hit, float(c[edge[hit]].mean())
+                mu, found = mean - eps, True
+                break
+        if not found:
+            return mean, cycle, d
+
+
+CYCLE_TOP = 300  # edges kept per state; cheapest_cycle() checks that the cut cannot matter
+
+
+@lru_cache(maxsize=1)
+def cheapest_cycle() -> dict:
+    """The cheapest </s>-free cycle of the decoded trigram, nats per token, over its whole state graph.
+
+    Scope. The states are every context (u, v) seen in training, without <s>, </s>, or <unk>. An unseen context backs off
+    to the row of v alone, so all of them with the same v are one state (17,149 states, against the bound 3,428²). The
+    edges are each state's CYCLE_TOP likeliest words. A cut edge costs at least `cut`; the potentials span `spread`, so
+    an edge dearer than mean + spread obeys d[v] ≤ d[u] + c − μ whatever its endpoints, and `cut ≥ mean + spread` makes
+    the minimum hold over every edge of the state graph.
+
+    Consequences at α = 1. Along any path, cost ≥ mean·(steps) − spread, so a string of n tokens scores at most
+    −6·mean + (36·mean + 6·spread)/(n + 5), which tends to `limit` = −6·mean. A prompt whose answer scores above `limit`
+    therefore has an optimum, and it is shorter than the bound."""
+    lm = trigram()
+    bad = {BOS, EOS, UNK}
+    seen = sorted(u for u, t in lm.vec.model.totals.items() if len(u) == 2 and t > 0 and not bad & set(u))
+    states = seen + [(w,) for w in lm.alphabet if w not in bad]
+    index = {s: i for i, s in enumerate(states)}
+    tail, head, cost, cut = [], [], [], math.inf
+    for i, s in enumerate(states):
+        q = lm.masked_row(s)
+        q[lm.eos] = 0.0
+        top = np.argpartition(-q, CYCLE_TOP)[:CYCLE_TOP + 1]
+        top = top[np.argsort(-q[top], kind="stable")]
+        cut = min(cut, -math.log(q[top[-1]]))
+        for j in top[:-1]:
+            w = lm.alphabet[j]
+            tail.append(i)
+            head.append(index.get((s[-1], w), index[(w,)]))
+            cost.append(-math.log(q[j]))
+    mean, cycle, d = min_mean_cycle(tail, head, cost, len(states))
+    return {"mean": mean, "words": tuple(states[i][-1] for i in cycle), "limit": -6 * mean, "spread": float(np.ptp(d)),
+            "cut": cut, "states": len(states), "edges": len(tail)}
+
+
+def length_beyond_optimum(score: float) -> int:
+    """At α = 1, the smallest token count n such that no string of n or more tokens scores above `score`."""
+    c = cheapest_cycle()
+    return math.floor((36 * c["mean"] + 6 * c["spread"]) / (score + 6 * c["mean"])) - 4
+
+
+@lru_cache(maxsize=1)
+def _reference_costs() -> dict[tuple[str, ...], tuple[float, int]]:
+    """For each prompt, the (nats, tokens) the trigram spends on the held-out MD&A sentences it opens, continuation only,
+    </s> included. A sentence with a word outside the vocabulary is skipped, which leaves 182 of the 188 prompts."""
     lm = trigram()
     docs = fc.generate_corpus(100, 1)
-    want, tot, n = set(prompts()), 0.0, 0
+    want, costs = set(prompts()), {}
     for d in docs:
         if d.doc_type != "mdna":
             continue
         for s in ng.split_sentences(d.text):
             if s[:3] in want and all(w in lm.index for w in s):
-                h = lm.root(s[:3])
+                h, tot = lm.root(s[:3]), 0.0
                 for w in s[3:] + (EOS,):
                     j = lm.index[w]
                     tot -= lm.next_logp([h])[0][j]
-                    h, n = h + (j,), n + 1
-    return tot / n
+                    h = h + (j,)
+                old = costs.get(s[:3], (0.0, 0))
+                costs[s[:3]] = (old[0] + tot, old[1] + len(s) - 2)
+    return costs
+
+
+def reference_nll() -> float:
+    """Per-word NLL of the held-out text, pooled over its tokens: compare with mode_stats' nll_pooled."""
+    costs = _reference_costs().values()
+    return sum(t for t, _ in costs) / sum(n for _, n in costs)
+
+
+def reference_nll_by_prompt() -> float:
+    """Per-word NLL of the held-out text, the mean over prompts: compare with mode_stats' nll."""
+    return float(np.mean([t / n for t, n in _reference_costs().values()]))
+
+
+def mode_nll_on_reference_prompts() -> float:
+    """The mode's nats per word, by prompt, on the prompts reference_nll_by_prompt averages over."""
+    costs = _reference_costs()
+    return _per_word([(m.logp, m.tokens) for p, m in zip(prompts(), exact_modes("trigram")) if p in costs])[0]
 
 
 # --------------------------------------------------------------------------------------------
@@ -939,7 +1226,9 @@ VIZ_JSON = Path(__file__).resolve().parents[2] / "src" / "components" / "viz" / 
 
 def summary() -> dict:
     out = {"n_prompts": len(prompts()), "reference_length": float(reference_lengths().mean()),
-           "reference_nll": reference_nll(), "decoder_train_loss": decoder().train_loss,
+           "reference_nll": reference_nll(), "reference_nll_by_prompt": reference_nll_by_prompt(),
+           "mode_nll_on_reference_prompts": mode_nll_on_reference_prompts(),
+           "decoder_train_loss": decoder().train_loss,
            "eos_argmax_share": float(np.mean(eos_argmax_prompts())),
            "greedy_loop_share": float(np.mean([o.period > 0 for o in trigram_orbits()])),
            "attractor_share": attractor()["share"]}
@@ -954,6 +1243,29 @@ def summary() -> dict:
                         if r[key] is not None:
                             out[f"{name}_a{a:g}_k{r['k']}_{key}"] = r[key]
     return out
+
+
+def extras() -> dict:
+    """The figures that need extra runs: other decoder seeds, wider decoder beams, other length caps, the cycle search."""
+    common, cycle = on_greedys_prompts(), cheapest_cycle()
+    out = {"greedy_finished": common["n"], "greedy_miss_among_finished": common["miss"]}
+    for key, row in [(f"k{k}", common["k"][k]) for k in (1, 4, 16)] + [("mode", common["mode"])]:
+        out |= {f"on_greedys_prompts_{key}_{m}": v for m, v in row.items()}
+    for r in decoder_seeds():
+        out |= {f"decoder_seed{r['seed']}_{m}": v for m, v in r.items() if m != "seed"}
+    for k, r in wide_decoder().items():
+        out |= {f"decoder_k{k}_{m}": v for m, v in r.items()}
+    for k, shares in template_shares().items():
+        out |= {f"template_k{k}_{t.split()[0]}": v for t, v in shares.items()}
+    for (k, cap), r in certificate_by_cap().items():
+        out |= {f"cap_k{k}_T{cap}_{m}": r[m] for m in ("certified", "length")}
+    worst = min(b.score for b in beam_runs("trigram", 1.0)[64])
+    out |= {f"cycle_{m}": v for m, v in cycle.items() if m != "words"}
+    out |= {"cycle_words": " ".join(cycle["words"]), "worst_k64_score": worst,
+            "optimum_shorter_than": length_beyond_optimum(worst)}
+    an = loop_anatomy()
+    return out | {"loop_include_and": an["include_and"], "loop_and_and": an["and_and"], "loop_preceders": an["preceders"],
+                  "loop_after_and_and": an["after_and_and"], "loops": an["loops"], "loops_via_include": an["via_include"]}
 
 
 # --------------------------------------------------------------------------------------------
@@ -972,6 +1284,17 @@ def test_uniform_cost_is_exact():
         f, (s, y) = uniform_cost(lm, ()), brute_force_mode(lm)
         assert f.tokens == y and abs(f.logp - s) < 1e-12
         assert f.pops <= pop_bound(lm), (f.pops, pop_bound(lm))
+
+
+def test_uniform_cost_needs_consistency():
+    """Thm 1's hypothesis: on an inconsistent model the search never reaches the mode; on a consistent one it ends even
+    when E|Y| is infinite."""
+    lm = absorbing_model()
+    assert uniform_cost(lm, (), cap=5000).tokens is None
+    assert math.isclose(math.exp(lm.ranked(())[0][2] + lm.ranked((2,))[0][0]), 0.1)
+    lm = heavy_tailed_model()
+    f = uniform_cost(lm, ())
+    assert f.tokens == (lm.eos,) and math.isclose(math.exp(f.logp), 1 / 3) and f.pops <= 7
 
 
 def test_trigram_graph_search_equals_tree_search():
@@ -1001,7 +1324,8 @@ def test_beam_k_misses_what_beam_k_plus_one_finds():
 
 
 def test_beam_is_not_monotone_in_k():
-    """Thm 2(c): beam(2) returns 0.004 where beam(1) and beam(3) return 0.06; it also happens on the corpus."""
+    """Thm 2(c): beam(2) returns 0.004 where beam(1) and beam(3) return 0.06 (the fifty words end the string); it also
+    happens on the corpus."""
     lm = nonmonotone_beam()
     P = [math.exp(beam_search(lm, (), k, max_len=5).logp) for k in (1, 2, 3)]
     assert np.allclose(P, [0.06, 0.004, 0.06])
@@ -1053,7 +1377,8 @@ def test_stopping_dominates():
 
 
 def test_step_ceiling_bounds_the_mode_length():
-    """Thm 4(b): p(y) ≤ q^|y| for every string, so |y*| ≤ log p(y′)/log q for any finished y′ (here greedy's)."""
+    """Thm 4(b): p(y) ≤ q^|y| for every string of |y| words, so |y*| ≤ log p(y′)/log q for any finished y′ (here
+    greedy's)."""
     for lm in _random_trees(100, stream=1713):
         q = step_ceiling(lm)
         for s, y in enumerate_strings(lm):
@@ -1063,10 +1388,16 @@ def test_step_ceiling_bounds_the_mode_length():
 
 
 def test_normalization_has_no_optimum():
-    """Length normalization without a cap: under p(w) = 0.9, the normalized score of w^n </s> rises with n toward
-    6·log 0.9, so no string attains the supremum (α = 1, Wu et al.'s lp)."""
+    """Prop 3: under p(w) = 0.9 at α = 1, the normalized score of w^n </s> rises with n toward 6·log 0.9, so no string
+    attains the supremum. The limit is −6 times the cycle's cost, at α = 1 only. α = 0.5 has an optimum, ten words at
+    −2.055, and at α = 1.5 the score rises toward 0, again unattained."""
     v = np.array([normalized_chain(0.9, n) for n in range(2001)])
     assert np.all(np.diff(v) > 0) and abs(v[-1] - 6 * math.log(0.9)) < 0.01 and v[-1] < 6 * math.log(0.9)
+    n, s = chain_optimum(0.9, 0.5)
+    assert n == 10 and round(s, 3) == -2.055
+    for alpha in (1.0, 1.5):
+        n, s = chain_optimum(0.9, alpha)
+        assert n == 10_000 and s < 0 and (alpha == 1.0 or s > -0.02)
 
 
 def test_greedy_is_the_regularized_optimum():
@@ -1079,14 +1410,43 @@ def test_greedy_is_the_regularized_optimum():
 
 
 def test_search_error_against_model_error():
-    """§5: the trigram's search error falls from greedy to 0 by k = 64 while its strings shrink to the mode's length;
-    the decoder, with nothing to recombine, keeps search errors at k = 64. Both modes are shorter than the text."""
+    """§5: the trigram's search error falls from greedy to 0 by k = 32 while its strings shrink to the mode's length;
+    seed 0's decoder, with nothing to recombine, keeps search errors at k = 64. Both modes are shorter than the text."""
     tri, dec = curve("trigram", 0.0)["rows"], curve("decoder", 0.0)["rows"]
-    assert tri[0]["search_error"] > 0.5 and tri[-1]["search_error"] == 0.0
+    assert tri[0]["search_error"] > 0.5 and tri[4]["search_error"] > 0 and tri[5]["k"] == 32
+    assert tri[5]["search_error"] == 0.0 and tri[5]["certified"] == 1.0 and tri[-1]["search_error"] == 0.0
     assert abs(tri[-1]["length"] - mode_stats("trigram")["length"]) < 1e-12 and tri[0]["length"] > tri[-1]["length"]
     assert dec[-1]["search_error"] > 0.1 and dec[0]["length"] > dec[-1]["length"] > mode_stats("decoder")["length"]
     ref = float(reference_lengths().mean())
     assert mode_stats("trigram")["length"] < ref / 2 and mode_stats("decoder")["length"] < ref
+
+
+def test_greedy_is_compared_on_its_own_prompts():
+    """Greedy finishes 135 of the 188 prompts, so on those 135 alone: outputs shrink, 4.504 → 2.933 → 2.526 → 2.415, and
+    greedy misses on 0.726, not 0.803. Cost per token has no one direction: by prompt it rises and pooled it falls,
+    because word steps get cheaper and the final </s> dearer."""
+    c = on_greedys_prompts()
+    rows = [c["k"][1], c["k"][4], c["k"][16], c["mode"]]
+    assert c["n"] == 135 and [round(r["length"], 3) for r in rows] == [4.504, 2.933, 2.526, 2.415]
+    assert round(c["miss"], 3) == 0.726 and round(curve("trigram", 0.0)["rows"][0]["search_error"], 3) == 0.803
+    assert c["k"][64]["length"] == c["mode"]["length"]
+    by_prompt = [r["nll"] for r in rows]
+    assert np.all(np.diff(by_prompt) > 0) and rows[0]["nll_pooled"] > rows[-1]["nll_pooled"]
+    assert [round(rows[i]["word_cost"], 3) for i in (0, -1)] == [1.001, 0.267]
+    assert [round(rows[i]["eos_cost"], 3) for i in (0, -1)] == [0.900, 2.156]
+
+
+def test_decoder_search_error_depends_on_the_seed():
+    """Width 64's 0.207 is seed 0, the hardest of four seeds; the others miss on 0.074, 0.059, and 0.059, and only seed
+    0's mode is never empty. Seed 0's rows agree with the page's engine, and its search error reaches 0 by width 1024."""
+    rows = decoder_seeds()
+    assert [round(r["k64_error"], 3) for r in rows] == [0.207, 0.074, 0.059, 0.059]
+    assert [round(r["mode_length"], 3) for r in rows] == [4.862, 4.532, 4.691, 4.803]
+    assert [r["mode_empty"] for r in rows] == [0, 4, 2, 1]
+    assert rows[0]["k64_error"] == curve("decoder", 0.0)["rows"][-1]["search_error"]
+    assert rows[0]["greedy_error"] == curve("decoder", 0.0)["rows"][0]["search_error"]
+    wide = wide_decoder()
+    assert round(wide[256]["search_error"], 3) == 0.037 and wide[1024]["search_error"] == 0.0
 
 
 def test_decoder_scores_match_forward():
@@ -1112,8 +1472,19 @@ def test_greedy_is_eventually_periodic():
     assert 0.1 < np.mean([o.period > 0 for o in trigram_orbits()]) < 0.5
 
 
+def test_the_greedy_loop_is_backoff():
+    """Thm 5's loop on the trigram is a smoothing artifact: "include and" and "and and" have count 0, "and" follows more
+    types than any other word (</s> is second), the unseen context's row is the bigram row of "and", and "and" leads it
+    by a hair. Of the 53 loops, all one cycle, 27 pass through "include"."""
+    a = loop_anatomy()
+    assert a["include_and"] == 0 and a["and_and"] == 0 and a["preceders"] == [("and", 1224), (EOS, 1019)]
+    assert a["unseen_row"] and [w for w, _ in a["after_and_and"]] == ["and", "markets"]
+    assert [round(p, 4) for _, p in a["after_and_and"]] == [0.0283, 0.0276]
+    assert a["loops"] == 53 and a["via_include"] == 27 and a["cycles"] == 1
+
+
 def test_consistent_model_beam_never_ends():
-    """Welleck et al.'s Thm 3.4 in a stationary model: P(|Y| > t) = (1 − ε)^t → 0, yet beam(k) never finishes while
+    """Welleck et al.'s Thm 3.4 in a stationary model: P(|Y| ≥ t) = (1 − ε)^t → 0, yet beam(k) never finishes while
     beam(k + 1) returns the mode (the empty string). Thm 3's certificate is sufficient, not necessary: for 2 ≤ k ≤ 4
     beam(k + 1) prunes words more probable than ε before stopping, and the certificate stays silent though the answer is
     right."""
@@ -1126,14 +1497,74 @@ def test_consistent_model_beam_never_ends():
 
 
 def test_the_mode_is_boilerplate():
-    """§7: the trigram's mode is the empty continuation on 0.2 of the prompts and less predictable text is never
-    chosen (its per-word NLL is half the held-out text's); normalization lengthens the output, and pulls 0.13 of the
-    prompts onto one 8-K template."""
+    """§7: the trigram's mode is the empty continuation on 0.2 of the prompts, and it costs far less per word than the
+    held-out text, by prompt (1.367 against 2.278; 1.344 on the 182 prompts the text covers) and pooled (0.835 against
+    2.576). Normalization lengthens the output
+    and pulls 0.133 of the prompts onto one 8-K template at width 16, and more onto two templates as the beam widens.
+    Its median mode has probability 0.065 on the trigram and 0.024 on the decoder."""
     ms = mode_stats("trigram")
-    assert ms["empty"] > 0.15 and ms["nll"] < reference_nll() / 1.5
+    assert ms["empty"] > 0.15 and ms["nll"] < reference_nll_by_prompt() / 1.5
+    assert ms["nll_pooled"] < reference_nll() / 1.5 and len(_reference_costs()) == 182
+    assert round(mode_nll_on_reference_prompts(), 3) == 1.344
     rows = curve("trigram", 1.0)["rows"]
     assert rows[-1]["length"] > 2 * ms["length"]
+    assert round(rows[-1]["nll"], 3) == 0.707 and round(rows[-1]["nll_pooled"], 3) == 0.551
     assert attractor()["tail"] == "to disclose a material event" and attractor()["share"] > 0.1
+    shares = template_shares()
+    assert [round(shares[k][TEMPLATES[0]], 3) for k in (16, 32, 64)] == [0.133, 0.138, 0.207]
+    assert [round(shares[k][TEMPLATES[1]], 3) for k in (16, 32, 64)] == [0.096, 0.106, 0.144]
+    assert round(ms["p_median"], 3) == 0.065 and round(mode_stats("decoder")["p_median"], 3) == 0.024
+
+
+def test_min_mean_cycle_against_karp():
+    """min_mean_cycle on random digraphs against Karp's (1978) formula, min_v max_k (D_n(v) − D_k(v))/(n − k), with D_k(v)
+    the cheapest k-edge walk into v from a source that reaches every node."""
+    rng = np.random.default_rng([SEED, 1715])
+    for _ in range(50):
+        n = int(rng.integers(3, 12))
+        keep = rng.random((n, n)) < 0.4
+        keep[np.arange(n), (np.arange(n) + 1) % n] = True  # a Hamiltonian cycle, so node 0 reaches every node
+        u, v = np.nonzero(keep)
+        c = rng.random(len(u)) * 5
+        D = np.full((n + 1, n), np.inf)
+        D[0, 0] = 0.0
+        for k in range(1, n + 1):
+            np.minimum.at(D[k], v, D[k - 1, u] + c)
+        with np.errstate(invalid="ignore"):
+            karp = min(max((D[n, x] - D[k, x]) / (n - k) for k in range(n) if D[k, x] < np.inf)
+                       for x in range(n) if D[n, x] < np.inf)
+        mean, cycle, d = min_mean_cycle(u, v, c, n)
+        assert abs(mean - karp) < 1e-8, (mean, karp)
+        assert np.all(d[v] <= d[u] + c - mean + 2e-9)
+
+
+def test_the_corpus_objective_has_an_optimum():
+    """§7: Prop 3 is one chain, not this corpus. The whole state graph's cheapest </s>-free cycle costs 0.632 nats a token
+    (the 14-word loop checks against the model itself, and the cut edges cannot matter), so repeating it tends to −3.79 at
+    α = 1, below every prompt's width-64 answer (worst −3.65). Each prompt's objective thus has an optimum, of bounded
+    length, and raising the cap past 40 changes no output at width 16 or 64."""
+    lm, c = trigram(), cheapest_cycle()
+    assert round(c["mean"], 3) == 0.632 and len(c["words"]) == 14 and c["cut"] >= c["mean"] + c["spread"]
+    loop = [lm.index[w] for w in c["words"]]
+    h, cost = (lm.bos, lm.bos) + tuple(loop[-2:]), 0.0
+    for j in loop:
+        cost -= lm.next_logp([h])[0][j]
+        h = h + (j,)
+    assert abs(cost / len(loop) - c["mean"]) < 1e-8
+    worst = min(b.score for b in beam_runs("trigram", 1.0)[64])
+    assert round(c["limit"], 2) == -3.79 and round(worst, 2) == -3.65 and worst > c["limit"]
+    assert 160 < length_beyond_optimum(worst) < 1000
+    cap = certificate_by_cap()
+    assert cap[16, 40]["tokens"] == cap[16, 80]["tokens"] == cap[16, 160]["tokens"]
+    assert cap[64, 40]["tokens"] == cap[64, 80]["tokens"]
+
+
+def test_the_certificate_depends_on_the_cap():
+    """§7: Prop 2's share at width 64 falls with the cap, each T a promise over a different string set, and at T = 40 it
+    is the page's 0.261."""
+    cap = certificate_by_cap()
+    assert [round(cap[64, T]["certified"], 3) for T in (20, 40, 80)] == [0.431, 0.261, 0.043]
+    assert cap[64, 40]["tokens"] == tuple(b.tokens for b in beam_runs("trigram", 1.0)[64])
 
 
 def test_viz_payload():
@@ -1168,7 +1599,7 @@ def _run_harness() -> int:
     print(f"\n{len(tests) - failed}/{len(tests)} passed")
     print(f"\nSummary ({len(prompts())} held-out MD&A prompts; Topic 3's IKN trigram, V = {len(trigram().alphabet)}; "
           f"Topic 13's decoder, d = {DECODER.d}, {DECODER.steps} steps, V = {DEC_V}):")
-    for k, v in summary().items():
+    for k, v in (summary() | extras()).items():
         print(f"  {k:36} {v:.6f}" if isinstance(v, float) else f"  {k:36} {v}")
     return 1 if failed else 0
 
