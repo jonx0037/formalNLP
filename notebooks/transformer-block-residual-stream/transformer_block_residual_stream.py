@@ -6,10 +6,11 @@ from ``viz_payload``. The sections follow the page:
 1. The block, assembled: multi-head attention is a sum of Topic 9's smoothers, each writing into a shared stream
    through its own output map; the MLP is a sum of gated value vectors; pre-LN and post-LN differ only in where
    the normalization sits.
-2. Attention alone collapses: a row-stochastic matrix shrinks the diameter of the token cloud by its Dobrushin
-   coefficient τ(A) ≤ 1 − e^{−r} (r the score range), so a stack of wide-kernel attention layers drives every
-   token to one point; the skip connection keeps a copy of each token, and the diameter can shrink by at most
-   1 − τ‖W‖ per layer. A narrow kernel (τ ≈ 1) freezes the cloud into clusters, where the bound is silent.
+2. Attention alone collapses: a row-stochastic matrix multiplies the diameter of the token cloud by at most its
+   Dobrushin coefficient τ(A) ≤ 1 − e^{−r} (r the score range), so a stack of wide-kernel attention layers drives
+   every token to one point; the skip connection keeps a copy of each token, and each layer keeps at least 1 − τ‖W‖
+   of the diameter. A narrow kernel (τ ≈ 1) only slows the collapse: at β = 4 the bound is still 2.333 at layer 12,
+   the cloud holds two clusters there, and they merge by layer 18.
 3. LayerNorm is a sphere in a hyperplane: LN(x) = √d · Px/‖Px‖ with P the centering projection; it is
    scale-invariant, and its Jacobian (√d/‖Px‖)(P − uuᵀ) kills the 1 direction and x itself.
 4. The identity path: the Jacobian of a residual stack is ∏(I + J_k), a sum over 2^L paths that always holds I;
@@ -19,7 +20,7 @@ from ``viz_payload``. The sections follow the page:
    W_E W_U, one-head paths A^h X W_OV^h W_U, and composed paths A^{h'} A^h X W_OV^h W_OV^{h'} W_U.
 6. Induction heads: a 2-layer attention-only model with RoPE (Topic 10) trained on repeated random sequences
    learns a previous-token head and an induction head that reads it through its keys (K-composition); a
-   1-layer model cannot; cutting the K-composition returns the 2-layer model to the 1-layer model's loss. The
+   1-layer model cannot; cutting the K-composition sends the 2-layer model above the 1-layer model's loss. The
    logit lens reads the stream between layers.
 7. Finance case study: completing a company's name. The bigram table and a 2-layer model trained on the filings
    complete names they saw in training and none they did not; the induction model, which never saw a filing,
@@ -230,7 +231,7 @@ def collapse_cloud() -> np.ndarray:
 def collapse_run(beta: float, residual: bool) -> dict:
     Xs, As = smoothing_stack(collapse_cloud(), beta, COLLAPSE_DEPTH, residual)
     taus = [dobrushin(A) for A in As]
-    return {"X": Xs, "tau": taus, "spread": [relative_spread(X) for X in Xs],
+    return {"X": Xs, "A": As, "tau": taus, "spread": [relative_spread(X) for X in Xs],
             "diam": [diameter(X) for X in Xs], "bound": list(np.cumprod([1.0] + taus) * diameter(Xs[0]))}
 
 
@@ -361,13 +362,17 @@ def n_layers(P: Params) -> int:
     return sum(1 for key in P if key.startswith("Wq"))
 
 
-def model_forward(P: Params, tok: np.ndarray, ablate_k: bool = False) -> tuple[list[np.ndarray], np.ndarray, list]:
+def model_forward(P: Params, tok: np.ndarray, ablate_k: bool = False,
+                  key_heads: tuple[int, ...] = ()) -> tuple[list[np.ndarray], np.ndarray, list]:
     """The stream x_0 = E[tok], x_{l+1} = x_l + MHA_l(x_l) (causal, RoPE), and the logits x_L U. With ablate_k, every
-    layer after the first computes its keys from x_0, so no head can read an earlier head's output through its keys.
-    Returns (stream, logits, caches)."""
+    layer after the first computes its keys from x_0, so no head can read an earlier head's output through its keys;
+    key_heads puts back the writes of those layer-0 heads alone, the per-head cut. Returns (stream, logits, caches)."""
     xs, caches = [P["E"][tok]], []
     for l in range(n_layers(P)):
-        out, cache = mha_forward(_layer(P, l), xs[-1], freqs=ROPE, X_key=xs[0] if ablate_k and l > 0 else None)
+        X_key = None
+        if ablate_k and l > 0:
+            X_key = xs[0] + sum((caches[0][5][:, h] @ P["Wo0"][h] for h in key_heads), np.zeros_like(xs[0]))
+        out, cache = mha_forward(_layer(P, l), xs[-1], freqs=ROPE, X_key=X_key)
         xs.append(xs[-1] + out)
         caches.append(cache)
     return xs, xs[-1] @ P["U"], caches
@@ -470,23 +475,56 @@ def repeated_test_set() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
 def head_scores(P: Params) -> dict[str, np.ndarray]:
-    """On the test set: each head's mean attention to the previous position (over i ≥ 1); to the position after the
-    current token's previous occurrence, i − p + 1 (over the masked positions) — the induction target; and to every
-    position j ≤ i whose predecessor is the current token (t_{j−1} = t_i), all of which hold a correct copy."""
-    tok, _, mask, p = repeated_test_set()
+    """On the test set: each head's mean attention to the previous position (over i ≥ 1); to i − p + 1, the position
+    after the current token's occurrence one period back (over the masked positions) — the induction target; to the
+    position after its most recent earlier occurrence, which a chance repeat inside the block can make a different
+    position; and to every position j ≤ i whose predecessor is the current token (t_{j−1} = t_i). A chance repeat can
+    also give such a j a different token from the next one: `wrong` is the attention on those j, and `wrong_share` the
+    fraction of masked positions that have one."""
+    tok, tgt, mask, p = repeated_test_set()
     _, _, caches = model_forward(P, tok)
     i = np.arange(N_CTX)
     before = np.concatenate([np.full((len(tok), 1), -1), tok[:, :-1]], 1)
     copies = (before[:, None, :] == tok[:, :, None]) & np.tri(N_CTX, dtype=bool)[None]
-    prev, ind, cop = [], [], []
+    wrong_j = copies & (tok[:, None, :] != tgt[:, :, None])
+    seen = (tok[:, None, :] == tok[:, :, None]) & np.tri(N_CTX, k=-1, dtype=bool)[None]
+    recent_j = N_CTX - seen[:, :, ::-1].argmax(-1)  # one past the last True; every masked position has one
+    prev, ind, rec, cop, wr = [], [], [], [], []
     for c in caches:
         A = c[4]
         prev.append(A[:, :, i[1:], i[1:] - 1].mean((0, 2)))
         j = np.clip(i[None, :] - p[:, None] + 1, 0, N_CTX - 1)
         a = np.take_along_axis(A, np.broadcast_to(j[:, None, :, None], (*A.shape[:3], 1)), -1)[..., 0]
         ind.append((a * mask[:, None]).sum((0, 2)) / mask.sum())
+        j = np.clip(recent_j, 0, N_CTX - 1)
+        a = np.take_along_axis(A, np.broadcast_to(j[:, None, :, None], (*A.shape[:3], 1)), -1)[..., 0]
+        rec.append((a * mask[:, None]).sum((0, 2)) / mask.sum())
         cop.append(((A * copies[:, None]).sum(-1) * mask[:, None]).sum((0, 2)) / mask.sum())
-    return {"prev": np.array(prev), "induction": np.array(ind), "copies": np.array(cop)}
+        wr.append(((A * wrong_j[:, None]).sum(-1) * mask[:, None]).sum((0, 2)) / mask.sum())
+    return {"prev": np.array(prev), "induction": np.array(ind), "recent": np.array(rec), "copies": np.array(cop),
+            "wrong": np.array(wr), "wrong_share": float((wrong_j.any(-1) & mask).sum() / mask.sum())}
+
+
+def offset_weight(P: Params, h: int, delta: int) -> np.ndarray:
+    """Layer-0 head h's mean attention to j = i − Δ over the test set, at each position i ≥ Δ (entry 0 is i = Δ)."""
+    A = model_forward(P, repeated_test_set()[0])[2][0][4][:, h]
+    i = np.arange(delta, N_CTX)
+    return A[:, i, i - delta].mean(0)
+
+
+def accuracy_by_position(P: Params) -> np.ndarray:
+    """The accuracy at each position over the sequences that score it (nan at the first PERIODS[0], which none do)."""
+    tok, tgt, mask, _ = repeated_test_set()
+    right = (model_forward(P, tok)[1].argmax(-1) == tgt) * mask
+    return right.sum(0) / np.where(mask.sum(0) > 0, mask.sum(0), np.nan)
+
+
+def embedding_cosines(P: Params) -> dict[str, float]:
+    """The embedding table's largest and root-mean-square |cos| over pairs of distinct tokens (random: about 1/√d)."""
+    U = P["E"] / np.linalg.norm(P["E"], axis=1, keepdims=True)
+    C = U @ U.T
+    C = C[~np.eye(len(C), dtype=bool)]
+    return {"max": float(np.abs(C).max()), "rms": float(np.sqrt((C**2).mean()))}
 
 
 def composition_scores(P: Params, kind: str = "k") -> np.ndarray:
@@ -500,16 +538,17 @@ def composition_scores(P: Params, kind: str = "k") -> np.ndarray:
     return S
 
 
-def repeated_metrics(P: Params, ablate_k: bool = False) -> dict[str, float]:
+def repeated_metrics(P: Params, ablate_k: bool = False, key_heads: tuple[int, ...] = ()) -> dict[str, float]:
     tok, tgt, mask, _ = repeated_test_set()
-    _, logits, _ = model_forward(P, tok, ablate_k)
+    _, logits, _ = model_forward(P, tok, ablate_k, key_heads)
     acc = ((logits.argmax(-1) == tgt) * mask).sum() / mask.sum()
     return {"loss": masked_xent(logits, tgt, mask), "acc": float(acc)}
 
 
 def logit_lens(P: Params) -> np.ndarray:
-    """The probability of the correct next token read from the stream after each layer, x_l U (no final LayerNorm in
-    this model, so the lens is the model's own readout), averaged over the test set's masked positions."""
+    """The probability of the correct next token read from the stream x_l U: after the embedding, then after layers 0
+    and 1 (no final LayerNorm in this model, so the lens is the model's own readout), averaged over the test set's
+    masked positions."""
     tok, tgt, mask, _ = repeated_test_set()
     xs, _, _ = model_forward(P, tok)
     out = []
@@ -527,7 +566,7 @@ _WORD = re.compile(r"[A-Za-z]+")
 
 
 def symbol(word: str) -> int:
-    """A word's symbol: CRC-32 of its lowercase form mod V_TOK (Topic 10's hashing)."""
+    """A word's symbol: CRC-32 of its lowercase form mod V_TOK (Topic 10's hash, which it took mod 8)."""
     return zlib.crc32(word.lower().encode()) % V_TOK
 
 
@@ -650,6 +689,7 @@ def _sig(x, n: int = 4):
 def summary() -> dict:
     s2, s1 = train_model(SYNTH2), train_model(SYNTH1)
     full, one, cut = repeated_metrics(s2), repeated_metrics(s1), repeated_metrics(s2, ablate_k=True)
+    keep = [repeated_metrics(s2, True, (h,)) for h in range(N_HEADS)]
     hs = head_scores(s2)
     acc = name_accuracy()
     pre = {L: gradient_profile("pre", L) for L in GRAD_DEPTHS}
@@ -661,8 +701,11 @@ def summary() -> dict:
         "induction_loss_2layer": full["loss"], "induction_acc_2layer": full["acc"],
         "induction_loss_1layer": one["loss"], "induction_acc_1layer": one["acc"],
         "induction_loss_k_cut": cut["loss"], "induction_acc_k_cut": cut["acc"],
+        "induction_keys_head00_loss": keep[0]["loss"], "induction_keys_head00_acc": keep[0]["acc"],
+        "induction_keys_head01_loss": keep[1]["loss"], "induction_keys_head01_acc": keep[1]["acc"],
         "prev_token_score": float(hs["prev"][0].max()), "induction_scores": [float(v) for v in hs["induction"][1]],
-        "copy_scores": [float(v) for v in hs["copies"][1]],
+        "recent_scores": [float(v) for v in hs["recent"][1]], "copy_scores": [float(v) for v in hs["copies"][1]],
+        "wrong_copy_scores": [float(v) for v in hs["wrong"][1]], "wrong_copy_share": hs["wrong_share"],
         "k_composition_max": float(composition_scores(s2, "k").max()),
         "q_composition_max": float(composition_scores(s2, "q").max()),
         "v_composition_max": float(composition_scores(s2, "v").max()),
@@ -788,15 +831,16 @@ def _unit(shape, idx) -> np.ndarray:
 
 
 def test_multi_head_is_a_sum_of_smoothers():
-    """Prop 1: multi-head attention without positions or biases is Σ_h Topic 9's attention(XW_Q^h, XW_K^h, XW_V^h) W_O^h;
-    the MLP is the key–value sum of (ii)."""
+    """Prop 1: without positions or biases, each head is Topic 9's attention(XW_Q^h, XW_K^h, XW_V^h) W_O^h, and multi-head
+    attention is their sum; the MLP is the key–value sum of (ii)."""
     rng = np.random.default_rng([SEED, 1401])
     L = init_mha(rng, 12, 3, 4)
     X = rng.normal(size=(1, 7, 12))
-    out, _ = mha_forward(L, X)
-    ref = sum(ak.attention(X[0] @ L["Wq"][h], X[0] @ L["Wk"][h], X[0] @ L["Wv"][h], causal=True)[0] @ L["Wo"][h]
-              for h in range(3))
-    assert np.abs(out[0] - ref).max() < 1e-12
+    out, cache = mha_forward(L, X)
+    each = [ak.attention(X[0] @ L["Wq"][h], X[0] @ L["Wk"][h], X[0] @ L["Wv"][h], causal=True)[0] @ L["Wo"][h]
+            for h in range(3)]
+    assert all(np.abs(cache[5][0, h] @ L["Wo"][h] - each[h]).max() < 1e-12 for h in range(3))
+    assert np.abs(out[0] - sum(each)).max() < 1e-12
     blk = init_block(rng, 12, 3, 4, 20)
     blk["mlp"]["b1"] = rng.normal(size=20)
     m, _ = mlp_forward(blk["mlp"], X)
@@ -806,9 +850,9 @@ def test_multi_head_is_a_sum_of_smoothers():
 def test_layer_norm_geometry():
     """Prop 3 and Cor 1: LN(x) = √d·Px/‖Px‖ lies on 1^⊥ at radius √d; it ignores scale and shifts along 1, and is
     idempotent; RMSNorm agrees with it on centered inputs; the Jacobian is (√d/‖Px‖)(P − uuᵀ) (central differences),
-    kills 1 and x, and has singular values √d/‖Px‖ (d − 2 times) and 0 (twice)."""
+    kills 1 and x, and has singular values √d/‖Px‖ (d − 2 times) and 0 (twice), so it vanishes at d = 2."""
     rng = np.random.default_rng([SEED, 1402])
-    for d in (3, 8, 64):
+    for d in (2, 3, 8, 64):
         X = rng.normal(size=(50, d)) * 3 + 1
         Y = layer_norm(X)
         assert np.abs(Y - ln_sphere(X)).max() < 1e-12
@@ -829,15 +873,20 @@ def test_layer_norm_geometry():
 
 
 def test_thin_shell():
-    """formalRAG's thin shell: for x ~ N(0, I_d), ‖Px‖ ≈ √d, so LayerNorm barely moves a Gaussian vector at large d
-    (median ‖LN(x) − Px‖/‖Px‖ below 0.025 at d = 512) and moves it far more at d = 8."""
+    """formalRAG's thin shell: for x ~ N(0, I_d), ‖Px‖ ≈ √d, so LayerNorm barely moves such a vector from Px at large d
+    (median ‖LN(x) − Px‖/‖Px‖ below 0.025 at d = 512) and moves it far more at d = 8. Measured from x, the centering
+    counts too (0.044 at d = 512), and the shell's radius needs unit variance: at N(0, 9I) the change is about 2/3."""
     rng = np.random.default_rng([SEED, 1403])
-    med = {}
+    med, raw = {}, {}
     for d in (8, 512):
         X = rng.normal(size=(2000, d))
-        C = center(X)
-        med[d] = float(np.median(np.linalg.norm(layer_norm(X) - C, axis=1) / np.linalg.norm(C, axis=1)))
+        C, Y = center(X), layer_norm(X)
+        med[d] = float(np.median(np.linalg.norm(Y - C, axis=1) / np.linalg.norm(C, axis=1)))
+        raw[d] = float(np.median(np.linalg.norm(Y - X, axis=1) / np.linalg.norm(X, axis=1)))
     assert med[512] < 0.025 < 0.1 < med[8], med
+    assert 0.04 < raw[512] < 0.05 and raw[8] > 0.3, raw
+    wide = np.median(np.linalg.norm(Y - 3 * C, axis=1) / np.linalg.norm(3 * C, axis=1))
+    assert abs(wide - 2 / 3) < 0.01, wide
 
 
 def test_dobrushin_contraction():
@@ -861,9 +910,8 @@ def test_dobrushin_contraction():
 def test_collapse_and_the_skip():
     """Thm 1 (iii) and Prop 2 on the lab's cloud and on random value maps: pure attention's diameter stays under
     ∏τ_l‖W_l‖·diam(X₀), and reaches ~0 within 12 layers whenever β ≤ 2; with the skip it never falls below
-    ∏(1 − τ_l‖W_l‖)·diam(X₀), and in the lab's runs (W = I) it never shrinks at all (to rounding). A narrow kernel (β = 4) keeps the
-    pure stack apart (τ > 0.97, spread > 0.5): clusters, where the bound says nothing. And the skip saves differences,
-    not proportions: at β = 0.25 the diameter more than triples while the relative spread falls below 0.01."""
+    ∏(1 − τ_l‖W_l‖)·diam(X₀), and in the lab's runs (W = I) it never shrinks at all (to rounding). Every pair obeys
+    ‖x'_i − x'_j‖ ≥ ‖x_i − x_j‖ − τ‖W‖ diam(X)."""
     for b in COLLAPSE_BETAS:
         pure, skip = collapse_run(b, False), collapse_run(b, True)
         assert all(d <= bd * (1 + 1e-9) + 1e-12 for d, bd in zip(pure["diam"], pure["bound"]))
@@ -872,10 +920,6 @@ def test_collapse_and_the_skip():
         assert all(dm[l + 1] >= (1 - skip["tau"][l]) * dm[l] * (1 - 1e-12) for l in range(COLLAPSE_DEPTH))
         if b <= 2:
             assert pure["diam"][-1] < 1e-10, b
-    wide = collapse_run(0.25, True)  # the skip keeps the differences, not their share: the consensus grows faster
-    assert wide["diam"][-1] > 3 * wide["diam"][0] and wide["spread"][-1] < 0.01
-    narrow = collapse_run(4.0, False)
-    assert min(narrow["tau"]) > 0.97 and narrow["spread"][-1] > 0.5
     rng = np.random.default_rng([SEED, 1405])
     for _ in range(100):
         X0 = rng.normal(size=(8, 4))
@@ -888,8 +932,59 @@ def test_collapse_and_the_skip():
                 tau = dobrushin(A)
                 if residual:
                     assert diameter(Xs[l + 1]) >= (1 - tau * w) * diameter(Xs[l]) - 1e-12
+                    gap = np.linalg.norm(Xs[l][:, None] - Xs[l][None], axis=-1)
+                    new = np.linalg.norm(Xs[l + 1][:, None] - Xs[l + 1][None], axis=-1)
+                    assert np.all(new >= gap - tau * w * diameter(Xs[l]) - 1e-12)
                 else:
                     assert diameter(Xs[l + 1]) <= tau * w * diameter(Xs[l]) + 1e-12
+
+
+def test_narrow_kernel_is_slow_not_frozen():
+    """§2 at β = 4: the first layer's attention is not near the identity: six of the ten tokens put under half their
+    weight on themselves, and every row's largest weight falls on one of four tokens, all among the five longest. τ
+    stays above 0.97 for twelve layers, so the bound is still 2.333 at layer 12, over a diameter of 1.997. The cloud
+    has gathered into two tight clusters there, of 8 and 2 tokens (spread > 0.6). They are not frozen: the diameter
+    falls to 1.07e-8 by layer 18, under Thm 1 (iii)'s bound at every layer."""
+    Xs, As = smoothing_stack(collapse_cloud(), 4.0, 18, False)
+    taus = [dobrushin(A) for A in As]
+    diam = np.array([diameter(X) for X in Xs])
+    bound = np.cumprod([1.0] + taus) * diam[0]
+    assert np.all(diam <= bound * (1 + 1e-9))
+    assert min(taus[:12]) > 0.97 and taus[15] < 0.2
+    assert abs(bound[12] - 2.333) < 5e-4 and abs(diam[12] - 1.997) < 5e-4 and diam[18] < 1.1e-8
+    assert np.array_equal(np.round(diam[[10, 11, 12, 13, 14, 15, 16]], 2), [2.08, 2.04, 2.0, 1.92, 1.78, 1.36, 0.21])
+    assert (np.diag(As[0]) < 0.5).sum() == 6
+    leaders = set(As[0].argmax(1).tolist())
+    longest = set(np.argsort(-np.linalg.norm(Xs[0], axis=1))[:5].tolist())
+    assert len(leaders) == 4 and leaders <= longest
+    near = np.linalg.norm(Xs[12] - Xs[12][0], axis=1) < 0.01
+    assert near.sum() == 8 and diameter(Xs[12][~near]) < 0.01 and relative_spread(Xs[12]) > 0.6
+
+
+def test_wide_kernel_lands_on_one_token():
+    """§2 at β = 0.25 with the skip: the first A is near uniform, but it does not stay so. τ runs .188 .246 .354 .559 .713
+    .162 .001 0 because the growing common part sharpens the scores, until every row sits on one token, the same for
+    all rows: A ≈ 1e_kᵀ. From then on X + AX translates the cloud by x_k, so the diameter stops at 3.58 times its start
+    and the relative spread halves each layer, to below 0.01: the skip keeps the diameter, not its share."""
+    wide = collapse_run(0.25, True)
+    assert np.array_equal(np.round(wide["tau"][:8], 3), [0.188, 0.246, 0.354, 0.559, 0.713, 0.162, 0.001, 0.0])
+    assert 0.5 * np.abs(wide["A"][0] - 1 / COLLAPSE_N).sum(1).max() < 0.15
+    for A in wide["A"][6:]:
+        assert A.max(1).min() > 0.99 and len(set(A.argmax(1).tolist())) == 1
+    dm, sp = np.array(wide["diam"]), np.array(wide["spread"])
+    assert np.abs(dm[7:] / dm[7] - 1).max() < 1e-3 and abs(dm[-1] / dm[0] - 3.58) < 0.005
+    assert np.abs(sp[9:] / sp[8:-1] - 0.5).max() < 0.02 and sp[-1] < 0.01
+
+
+def test_skip_can_merge_a_pair():
+    """Prop 2 protects the diameter, not every pair: X = (0, .1, 10)ᵀ with a small τ loses its smallest gap entirely,
+    while the diameter stays 10. The gap equals τ diam(X), the most the pairwise bound lets a layer remove."""
+    X = np.array([[0.0], [0.1], [10.0]])
+    A = np.array([[0.9, 0, 0.1], [0.91, 0, 0.09], [0.9, 0, 0.1]])
+    Y = X + A @ X
+    assert abs(dobrushin(A) - 0.01) < 1e-12
+    assert abs(Y[0, 0] - Y[1, 0]) < 1e-12 and abs(diameter(Y) - diameter(X)) < 1e-12
+    assert abs(float(X[1, 0] - X[0, 0]) - dobrushin(A) * diameter(X)) < 1e-12
 
 
 def test_jacobian_paths():
@@ -952,7 +1047,9 @@ def test_gradients():
 def test_gradient_scale_at_init():
     """Xiong et al.'s Theorem 1, measured: the last block's MLP-output gradient shrinks like L^{−1/2} under pre-LN
     (L = 6 → 24 divides it by 1.6–2.4, √4 = 2) and does not under post-LN (within 25%), where at L = 24 it is over 3×
-    the pre-LN one. The pre-LN stream grows (‖x_L‖² ≈ linear in L, about 3× ‖x₀‖ at L = 12); post-LN pins it at √d."""
+    the pre-LN one. The pre-LN stream grows (‖x_L‖² ≈ linear in L, about 3× ‖x₀‖ at L = 12); post-LN pins it at √d.
+    The last block's fall is the readout's: that gradient times ‖x_L‖ is flat in L (251, 258, 257), since the final
+    LayerNorm's Jacobian scales as 1/‖Px_L‖. It is not every branch's: the first block's gradient does not fall."""
     pre = {L: gradient_profile("pre", L) for L in GRAD_DEPTHS}
     post = {L: gradient_profile("post", L) for L in GRAD_DEPTHS}
     ratio = pre[6]["w2"][-1] / pre[24]["w2"][-1]
@@ -960,6 +1057,10 @@ def test_gradient_scale_at_init():
     lasts = [post[L]["w2"][-1] for L in GRAD_DEPTHS]
     assert max(lasts) / min(lasts) < 1.25, lasts
     assert post[24]["w2"][-1] > 3 * pre[24]["w2"][-1]
+    product = [pre[L]["w2"][-1] * pre[L]["norm"][-1] for L in GRAD_DEPTHS]
+    assert max(product) / min(product) < 1.05, product
+    first = [pre[L]["w2"][0] for L in GRAD_DEPTHS]
+    assert max(first) / min(first) < 1.05 and first[-1] >= first[0], first
     n2 = pre[24]["norm"] ** 2
     slope = np.polyfit(np.arange(25), n2, 1)
     resid = n2 - np.polyval(slope, np.arange(25))
@@ -983,7 +1084,9 @@ def test_path_expansion():
 
 def test_orthogonal_heads_do_not_talk():
     """Prop 4: if every layer-0 head writes into a subspace that the layer-1 keys do not read (W_OV^{0h} W_K^{1h'} = 0),
-    the K-composition score is 0 and computing layer 1's keys from x₀ instead of x₁ changes nothing."""
+    the K-composition score is 0 and computing layer 1's keys from x₀ instead of x₁ changes nothing. That alone leaves
+    the queries reading x₁: removing layer 0's output moves the pattern (mean total variation 0.104 per row). If the
+    queries are orthogonal to the writes too, the pattern is the same with or without layer 0's output."""
     rng = np.random.default_rng([SEED, 1409])
     P = init_model(rng, 2)
     half = D_MODEL // 2
@@ -994,6 +1097,13 @@ def test_orthogonal_heads_do_not_talk():
     a = model_forward(P, tok)[2][1][4]
     b = model_forward(P, tok, ablate_k=True)[2][1][4]
     assert np.abs(a - b).max() < 1e-12
+    silent = {**P, "Wo0": np.zeros_like(P["Wo0"])}  # the same model without layer 0's output
+    tv = 0.5 * np.abs(a - model_forward(silent, tok)[2][1][4]).sum(-1).mean()
+    assert 0.09 < tv < 0.12, tv
+    P["Wq1"][:, :half, :] = 0
+    silent = {**P, "Wo0": np.zeros_like(P["Wo0"])}
+    assert composition_scores(P, "q").max() < 1e-15
+    assert np.abs(model_forward(P, tok)[2][1][4] - model_forward(silent, tok)[2][1][4]).max() < 1e-12
 
 
 def test_induction_heads():
@@ -1001,8 +1111,12 @@ def test_induction_heads():
     model stays above 4 nats and below 0.15; computing layer 1's keys from x₀ (no K-composition) sends the 2-layer model
     above the 1-layer model's loss. A layer-0 head puts > 0.8 of its weight on the previous token, with its content-free
     RoPE score (Topic 10's kernel over offsets) peaking at offset 1; both layer-1 heads put > 0.5 on the induction
-    target i − p + 1 and > 0.9 on the positions that follow some earlier copy of the current token. K-composition dominates Q and V for every pair and exceeds every K-score of the same model at its
-    initialization (train_model's first draw)."""
+    target i − p + 1 and > 0.9 on the positions that follow some earlier copy of the current token. Those positions
+    are not all right: at 4.85% of the masked positions a chance repeat in the block gives one a different token, and
+    each head puts about 0.02 there. K-composition dominates Q and V for every pair and exceeds every K-score of the
+    same model at its initialization (train_model's first draw). The K-scores alone do not single out head (0, 0); the
+    per-head cut does: layer 1's keys keep the model solved with head (0, 0)'s write alone, and not with head (0, 1)'s.
+    The embeddings, drawn at random and then trained, stay about as orthogonal as random ones (rms |cos| < 0.25)."""
     s2, s1 = train_model(SYNTH2), train_model(SYNTH1)
     full, one, cut = repeated_metrics(s2), repeated_metrics(s1), repeated_metrics(s2, ablate_k=True)
     assert full["loss"] < 0.25 and full["acc"] > 0.95, full
@@ -1012,10 +1126,32 @@ def test_induction_heads():
     h = int(hs["prev"][0].argmax())
     assert hs["prev"][0, h] > 0.8 and np.all(hs["induction"][1] > 0.5) and np.all(hs["copies"][1] > 0.9), hs
     assert int(np.argmax(bias_offset_score(s2, 0, h, range(N_CTX)))) == 1
+    assert abs(hs["wrong_share"] - 0.0485) < 5e-4 and np.all(hs["wrong"][1] < 0.03), hs
+    assert np.abs(hs["recent"][1] - [0.579, 0.582]).max() < 5e-4, hs
     K, Qs, Vs = (composition_scores(s2, k) for k in "kqv")
     assert np.all(K > Qs) and np.all(K > Vs)
-    init_k = composition_scores(init_model(np.random.default_rng([SEED, 1430 + 2]), 2), "k").max()
+    init = init_model(np.random.default_rng([SEED, 1430 + 2]), 2)
+    init_k = composition_scores(init, "k").max()
     assert K.min() > init_k, (K, init_k)
+    keep0, keep1 = repeated_metrics(s2, True, (0,)), repeated_metrics(s2, True, (1,))
+    assert keep0["loss"] < 0.25 and keep0["acc"] > 0.95, keep0
+    assert keep1["loss"] > 5 and keep1["acc"] < 0.1, keep1
+    assert embedding_cosines(s2)["rms"] < 0.25 and embedding_cosines(init)["rms"] < 0.2
+
+
+def test_previous_token_head_by_position():
+    """§6: head (0, 0)'s mean of 0.887 hides a drop. Its weight on the previous token is about 0.98 through position 37
+    and under 0.5 from position 39, where it splits with the key 39 positions back, the content-free kernel's next
+    peak (7.783, 6.709, 6.687 at Δ = 1, 0, 39). The model's accuracy does not fall at those positions."""
+    P = train_model(SYNTH2)
+    prev, far = offset_weight(P, 0, 1), offset_weight(P, 0, 39)
+    assert np.all(prev[:37] > 0.98) and np.all(prev[38:] < 0.5), prev  # entry k is position k + 1
+    assert np.all(far > 0.4), far
+    bias = bias_offset_score(P, 0, 0, range(N_CTX))
+    assert np.abs(bias[[1, 0, 39]] - [7.783, 6.709, 6.687]).max() < 5e-4
+    assert bias[39] > max(bias[38], bias[40]), bias
+    acc = accuracy_by_position(P)
+    assert acc[39:].min() > 0.96, acc
 
 
 def test_one_layer_keys():
@@ -1038,8 +1174,8 @@ def test_one_layer_keys():
 
 
 def test_logit_lens():
-    """§6: read through U, the stream after layer 0 and after layer 1 gives the correct token about chance (< 2/V);
-    after layer 2, over 0.9."""
+    """§6: read through U, the stream after the embedding and after layer 0 gives the correct token about chance
+    (< 2/V); after layer 1, over 0.9."""
     lens = logit_lens(train_model(SYNTH2))
     assert lens[0] < 2 / V_TOK and lens[1] < 2 / V_TOK and lens[2] > 0.9, lens
 

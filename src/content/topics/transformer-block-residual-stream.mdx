@@ -18,13 +18,13 @@ tags:
   - "interpretability"
 domain: "attention-transformers"
 financeCaseStudy: true
-rigorFlag: "Every theorem on this page is proved in full, and several hold only under the conditions they state. The contraction theorem gives a geometric rate of collapse; the faster, doubly exponential rate of Dong, Cordonnier, and Loukas is cited, not reproved, and at narrow kernels, where the Dobrushin coefficient sits near 1, the theorem says nothing. The skip connection provably keeps the differences between tokens, not their share of the stream: with a wide kernel the common part can still swamp them. Xiong and colleagues' gradient bounds at initialization are mean-field results under a concentration assumption; we measure the scaling they predict on one toy configuration and do not prove it, and the shape of the per-layer profile depends on the initialization. The path expansion is exact given the attention patterns and is linear in the values, not in the patterns; with LayerNorm it is exact only with each token's scale frozen, which is why the trained models here have none. The residual stream as a channel, the MLP as a key–value memory, and the logit lens are readings, not theorems. Proposition 5 limits what one layer's keys can see, not what loss a one-layer model can reach. The induction heads are shown on toy attention-only models; their role in large language models is Olsson and colleagues' empirical claim. The finance case uses synthetic filings with hashed words and demonstrates a mechanism, not a name tagger."
+rigorFlag: "Every theorem on this page is proved in full, and several hold only under the conditions they state. The contraction theorem gives a geometric rate of collapse; the faster, doubly exponential rate of Dong, Cordonnier, and Loukas is cited, not reproved, and at narrow kernels, where the Dobrushin coefficient sits near 1, the theorem's bound falls slowly and does not force a collapse within twelve layers. The skip connection provably keeps the diameter of the token cloud, not every difference between tokens and not the cloud's share of the stream: a pair of tokens can merge, and with a wide kernel the common part can still swamp the rest. Xiong and colleagues' gradient bounds at initialization are mean-field results under a concentration assumption; we measure the scaling they predict on one toy configuration and do not prove it, and the shape of the per-layer profile depends on the initialization. The path expansion is exact given the attention patterns and is linear in the values, not in the patterns; with LayerNorm it is exact only with each token's scale frozen, which is why the trained models here have none. The residual stream as a channel, the MLP as a key–value memory, and the logit lens are readings, not theorems. Proposition 5 limits what one layer's keys can see, not what loss a one-layer model can reach. The induction heads are shown on toy attention-only models; their role in large language models is Olsson and colleagues' empirical claim. The finance case uses synthetic filings with hashed words and demonstrates a mechanism, not a name tagger."
 videoId: null
 notebookPath: "notebooks/transformer-block-residual-stream/01_transformer_block_residual_stream.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/transformer-block-residual-stream.mdx"
 datePublished: 2026-10-24
 estimatedReadTime: 45
-abstract: "The attention topic read attention as a kernel smoother, and smoothing averages: stack averaging operators and every token drifts toward the mean. We prove it. A row-stochastic matrix shrinks the diameter of the token cloud by its Dobrushin coefficient, which a softmax with bounded scores keeps below 1, so a stack of wide-kernel attention layers drives every token to one point, while a narrow kernel freezes the cloud into clusters. The residual connection adds each token back, and then the diameter can shrink by at most one minus that coefficient per layer. LayerNorm is a projection onto a hyperplane followed by a radial projection onto a sphere, and its Jacobian forgets the radial direction. With the skip, the block becomes a shared stream: the Jacobian of a stack is a sum over all subsets of layers that always contains the identity, and the logits of an attention-only model are exactly a sum over chains of heads. We train such a model from scratch with rotary positions and watch two heads compose through the stream: a previous-token head, and an induction head whose keys read it. One layer cannot do this, because its keys cannot see the previous token. Then the finance case: on filings about companies never seen in training, a model trained on the filings completes none of their names, and the induction model, which never saw a filing, completes 0.768 of them."
+abstract: "The attention topic read attention as a kernel smoother, and smoothing averages: stack averaging operators and every token drifts toward the mean. We prove it. A row-stochastic matrix multiplies the diameter of the token cloud by at most its Dobrushin coefficient, which a softmax with bounded scores keeps below 1, so a stack of wide-kernel attention layers drives every token to one point, while a narrow kernel slows the collapse, and the cloud passes through clusters on its way there. The residual connection adds each token back, and then, for value maps of norm at most 1, each layer keeps at least one minus that coefficient of the diameter. LayerNorm is a projection onto a hyperplane followed by a radial projection onto a sphere, and its Jacobian forgets the radial direction. With the skip, the block becomes a shared stream: the Jacobian of a stack is a sum over all subsets of layers that always contains the identity, and the logits of an attention-only model are exactly a sum over chains of heads. We train such a model from scratch with rotary positions and watch two heads compose through the stream: a previous-token head, and an induction head whose keys read it. One layer cannot do this, because its keys cannot see the previous token. Then the finance case: on filings about companies never seen in training, a model trained on the filings completes none of their names, and the induction model, which never saw a filing, completes 0.768 of them."
 connections: []
 references:
   - type: "paper"
@@ -110,7 +110,7 @@ references:
     authors: "Borjan Geshkovski, Cyril Letrouit, Yury Polyanskiy, and Philippe Rigollet"
     year: 2023
     url: "https://arxiv.org/abs/2312.10794"
-    note: "Tokens as interacting particles, which form clusters in long time: the regime where Theorem 1 is silent"
+    note: "Tokens as interacting particles on a sphere in continuous time: clusters that form fast and merge slowly, observed numerically, beside Theorem 1's narrow-kernel run"
   - type: "book"
     title: "Non-negative Matrices and Markov Chains"
     authors: "E. Seneta"
@@ -126,7 +126,7 @@ references:
 formalmlPrereqs:
   - topic: "random-walks"
     site: "formalml"
-    relationship: "Its convergence theorem says a mixing chain forgets where it started; Theorem 1 here is the contraction step behind that, in the Dobrushin form, and attention plus the skip is a scaled lazy walk."
+    relationship: "Its convergence theorem says, by a spectral argument, that one fixed mixing chain forgets where it started; Theorem 1 here is a Dobrushin contraction, which also survives a product of different matrices, and attention plus the skip is a scaled lazy walk."
   - topic: "svd"
     site: "formalml"
     relationship: "A head's OV circuit W_V W_O has rank at most the head width, and the composition scores are ratios of Frobenius norms, both read through the singular value decomposition."
@@ -152,10 +152,10 @@ formalstatisticsPrereqs:
 formalragConnections:
   - topic: "high-dimensional-geometry"
     site: "formalrag"
-    relationship: "A Gaussian vector's norm concentrates in a thin shell at radius √d, so LayerNorm barely moves one at large d and acts only when the stream's norm drifts, as it does with depth in a pre-LN stack."
+    relationship: "A standard Gaussian vector's norm concentrates in a thin shell at radius √d, so LayerNorm barely moves one at large d and acts when the stream's norm drifts, as it does with depth in a pre-LN stack."
   - topic: "johnson-lindenstrauss"
     site: "formalrag"
-    relationship: "Many nearly orthogonal directions fit in few dimensions, which is why a 32-dimensional stream can carry 256 random token embeddings that an induction head still copies correctly."
+    relationship: "Many nearly orthogonal directions fit in few dimensions, the idea behind a 32-dimensional stream carrying 256 trained token embeddings that an induction head still copies, though at 256 points the theorem's own bound needs more than 133 dimensions."
 ---
 
 import TheoremBlock from '../../components/ui/TheoremBlock.astro';
@@ -169,7 +169,7 @@ The [attention topic](/topics/attention-as-kernel-smoothing) read attention as a
 
 That added term is the **residual connection**, and this topic is about what it builds. With it, a transformer block stops being a map that replaces its input and becomes a write into a shared vector, the **residual stream**, which every later layer can read. We develop the consequences in order:
 
-1. **Attention alone collapses.** A row-stochastic matrix shrinks the cloud of tokens by a computable factor, so wide-kernel attention stacks lose every distinction between tokens. With the skip, the cloud can shrink by at most one minus that factor per layer.
+1. **Attention alone collapses.** A row-stochastic matrix shrinks the cloud of tokens by at least a computable factor, so wide-kernel attention stacks lose every distinction between tokens. With the skip, and value maps of norm at most $1$, each layer keeps at least one minus that factor of the cloud's diameter.
 2. **LayerNorm is a sphere in a hyperplane.** It projects onto the hyperplane orthogonal to the all-ones vector, then radially onto a sphere, and its Jacobian forgets the radial direction.
 3. **The identity path.** The Jacobian of a residual stack multiplies out into a sum over every subset of layers, and the empty subset is the identity. Every layer receives the top gradient unchanged, and where LayerNorm sits decides what happens to the rest.
 4. **The stream as a channel.** An attention-only model's logits are exactly a sum over chains of heads, and two heads talk only through the subspaces where one writes and the other reads.
@@ -223,7 +223,7 @@ Read (ii) beside attention. Attention takes a weighted sum of values whose keys 
 
 ## Attention alone collapses
 
-Every row of an attention matrix is a probability vector, so the matrix is **row-stochastic**, a Markov transition matrix on positions. formalML's [random-walks topic](https://www.formalml.com/topics/random-walks) proves that a mixing chain forgets where it started (its Theorem 3). The step behind that theorem is a contraction, and it is the tool we need. Write $\operatorname{diam}(X) = \max_{i,j} \lVert x_i - x_j \rVert$ for the diameter of the cloud of rows of $X$, in any norm on $\mathbb{R}^d$, and $\lVert W \rVert$ for the operator norm of $x \mapsto xW$ in the same norm.
+Every row of an attention matrix is a probability vector, so the matrix is **row-stochastic**, a Markov transition matrix on positions. formalML's [random-walks topic](https://www.formalml.com/topics/random-walks) proves that a mixing chain forgets where it started (its Theorem 3), by a spectral argument about one fixed chain. A stack applies a different matrix at every layer, so we need a bound that survives a product of different matrices, and Dobrushin's contraction is that tool. Write $\operatorname{diam}(X) = \max_{i,j} \lVert x_i - x_j \rVert$ for the diameter of the cloud of rows of $X$, in any norm on $\mathbb{R}^d$, and $\lVert W \rVert$ for the operator norm of $x \mapsto xW$ in the same norm.
 
 <TheoremBlock type="definition" number={2} title="The Dobrushin coefficient; the smoothing stack">
 
@@ -269,11 +269,11 @@ For (iii), $\lVert x_i W - x_j W \rVert \le \lVert W \rVert\, \lVert x_i - x_j \
 
 Part (ii) is the attention topic's temperature talking. Scores at inverse temperature $\beta$ have range proportional to $\beta$, so a **wide kernel** (small $\beta$, high temperature) keeps $\tau$ well below $1$ and the collapse in (iii) is geometric. Dong, Cordonnier, and Loukas (2021) prove more: pure self-attention with value maps loses rank doubly exponentially in depth. We prove the geometric rate and cite theirs.
 
-The laboratory's cloud makes this concrete. Ten tokens in the plane pass through twelve layers of $A_l = \operatorname{softmax}(\beta X_l X_l^\top)$ with $W = I$, so queries, keys, and values are the tokens themselves. The first layer's $\tau$ is $0.188$, $0.369$, $0.667$, $0.940$, and $0.999$ at $\beta = 0.25$, $0.5$, $1$, $2$, and $4$. For $\beta \le 2$, the pure stack's diameter falls below $10^{-10}$ by layer twelve, under the bound of (iii) at every layer. At $\beta = 4$, every token attends mostly to itself, $\tau$ stays above $0.97$, and the theorem allows anything. What happens is that the cloud freezes into clusters, with a relative spread of $0.614$ at layer twelve. Geshkovski and colleagues (2023) show that clusters are the long-time behavior of attention viewed as interacting particles; Theorem 1 is silent there, and we leave it so.
+The laboratory's cloud makes this concrete. Ten tokens in the plane pass through twelve layers of $A_l = \operatorname{softmax}(\beta X_l X_l^\top)$ with $W = I$, so queries, keys, and values are the tokens themselves. The first layer's $\tau$ is $0.188$, $0.369$, $0.667$, $0.940$, and $0.999$ at $\beta = 0.25$, $0.5$, $1$, $2$, and $4$. For $\beta \le 2$, the pure stack's diameter falls below $10^{-10}$ by layer twelve, under the bound of (iii) at every layer. At $\beta = 4$, $\tau$ stays above $0.97$ through layer twelve, so the bound falls slowly: it allows $2.333$ at layer twelve, and the diameter is $1.997$. Attention here is not close to the identity. The scores are dot products, so long tokens win: six of the ten tokens put less than half their weight on themselves, and every row's largest weight in the first layer falls on one of four long tokens, which act as leaders. By layer twelve the cloud has gathered into two tight clusters, of eight tokens and two, with a relative spread of $0.614$. It looks frozen, and it is not. Run on, and the clusters merge: the diameter is $0.208$ at layer sixteen and $1.07 \cdot 10^{-8}$ at layer eighteen, still under the bound. Theorem 1 holds throughout; over twelve layers its rate is too slow to force the collapse. Geshkovski and colleagues (2023) observe two such timescales numerically in a related dynamics, a continuous-time flow of tokens on a sphere: clusters form fast and merge slowly, toward the single point they prove is the long-time limit.
 
-<TheoremBlock type="proposition" number={2} title="The skip keeps the differences">
+<TheoremBlock type="proposition" number={2} title="The skip keeps the diameter">
 
-For $X' = X + AXW$, $\operatorname{diam}(X') \ge (1 - \tau(A)\lVert W\rVert)\operatorname{diam}(X)$. Over a stack, if every $\tau(A_l)\lVert W_l \rVert \le 1$, then
+For $X' = X + AXW$, $\operatorname{diam}(X') \ge (1 - \tau(A)\lVert W\rVert)\operatorname{diam}(X)$, and every pair satisfies $\lVert x'_i - x'_j \rVert \ge \lVert x_i - x_j \rVert - \tau(A)\lVert W\rVert \operatorname{diam}(X)$. Over a stack, if every $\tau(A_l)\lVert W_l \rVert \le 1$, then
 
 $$
 \operatorname{diam}(X_L) \ge \prod_{l \lt L} \bigl(1 - \tau(A_l)\lVert W_l\rVert\bigr) \operatorname{diam}(X_0) \ge \Bigl(1 - \sum_{l \lt L} \tau(A_l)\lVert W_l \rVert\Bigr)\operatorname{diam}(X_0).
@@ -283,13 +283,13 @@ $$
 
 <TheoremBlock type="proof">
 
-Pick $i, j$ with $\lVert x_i - x_j \rVert = \operatorname{diam}(X)$. Then $x'_i - x'_j = (x_i - x_j) + \bigl((AXW)_i - (AXW)_j\bigr)$, and by Theorem 1 (i) applied to $XW$, with $\operatorname{diam}(XW) \le \lVert W \rVert \operatorname{diam}(X)$, the second term has norm at most $\tau(A)\lVert W \rVert \operatorname{diam}(X)$. The reverse triangle inequality gives the first claim. Iterating gives the product, and $\prod_l (1 - a_l) \ge 1 - \sum_l a_l$ for $a_l \in [0, 1]$ by induction.
+For any pair, $x'_i - x'_j = (x_i - x_j) + \bigl((AXW)_i - (AXW)_j\bigr)$, and by Theorem 1 (i) applied to $XW$, with $\operatorname{diam}(XW) \le \lVert W \rVert \operatorname{diam}(X)$, the second term has norm at most $\tau(A)\lVert W \rVert \operatorname{diam}(X)$. The reverse triangle inequality gives the pairwise claim, and a pair with $\lVert x_i - x_j \rVert = \operatorname{diam}(X)$ gives the first claim. Iterating gives the product, and $\prod_l (1 - a_l) \ge 1 - \sum_l a_l$ for $a_l \in [0, 1]$ by induction.
 
 </TheoremBlock>
 
-Pure attention multiplies the differences between tokens by at most $\tau\lVert W\rVert$ per layer. The skip adds them back unchanged, so a stack of small updates, with $\sum_l \tau(A_l)\lVert W_l \rVert \lt 1$, cannot erase them. In all five of the laboratory's runs with the skip, the diameter never shrinks.
+Pure attention multiplies the diameter by at most $\tau\lVert W\rVert$ per layer. The skip adds each token back, so every old difference survives inside the new one, beside a correction of norm at most $\tau\lVert W\rVert \operatorname{diam}(X)$, and a stack of small updates, with $\sum_l \tau(A_l)\lVert W_l \rVert \lt 1$, cannot erase the diameter. A smaller gap can go. Take $X = (0, 0.1, 10)^\top$, $W = I$, and $A$ with rows $(0.9, 0, 0.1)$, $(0.91, 0, 0.09)$, and $(0.9, 0, 0.1)$, so $\tau(A) = 0.01$. Then $X + AX = (1, 1, 11)^\top$: the first two tokens merge, and the diameter stays $10$. The proposition protects the widest gap, and any gap wider than the correction, not every pair. In all five of the laboratory's runs with the skip, the diameter never shrinks.
 
-What the skip keeps is the differences, though, not their share of the stream. With a very wide kernel, $A \approx \mathbf{1}\mathbf{1}^\top/n$, and $X + AX$ adds the mean token to every token: the differences stay where they were while the common part doubles each layer. At $\beta = 0.25$ the cloud's diameter grows $3.58$ times over twelve layers, and its relative spread $\lVert X - \mathbf{1}\bar{x}^\top \rVert_F / \lVert X \rVert_F$ falls to $0.0016$. Proposition 2 is a statement about the first quantity, not the second.
+What the skip keeps is the diameter, though, not its share of the stream. If every row of $A$ is the same, $AX$ is one common vector, and $X + AX$ adds that vector to every token: the differences stay where they were while the common part grows. A wide kernel heads there, and not by staying wide. At $\beta = 0.25$ the first $A$ is close to uniform, but the stream grows, the scores grow with it, and $\tau$ runs $0.188$, $0.246$, $0.354$, $0.559$, $0.713$, $0.162$, $0.001$, $0$ over the first eight layers. It falls at the end because the rows agree, not because they are flat: within seven layers every row sits on one token, the same for all of them. From there the cloud only translates. Its diameter stops at $3.58$ times its start, and its relative spread $\lVert X - \mathbf{1}\bar{x}^\top \rVert_F / \lVert X \rVert_F$ halves each layer, to $0.0016$ at layer twelve. Proposition 2 is a statement about the first quantity, not the second.
 
 ---
 
@@ -299,15 +299,15 @@ Every sublayer of a pre-LN block reads the stream through LayerNorm, so its geom
 
 <TheoremBlock type="definition" number={3} title="LayerNorm and RMSNorm">
 
-For $x \in \mathbb{R}^d$ with mean $\mu$ and variance $\sigma^2 = \frac1d \sum_k (x_k - \mu)^2$, **LayerNorm** is $\operatorname{LN}(x) = (x - \mu\mathbf{1})/\sigma$, with its learned gain $1$ and bias $0$, as at initialization. **RMSNorm** is $\operatorname{RMS}(x) = \sqrt d\, x/\lVert x \rVert$.
+For $x \in \mathbb{R}^d$, $d \ge 2$, not a multiple of $\mathbf{1}$, with mean $\mu$ and variance $\sigma^2 = \frac1d \sum_k (x_k - \mu)^2 \gt 0$, **LayerNorm** is $\operatorname{LN}(x) = (x - \mu\mathbf{1})/\sigma$, with its learned gain $1$ and bias $0$, as at initialization. For $x \ne 0$, **RMSNorm** is $\operatorname{RMS}(x) = \sqrt d\, x/\lVert x \rVert$.
 
 </TheoremBlock>
 
-LayerNorm is Ba, Kiros, and Hinton's (2016), who add a small constant to $\sigma^2$ that we take to be $0$; RMSNorm is Zhang and Sennrich's (2019). Picture $d = 3$: the plane $x + y + z = 0$ through the origin, and on it the circle of radius $\sqrt 3$. LayerNorm drops each point onto the plane, then pushes it out along its ray to the circle.
+LayerNorm is Ba, Kiros, and Hinton's (2016), who add a small constant to $\sigma^2$ that we take to be $0$; RMSNorm is Zhang and Sennrich's (2019). Picture $d = 3$: the plane $x + y + z = 0$ through the origin, and on it the circle of radius $\sqrt 3$. LayerNorm drops each point onto the plane, then moves it along its ray to the circle, outward or inward.
 
 <TheoremBlock type="proposition" number={3} title="LayerNorm is a sphere in a hyperplane">
 
-Let $P = I - \mathbf{1}\mathbf{1}^\top/d$. Then $\operatorname{LN}(x) = \sqrt d\, Px / \lVert Px \rVert$: the orthogonal projection onto the hyperplane $\mathbf{1}^\perp$, followed by the radial projection onto the sphere of radius $\sqrt d$ inside it. Consequently $\operatorname{LN}(cx + s\mathbf{1}) = \operatorname{LN}(x)$ for $c \gt 0$ and any $s$, $\operatorname{LN} \circ \operatorname{LN} = \operatorname{LN}$, and $\operatorname{LN}(x) = \operatorname{RMS}(Px)$.
+Let $d \ge 2$, $P = I - \mathbf{1}\mathbf{1}^\top/d$, and $Px \ne 0$. Then $\operatorname{LN}(x) = \sqrt d\, Px / \lVert Px \rVert$: the orthogonal projection onto the hyperplane $\mathbf{1}^\perp$, followed by the radial projection onto the sphere of radius $\sqrt d$ inside it. Consequently $\operatorname{LN}(cx + s\mathbf{1}) = \operatorname{LN}(x)$ for $c \gt 0$ and any $s$, $\operatorname{LN} \circ \operatorname{LN} = \operatorname{LN}$, and $\operatorname{LN}(x) = \operatorname{RMS}(Px)$.
 
 </TheoremBlock>
 
@@ -321,7 +321,7 @@ Brody, Alon, and Yahav (2023) give this reading and argue that each of its two p
 
 <TheoremBlock type="corollary" number={1} title="LayerNorm's Jacobian">
 
-Let $u = Px / \lVert Px \rVert$. Then
+Let $d \ge 2$, $Px \ne 0$, and $u = Px / \lVert Px \rVert$. Then
 
 $$
 \frac{\partial \operatorname{LN}}{\partial x} = \frac{\sqrt d}{\lVert Px \rVert}\bigl(P - uu^\top\bigr),
@@ -337,7 +337,7 @@ With $c = Px$, the differential of $\sqrt d\, c/\lVert c \rVert$ is $(\sqrt d / 
 
 </TheoremBlock>
 
-LayerNorm does not care how long its input is, and its gradient says so: it loses the radial component and is scaled by $1/\lVert Px \rVert$. That scale is where depth enters. For a Gaussian vector, $\lVert Px \rVert$ concentrates near $\sqrt d$, the thin shell of formalRAG's [high-dimensional-geometry topic](https://www.formalrag.com/topics/high-dimensional-geometry) (its Theorem 1), so at large $d$ LayerNorm barely moves a Gaussian vector: the notebook's median relative change is below $0.025$ at $d = 512$ and above $0.1$ at $d = 8$. LayerNorm starts to act when the stream's norm drifts away from $\sqrt d$, and in a pre-LN stack it does.
+LayerNorm does not care how long its input is, and its gradient says so: it loses the radial component and is scaled by $1/\lVert Px \rVert$. That scale is where depth enters. For a standard Gaussian vector, $x \sim \mathcal{N}(0, I_d)$, $\lVert Px \rVert$ concentrates near $\sqrt d$, the thin shell of formalRAG's [high-dimensional-geometry topic](https://www.formalrag.com/topics/high-dimensional-geometry) (its Theorem 1), so at large $d$ LayerNorm's radial step barely moves such a vector: the notebook's median $\lVert \operatorname{LN}(x) - Px \rVert / \lVert Px \rVert$ is below $0.025$ at $d = 512$ and above $0.1$ at $d = 8$. Measured from $x$ itself, so that the centering counts too, the median at $d = 512$ is $0.044$. The radius belongs to unit variance: at $\mathcal{N}(0, 9I_d)$ the same radial change is about $2/3$. LayerNorm acts when the stream's norm drifts away from $\sqrt d$, and in a pre-LN stack it does.
 
 ---
 
@@ -353,7 +353,7 @@ $$
 
 a sum of $2^{L-l}$ terms in which the empty subset contributes $I$. So the gradient of a loss at $x_l$ is the gradient at $x_L$, unchanged, plus a term for every nonempty set of sublayers.
 
-**(ii)** In a pre-LN stack, $f_k = F_k \circ \operatorname{LN}$, so $J_k = J_{F_k}\, J_{\operatorname{LN}}(x_k)$ with $\lVert J_{\operatorname{LN}}(x_k) \rVert = \sqrt d / \lVert P x_k \rVert$. As the stream grows, every branch term shrinks, and the identity term does not.
+**(ii)** In a pre-LN stack with $d \ge 3$, $f_k = F_k \circ \operatorname{LN}$, so $J_k = J_{F_k}\, J_{\operatorname{LN}}(x_k)$ with $\lVert J_{\operatorname{LN}}(x_k) \rVert = \sqrt d / \lVert P x_k \rVert$. As the stream grows, that LayerNorm factor of $J_k$ shrinks, and the identity term has no such factor. This bounds one factor of each branch, not a whole gradient.
 
 **(iii)** In a post-LN stack, $x_{k+1} = \operatorname{LN}(x_k + F_k(x_k))$ and $\partial x_{k+1}/\partial x_k = J_{\operatorname{LN}}(x_k + F_k(x_k))\,(I + J_{F_k})$. Every path, the skip-only path included, passes through $L - l$ LayerNorm Jacobians.
 
@@ -367,7 +367,7 @@ For (i), the multivariate chain rule of formalCalculus' [Jacobian topic](https:/
 
 Veit, Wilber, and Belongie (2016) read (i) as an ensemble of paths of different lengths. It is also the attention topic's one-hop property (its Proposition 5) one level up: there, the gradient from a later position reached an earlier one in a single hop through an attention weight; here, the gradient from the top of the stack reaches every layer through a single identity.
 
-Parts (ii) and (iii) are where LayerNorm's placement matters. Xiong and colleagues (2020, their Theorem 1) show by mean-field arguments that at initialization the gradient of the last block's MLP weights is $O(d\sqrt{\ln d})$ in a post-LN stack and $O(d\sqrt{\ln d / L})$ in a pre-LN one, and they trace post-LN's need for learning-rate warmup to the first bound. We do not prove their theorem. We measure the scaling it predicts, on random stacks with $d = 64$, four heads, and a ReLU MLP of width $256$, as root-mean-squares over eight draws:
+Parts (ii) and (iii) are where LayerNorm's placement matters. Xiong and colleagues (2020, their Theorem 1) show by mean-field arguments that at initialization the gradient of the last block's MLP weights is $O(d\sqrt{\ln d})$ in a post-LN stack and $O(d\sqrt{\ln d / L})$ in a pre-LN one, and they trace post-LN's need for learning-rate warmup to the first bound. We do not prove their theorem. We measure the scaling it predicts, on random stacks with $d = 64$, four heads, and a ReLU MLP of width $256$, read out by a random linear map through one final LayerNorm, as root-mean-squares over eight draws:
 
 | depth $L$ | pre-LN, last $\lVert\partial\mathcal{L}/\partial W_2\rVert_F$ | post-LN | pre-LN $\lVert x_L \rVert$ |
 |---|---|---|---|
@@ -375,7 +375,7 @@ Parts (ii) and (iii) are where LayerNorm's placement matters. Xiong and colleagu
 | $12$ | $7.673$ | $23.416$ | $33.641$ |
 | $24$ | $5.218$ | $22.718$ | $49.281$ |
 
-From $L = 6$ to $24$ the pre-LN gradient falls by a factor of $1.95$, against $\sqrt 4 = 2$; the post-LN gradient does not move, and at $L = 24$ it is $4.35$ times the pre-LN one. The last column is the mechanism of part (ii): in a pre-LN stack each block adds to the stream, its squared norm grows linearly in depth, and LayerNorm's Jacobian, and with it the gradient into every branch, shrinks like $1/\sqrt L$. A post-LN stack pins the stream at $\lVert x \rVert = \sqrt d = 8$. The shape of the gradient across layers depends on the initialization, and ours differs from the figure Xiong and colleagues report; we claim the scaling, not the shape.
+From $L = 6$ to $24$ the pre-LN gradient falls by a factor of $1.95$, against $\sqrt 4 = 2$; the post-LN gradient does not move, and at $L = 24$ it is $4.35$ times the pre-LN one. The last column is the mechanism, and it is the readout's. In a pre-LN stack each block adds to the stream, its squared norm grows linearly in depth, and the gradient reaches the last block through the final LayerNorm, whose Jacobian scales as $1/\lVert Px_L \rVert$, so like $1/\sqrt L$: the first and last columns multiply to $251$, $258$, and $257$. It is a statement about the last block, not every branch. The first block's gradient is $23.403$, $24.208$, and $23.904$ at the same depths, and does not shrink. A post-LN stack pins the stream at $\lVert x \rVert = \sqrt d = 8$. The shape of the gradient across layers depends on the initialization, and ours differs from the figure Xiong and colleagues report; we claim the scaling, not the shape.
 
 ---
 
@@ -389,7 +389,7 @@ The **attention-only model** has an embedding $E \in \mathbb{R}^{V \times d}$ an
 
 </TheoremBlock>
 
-This is the setting of Elhage and colleagues' (2021) framework, which names the residual stream and the two circuits. The OV circuit's rank bound is the singular-value picture of formalML's [SVD topic](https://www.formalml.com/topics/svd) (its Theorem 1), and it is the attention topic's one-head rank bound (its Proposition 7) seen from the write side. The composition score measures how much of what one head writes the other reads.
+This is the setting of Elhage and colleagues' (2021) framework, which names the residual stream and the two circuits. The OV circuit's rank bound is the singular-value picture of formalML's [SVD topic](https://www.formalml.com/topics/svd) (its Theorem 1), and it is the same kind of bound as the attention topic's one-head rank bound (its Proposition 7), which limits $\operatorname{rank} \log A$, seen from the write side. The composition score measures how much of what one head writes the other reads.
 
 <TheoremBlock type="theorem" number={3} title="The path expansion">
 
@@ -413,17 +413,17 @@ The direct path is a function of the current token alone: a bigram model, built 
 
 <TheoremBlock type="proposition" number={4} title="Orthogonal subspaces do not talk">
 
-If $W_{OV}^{0h} W_K^{1h'} = 0$ for every layer-0 head $h$, then the keys of head $(1, h')$ computed from $x_1$ equal those computed from $x_0$, so its attention pattern is the same with or without layer 0's output, and its K-composition scores are $0$.
+If $W_{OV}^{0h} W_K^{1h'} = 0$ for every layer-0 head $h$, then the keys of head $(1, h')$ computed from $x_1$ equal those computed from $x_0$, and its K-composition scores are $0$. If also $W_{OV}^{0h} W_Q^{1h'} = 0$ for every $h$, the same holds for its queries, and its attention pattern is the same with or without layer 0's output.
 
 </TheoremBlock>
 
 <TheoremBlock type="proof">
 
-$x_1 W_K^{1h'} = x_0 W_K^{1h'} + \sum_h A^{0h} x_0\, W_{OV}^{0h} W_K^{1h'} = x_0 W_K^{1h'}$, and the key bias and the rotation are applied after this product.
+$x_1 W_K^{1h'} = x_0 W_K^{1h'} + \sum_h A^{0h} x_0\, W_{OV}^{0h} W_K^{1h'} = x_0 W_K^{1h'}$, and the key bias and the rotation are applied after this product. The same computation with $W_Q^{1h'}$ gives the queries, and the pattern depends on the stream only through queries and keys.
 
 </TheoremBlock>
 
-The stream is one $d$-dimensional space shared by every head, and heads communicate only through the subspaces where one writes and another reads. The notebook builds a model whose layer-0 heads write into the first $16$ of $32$ coordinates while the layer-1 keys read only the last $16$, and the two patterns agree to $10^{-12}$.
+The stream is one $d$-dimensional space shared by every head, and heads communicate only through the subspaces where one writes and another reads. The notebook builds a model whose layer-0 heads write into the first $16$ of $32$ coordinates while the layer-1 keys read only the last $16$, and computing those keys from $x_0$ leaves the pattern unchanged to $10^{-12}$. The keys are only half of a score, though. The queries still read $x_1$, and removing layer 0's output moves each row of the pattern by a mean total variation of $0.104$. Restrict the queries to the last $16$ coordinates as well, and the pattern with and without layer 0's output agrees to $10^{-12}$.
 
 ---
 
@@ -439,7 +439,7 @@ Here is a task that needs two heads to talk. Draw a random block of tokens from 
 
 Guessing uniformly costs $\ln 256 = 5.545$ nats. The two-layer model solves the task; the one-layer model does not come close. The last row cuts one connection: layer 1's keys are computed from the embeddings instead of the stream, so they cannot read anything layer 0 wrote, and the solved model falls apart, below even the one-layer model.
 
-The two-layer model's heads say how it works. Head $(0, 0)$ puts $0.887$ of its weight on the previous token. Its content-free score, the part that comes from its query and key biases alone, is $b_q^\top R(-\Delta)\, b_k / \sqrt{d_h}$ for a key $\Delta$ positions back: the positional-encodings topic's kernel over offsets, and it peaks at $\Delta = 1$, with $7.783$ against $6.709$ at $\Delta = 0$. So head $(0,0)$ is a positional head: it writes a copy of each token's predecessor into the stream at that token. Both layer-1 heads put $0.593$ and $0.594$ of their weight on the position after the current token's most recent previous occurrence, the induction target, and $0.943$ and $0.940$ on the positions after any earlier occurrence, every one of which holds a correct copy of the next token. Their keys read what head $(0, 0)$ wrote. Every K-composition score is between $0.245$ and $0.272$, against $0.046$ to $0.075$ for Q-composition and $0.036$ to $0.076$ for V-composition, and above the largest K-score the same model had at its initialization, $0.188$.
+The two-layer model's heads say how it works. Head $(0, 0)$ puts $0.887$ of its weight on the previous token, on average. Its content-free score, the part that comes from its query and key biases alone, is $b_q^\top R(-\Delta)\, b_k / \sqrt{d_h}$ for a key $\Delta$ positions back: the positional-encodings topic's kernel over offsets, and it peaks at $\Delta = 1$, with $7.783$ against $6.709$ at $\Delta = 0$. So head $(0,0)$ is a positional head: through position $37$ its weight on the previous token is about $0.98$, and it writes a copy of each token's predecessor into the stream at that token. The mean hides a drop. From position $39$ the mean weight is under $0.5$, shared about evenly with the key $39$ positions back, where the kernel has its next peak, $6.687$. The model's accuracy does not fall there: it stays between $0.968$ and $0.983$ from position $39$ on. Both layer-1 heads put $0.593$ and $0.594$ of their weight on the position $i - p + 1$, just after the current token's occurrence one period back, the induction target, and $0.943$ and $0.940$ on the positions after any earlier occurrence. Nearly all of those hold a correct copy of the next token. A block can repeat a token by chance, and then, at $4.85\%$ of the scored positions, one of them holds another token; the heads put about $0.02$ of their weight on such positions. Every K-composition score is between $0.245$ and $0.272$, against $0.046$ to $0.075$ for Q-composition and $0.036$ to $0.076$ for V-composition, and above the largest K-score the same model had at its initialization, $0.188$. Those scores do not separate the two layer-0 heads, so we cut them one at a time. Give layer 1's keys $x_0$ plus head $(0, 0)$'s write alone, and the model stays solved, at $0.228$ nats and accuracy $0.969$. Give them head $(0, 1)$'s write alone, and it fails, at $5.391$ nats and $0.084$. Their keys read what head $(0, 0)$ wrote.
 
 <TheoremBlock type="proposition" number={5} title="What one layer's keys see">
 
@@ -455,7 +455,7 @@ In one layer, the query at $i$ is the rotation by $i$ of $E[t_i]W_Q + b_q$ and t
 
 Induction must attend to the position whose *predecessor* is the current token, and a one-layer score cannot see predecessors, so it cannot pick that position out by its content. Two layers can, through K-composition. Proposition 5 is about information, not a bound on loss: a one-layer model can still raise the probability of every token it has seen, and how close it gets to that in training is a measurement. The notebook changes the token before position $j$ and recomputes the last layer's score at $(i, j)$: in the one-layer model it moves by less than $10^{-12}$, and in the two-layer model by $4.45$ nats on average.
 
-Theorem 3 shows where the answer lives. At the scored positions, the paths that end in a layer-1 head carry more than $90\%$ of the correct token's centered logit (the median over positions), and the direct path and layer-0 paths alone rank the correct token first less than $5\%$ of the time. The **logit lens** (nostalgebraist 2020) reads the stream through the unembedding between layers, $x_l U$. This model has no final LayerNorm, so the lens is its own readout, and the probability of the correct token after the embedding, after layer $1$, and after layer $2$ is $0.004$, $0.004$, and $0.958$, with chance $1/256 = 0.004$. The answer exists only after the second layer reads the first. On models with a final LayerNorm the lens reads $U$ applied to $\operatorname{LN}(x_l)$, a heuristic that Belrose and colleagues (2023) refine by training a probe for each layer.
+Theorem 3 shows where the answer lives. At the scored positions, the paths that end in a layer-1 head carry more than $90\%$ of the correct token's centered logit (the median over positions), and the direct path and layer-0 paths alone rank the correct token first less than $5\%$ of the time. The **logit lens** (nostalgebraist 2020) reads the stream through the unembedding between layers, $x_l U$. This model has no final LayerNorm, so the lens is its own readout, and the probability of the correct token after the embedding, after layer $0$, and after layer $1$ is $0.004$, $0.004$, and $0.958$, with chance $1/256 = 0.004$. The answer exists only after the second layer reads the first. On models with a final LayerNorm the lens reads $U$ applied to $\operatorname{LN}(x_l)$, a heuristic that Belrose and colleagues (2023) refine by training a probe for each layer.
 
 ---
 
@@ -473,7 +473,7 @@ The laboratory has two figures. Figure A is the geometry: the ten tokens of the 
 
 A filing names a company in full, "Tamsin Retail Group", and names it again a paragraph later. Completing the second mention from the first is induction on real document structure, and it asks whether a model's knowledge of a name lives in its weights or in the text in front of it.
 
-The shared synthetic corpus lets us separate the two. Its roster of public companies splits $75/25$ by sector, and we build three sets of filings: $300$ about the training companies to train on, $100$ new ones about the same companies, and $100$ about the held-out companies, whose names never occur in training. Words are hashed to $256$ symbols, as in the positional-encodings topic. A query is a word of a multi-word company name, other than its last, whose name the same filing already gave in full within the $48$ words before it; the answer is the name's next word. There are $269$ queries on the seen companies and $336$ on the unseen ones. We ask five readers: the bigram table counted on the training filings; a two-layer model of the previous section's shape trained on the training filings, and that model's direct path alone; and the one- and two-layer induction models of the previous section, trained only on repeated random sequences.
+The shared synthetic corpus lets us separate the two. Its roster of public companies splits $75/25$ by sector, and we build three sets of filings: $300$ about the training companies to train on, $100$ new ones about the same companies, and $100$ about the held-out companies, whose names never occur in training. Words are hashed to $256$ symbols, by the hash the positional-encodings topic reduced to $8$. A query is a word of a multi-word company name, other than its last, whose name the same filing already gave in full within the $48$ words before it; the answer is the name's next word. There are $269$ queries on the seen companies and $336$ on the unseen ones. We ask five readers: the bigram table counted on the training filings; a two-layer model of the previous section's shape trained on the training filings, and that model's direct path alone; and the one- and two-layer induction models of the previous section, trained only on repeated random sequences.
 
 | reader | seen companies | unseen companies |
 |---|---|---|
@@ -485,7 +485,7 @@ The shared synthetic corpus lets us separate the two. Its roster of public compa
 
 Everything the filing-trained model knows about names is in its weights. It completes $81\%$ of the names it was trained on, more than the bigram table, and none of the names it was not, exactly like the bigram table. Its direct path alone gets $72\%$ of the seen names, so most of that knowledge sits in the bigram part of the expansion. The induction model never saw a word of finance. It completes $71\%$ of the seen names and $77\%$ of the unseen ones, because it reads each name off the filing's own earlier text. This is the attention topic's kernel cache made into a circuit.
 
-The filing-trained model has the same two layers and could have learned to copy. It did not, because in training a name was never new: memorizing names was always the cheaper solution. The laboratory's filing is a held-out filing that names Tamsin Retail Group in full eight times; the two-layer induction model completes $11$ of its $12$ queries, and the bigram table and the filing-trained model complete none.
+The filing-trained model has the same two layers and could have learned to copy. It did not. A natural guess at the reason is that a name was never new in training, so memorizing names was the cheaper solution, but we have not tested that. The laboratory's filing is a held-out filing that names Tamsin Retail Group in full eight times; the two-layer induction model completes $11$ of its $12$ queries, and the bigram table and the filing-trained model complete none.
 
 </FinanceCaseStudy>
 
@@ -495,8 +495,8 @@ The filing-trained model has the same two layers and could have learned to copy.
 
 - **Contextual embeddings.** The same block without the causal mask, trained to fill in masked tokens, gives contextual word vectors; the contextual-embeddings topic builds it on this one.
 - **Scaling laws.** Depth and width are the axes along which models scale, and the growing pre-LN stream of Theorem 2 (ii) is one reason depth is not free; the scaling-laws topic takes the empirical side.
-- **Euler steps.** A residual block $x + f(x)$ is one step of Euler's method for the flow $x' = f(x)$, whose global error formalCalculus' [numerical-ODEs topic](https://www.formalcalculus.com/topics/numerical-odes) bounds (its Theorem 1); a deep stack of small updates discretizes a trajectory of the tokens, and Geshkovski and colleagues study that flow's clusters.
-- **Superposition.** A $32$-dimensional stream carried $256$ random embeddings that the induction head still copied, because many nearly orthogonal directions fit in few dimensions, the content of formalRAG's [Johnson–Lindenstrauss topic](https://www.formalrag.com/topics/johnson-lindenstrauss) (its Theorem 3).
+- **Euler steps.** A residual block $x + f(x)$ is one step of Euler's method for the flow $x' = f(x)$, whose global error formalCalculus' [numerical-ODEs topic](https://www.formalcalculus.com/topics/numerical-odes) bounds (its Theorem 1); a deep stack of small updates discretizes a trajectory of the tokens, and Geshkovski and colleagues study the clusters of a related flow.
+- **Superposition.** A $32$-dimensional stream carried $256$ embeddings, drawn at random and then trained, that the induction head still copied. Many nearly orthogonal directions fit in few dimensions: the trained table's root-mean-square cosine is $0.201$. That is the concentration idea behind formalRAG's [Johnson–Lindenstrauss topic](https://www.formalrag.com/topics/johnson-lindenstrauss), though its Theorem 3 needs more than $133$ dimensions for $256$ points, so it does not cover this case.
 
 ---
 
@@ -504,9 +504,9 @@ The filing-trained model has the same two layers and could have learned to copy.
 
 <RigorFlag>
 
-1. **The collapse rate here is geometric.** Theorem 1 (iii) proves it; Dong, Cordonnier, and Loukas's doubly exponential rate is cited, not reproved. At narrow kernels, where $\tau$ is near $1$, the theorem says nothing, and the cloud forms clusters instead.
-2. **The skip keeps differences, not proportions.** At $\beta = 0.25$ the laboratory's cloud grows $3.58$ times while its relative spread falls to $0.0016$.
-3. **Xiong and colleagues' bounds are cited and measured, not proved.** They are mean-field results at initialization under a concentration assumption. We measure the predicted $L^{-1/2}$ scaling on one configuration; the per-layer profile's shape depends on the initialization and is not claimed.
+1. **The collapse rate here is geometric.** Theorem 1 (iii) proves it; Dong, Cordonnier, and Loukas's doubly exponential rate is cited, not reproved. At narrow kernels, where $\tau$ is near $1$, the bound falls slowly: at $\beta = 4$ it still allows $2.333$ at layer twelve, where the cloud holds two clusters, and they merge by layer eighteen.
+2. **The skip keeps the diameter, not every pair and not proportions.** Proposition 2's example merges two tokens outright. At $\beta = 0.25$ the laboratory's cloud grows $3.58$ times while its relative spread falls to $0.0016$.
+3. **Xiong and colleagues' bounds are cited and measured, not proved.** They are mean-field results at initialization under a concentration assumption. We measure the predicted $L^{-1/2}$ scaling on one configuration, in the last block, where it comes from the readout's LayerNorm; the first block's gradient does not shrink, and the per-layer profile's shape depends on the initialization and is not claimed.
 4. **The path expansion is exact given the patterns.** It is linear in the values and not in the attention, and with LayerNorm it is exact only with each token's scale frozen. The trained models here have no LayerNorm for that reason.
 5. **Readings, not theorems.** "Channel," "key–value memory," and "logit lens" name ways of looking. The lens is exact for the models here, which have no final LayerNorm, and a heuristic elsewhere.
 6. **Proposition 5 limits sight, not loss.** The one-layer model's $4.280$ nats is a measurement after $1000$ steps, not a lower bound.
@@ -519,14 +519,14 @@ The filing-trained model has the same two layers and could have learned to copy.
 
 ## Implementation
 
-The companion notebook (`notebookPath`) imports `transformer_block_residual_stream.py`, which owns every number on this page. That module imports the positional-encodings topic's module for its rotations, and through it the attention topic's attention function and rounding conventions, the neural-language-models topic's gradient checker and Adam constants, and the shared finance corpus. It trains three attention-only models from scratch in NumPy, two on repeated random sequences and one on filings, with hand-written gradients, and runs a harness of $18$ assertion-based tests in about twenty-five seconds on a laptop CPU. The tests cover:
+The companion notebook (`notebookPath`) imports `transformer_block_residual_stream.py`, which owns every number on this page. That module imports the positional-encodings topic's module for its rotations, and through it the attention topic's attention function and rounding conventions, the neural-language-models topic's gradient checker and Adam constants, and the shared finance corpus. It trains three attention-only models from scratch in NumPy, two on repeated random sequences and one on filings, with hand-written gradients, and runs a harness of $22$ assertion-based tests in about twenty-five seconds on a laptop CPU. The tests cover:
 
 - Proposition 1 against the attention topic's attention function, and the MLP as a key–value sum.
-- Proposition 3 and Corollary 1 at $d = 3$, $8$, and $64$, against central differences, and the thin shell.
-- Theorem 1 on $300$ random instances in three norms, and Theorem 1 and Proposition 2 on the laboratory's cloud and on $100$ random stacks with random value maps.
+- Proposition 3 and Corollary 1 at $d = 2$, $3$, $8$, and $64$, against central differences, and the thin shell.
+- Theorem 1 on $300$ random instances in three norms, and Theorem 1 and Proposition 2 on the laboratory's cloud and on $100$ random stacks with random value maps; the narrow-kernel run through layer eighteen, the wide-kernel run landing on one token, and the merged pair.
 - Theorem 2 against the chain rule and the subset sum; the pre-LN and post-LN gradient scaling.
-- Theorem 3 on the trained model and on a random three-layer model; Proposition 4 on a constructed model; Proposition 5 on both trained models.
-- The induction experiments, the heads, the composition scores, the paths, and the logit lens; the finance table.
+- Theorem 3 on the trained model and on a random three-layer model; Proposition 4 on a constructed model, keys alone and keys with queries; Proposition 5 on both trained models.
+- The induction experiments, the heads by position, the composition scores, the per-head cut, the paths, and the logit lens; the finance table.
 - Every hand-written gradient against central differences: the attention-only model at random coordinates, and both stacks at every coordinate.
 
 The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
