@@ -25,10 +25,12 @@ const LIN = payload.linear as unknown as {
 type Run = { budget: number; d: number; N: number; N_ne: number; D: number; loss: number };
 const TOY = payload.toy as unknown as {
   runs: Run[]; N_star: number[]; Nne_star: number[]; Cne_star: number[]; a_chinchilla: number; a_kaplan: number;
-  a3: number; fit: Fit; seed_sd: number; coef: number[][]; coef_ne: number[][];
+  a3: number; fit: Fit; seed_sd: number; seed_sd_min: number; seed_sd_max: number; a2_mean: number; a_kaplan_mean: number;
+  a3_min: number; a3_max: number; coef: number[][]; coef_ne: number[][];
 };
 const REP = payload.repeat as unknown as {
-  N: number; D: number; r_star: number; rows: { epochs: number; unique: number; D_eff: number; loss: number; pred: number }[];
+  N: number; D: number; r_star: number; cost_4: number;
+  rows: { epochs: number; unique: number; D_eff: number; loss: number; mean: number; control: number; pred: number }[];
 };
 const KAP = payload.kaplan as unknown as {
   C: number[]; local: number[]; predicted: number[]; share: number[]; a: number; limit: number; a_small: number;
@@ -257,7 +259,7 @@ export default function ScalingLawsLab() {
   // ----- Figure C -----
   const xCap = d3.scaleLog().domain([CAP.U[0], CAP.U[CAP.U.length - 1]]).range([0, IW]);
   const yCap = d3.scaleLog().domain([3e10, 1e11]).range([IH, 0]);
-  const repMax = 3.4, repMin = 2.0;
+  const repMax = 5.2, repMin = 2.0, repRow = 37;
   const rx = d3.scaleLinear().domain([repMin, repMax]).range([0, 600 - 150 - 50]);
 
   return (
@@ -330,7 +332,7 @@ export default function ScalingLawsLab() {
               <Readout id="memo-theory" label="Theorem 1’s exponent −(1 − d)" value="−0.400" />
             </Readouts>
             <Note>
-              A memorizer errs exactly when the next type is new. The filings follow one restaurant’s curve for their first
+              A memorizer errs whenever the next type is new, so this rate is a floor on its error. The filings follow one restaurant’s curve for their first
               two thousand tokens, then settle about a quarter below it, because their template words stop producing new
               types; past ten thousand tokens the two run parallel, at the slope of Zipf’s tail.
             </Note>
@@ -391,13 +393,14 @@ export default function ScalingLawsLab() {
               <Readout id="toy-a" label={count === 'total' ? 'a, Approach 2 (Chinchilla’s count)' : 'a, Approach 2 (Kaplan’s count and compute)'}
                 value={f3(count === 'total' ? TOY.a_chinchilla : TOY.a_kaplan)} emphasis />
               <Readout id="toy-stars" label="vertices N*" value={toyStars.map((v) => Math.round(v).toLocaleString('en-US')).join(' / ')} />
-              <Readout id="toy-a3" label="a, Approach 3" value={f3(TOY.a3)} />
-              <Readout id="toy-sd" label="one point’s seed spread" value={f3(TOY.seed_sd)} />
+              <Readout id="toy-a-mean" label="a, Approach 2, five-seed mean losses" value={f3(count === 'total' ? TOY.a2_mean : TOY.a_kaplan_mean)} />
+              <Readout id="toy-a3" label="a, Approach 3 (range over five seeds)" value={`${f3(TOY.a3)} (${f3(TOY.a3_min)}–${f3(TOY.a3_max)})`} />
+              <Readout id="toy-sd" label="one point’s seed SD, median (range)" value={`${f3(TOY.seed_sd)} (${f3(TOY.seed_sd_min)}–${f3(TOY.seed_sd_max)})`} />
             </Readouts>
             <Note>
               Each valley’s floor moves right with the budget. In Kaplan’s count the small models shrink most, because the
-              embedding is most of them, so the same three floors give a steeper exponent. Three budgets a factor of 6.3 apart
-              cannot tell 0.5 from 0.73.
+              embedding is most of them, so the same three floors give a steeper exponent. The curves are seed 0; three budgets
+              a factor of 6.3 apart, with this much seed noise, cannot pin the exponent down.
             </Note>
           </>
         )}
@@ -428,7 +431,8 @@ export default function ScalingLawsLab() {
             <Note>
               GPT-2’s vocabulary and context, d_model = 64 · n_layer. Where the embedding dominates, counting only the rest
               makes the optimum look like it grows faster with compute, toward 3a/(1 + 2a) = {f3(KAP.limit)}; by 10²³ FLOPs the
-              embedding is under 1% of the model and the two counts agree.
+              embedding is under 1% of the model and the two counts agree. This is arithmetic on units: the left of the chart
+              extrapolates the fit far below its range, and its smallest models have under one layer.
             </Note>
           </>
         )}
@@ -438,42 +442,46 @@ export default function ScalingLawsLab() {
         <figcaption style={{ fontFamily: sans, fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>
           C · A finite corpus — repeated epochs and the capped optimum
         </figcaption>
-        <svg viewBox="0 0 600 170" style={{ width: '100%', height: 'auto' }} role="img" data-panel="repeat"
-          aria-label={`Same compute on fewer unique tokens: ${REP.rows.map((r) => `${r.epochs} epochs ${f3(r.loss)}`).join(', ')}`}>
-          <text x={8} y={14} style={titleText}>{`d = 12, ${REP.D.toLocaleString('en-US')} training tokens; the corpus repeated 1, 4, 16, 64 times`}</text>
+        <svg viewBox={`0 0 600 ${REP.rows.length * repRow + 60}`} style={{ width: '100%', height: 'auto' }} role="img" data-panel="repeat"
+          aria-label={`Same compute on fewer unique tokens, three-seed means: ${REP.rows.map((r) => `${r.epochs} epochs ${f3(r.mean)}`).join(', ')}`}>
+          <text x={8} y={14} style={titleText}>{`d = 12, ${REP.D.toLocaleString('en-US')} tokens read, from the whole stream and then from fewer unique tokens`}</text>
           <g transform="translate(150,26)">
-            {[2.0, 2.4, 2.8, 3.2].map((v) => (
+            {[2, 3, 4, 5].map((v) => (
               <g key={v}>
-                <line x1={rx(v)} x2={rx(v)} y1={0} y2={4 * 30} style={{ stroke: 'var(--color-border)', strokeWidth: 0.5 }} />
-                <text x={rx(v)} y={4 * 30 + 13} textAnchor="middle" style={axisText}>{v.toFixed(1)}</text>
+                <line x1={rx(v)} x2={rx(v)} y1={0} y2={REP.rows.length * repRow} style={{ stroke: 'var(--color-border)', strokeWidth: 0.5 }} />
+                <text x={rx(v)} y={REP.rows.length * repRow + 13} textAnchor="middle" style={axisText}>{v.toFixed(1)}</text>
               </g>
             ))}
             {REP.rows.map((r, i) => (
               <g key={r.epochs} data-row={i}>
-                <text x={-6} y={i * 30 + 15} textAnchor="end" style={{ ...axisText, fill: 'var(--color-text)' }}>
-                  {`${r.epochs} epoch${r.epochs > 1 ? 's' : ''} (${r.unique.toLocaleString('en-US')} unique)`}
+                <text x={-6} y={i * repRow + 18} textAnchor="end" style={{ ...axisText, fill: 'var(--color-text)' }}>
+                  {`${r.epochs} epochs (${r.unique.toLocaleString('en-US')} unique)`}
                 </text>
-                <rect data-series="observed" x={0} y={i * 30 + 4} width={rx(r.loss)} height={10} style={{ fill: 'var(--color-accent)' }} />
-                <rect data-series="predicted" x={0} y={i * 30 + 15} width={rx(r.pred)} height={6} style={{ fill: 'var(--color-badge-blue-text)' }} />
-                <text x={rx(r.loss) + 4} y={i * 30 + 13} style={{ ...axisText, fontFamily: mono }}>{f3(r.loss)}</text>
-                <text x={rx(r.pred) + 4} y={i * 30 + 22} style={{ ...axisText, fontFamily: mono }}>{f3(r.pred)}</text>
+                <rect data-series="observed" x={0} y={i * repRow + 3} width={rx(r.mean)} height={9} style={{ fill: 'var(--color-accent)' }} />
+                <rect data-series="control" x={0} y={i * repRow + 13} width={rx(r.control)} height={9} style={{ fill: 'var(--color-text-secondary)' }} />
+                <rect data-series="predicted" x={0} y={i * repRow + 23} width={rx(Math.min(r.pred, repMax))} height={9} style={{ fill: 'var(--color-badge-blue-text)' }} />
+                <text x={rx(r.mean) + 4} y={i * repRow + 11} style={{ ...axisText, fontFamily: mono }}>{f3(r.mean)}</text>
+                <text x={rx(r.control) + 4} y={i * repRow + 21} style={{ ...axisText, fontFamily: mono }}>{f3(r.control)}</text>
+                <text x={rx(Math.min(r.pred, repMax)) + 4} y={i * repRow + 31} style={{ ...axisText, fontFamily: mono }}>{f3(r.pred)}</text>
               </g>
             ))}
           </g>
-          <text x={150 + rx(2.7)} y={166} textAnchor="middle" style={axisText}>held-out loss (nats); bars start at 2.0</text>
+          <text x={150 + rx(3.6)} y={REP.rows.length * repRow + 54} textAnchor="middle" style={axisText}>held-out loss (nats); bars start at 2.0, clipped at 5.2</text>
         </svg>
         <Legend items={[
-          { label: 'observed', color: 'var(--color-accent)' },
+          { label: 'repeated, three-seed mean', color: 'var(--color-accent)' },
+          { label: 'whole stream, D′ tokens read', color: 'var(--color-text-secondary)' },
           { label: 'toy fit at Muennighoff’s effective data D′ (R* = 15.4)', color: 'var(--color-badge-blue-text)' },
         ]} />
         <Note>
-          Four epochs cost {f3(REP.rows[1].loss - REP.rows[0].loss)} nats; sixty-four cost half a nat. The templated filings
-          forgive repetition more than Muennighoff’s law predicts.
+          Four epochs cost {f3(REP.cost_4)} nats, and sixty-four cost half a nat. The top row draws random windows from the
+          whole stream, 0.65 passes of it. At 16 and 64 epochs the repeated run beats a run that reads D′ tokens of the whole
+          stream, so here a repeated token is worth more than D′ says, though that run also takes fewer steps.
         </Note>
 
         <div style={{ marginTop: '1.25rem' }}>
           <Slider id="u" label="unique tokens U" value={uIdx} max={CAP.U.length - 1} onChange={setUIdx} text={billions(CAP.U[uIdx])} />
-          <Chart id="cap" title={`compute-optimal size at BloombergGPT’s compute, ${sci(CAP.C)} FLOPs, under a data cap`}
+          <Chart id="cap" title={`compute-optimal size at the compute BloombergGPT’s run spent, ${sci(CAP.C)} FLOPs, under a data cap`}
             xLabel="unique tokens U" yLabel="optimal parameters N*" x={xCap} y={yCap}
             series={[{ key: 'capped', pts: CAP.U.map((u, i) => [u, CAP.N[i]] as [number, number]), color: 'var(--color-accent)', width: 2.2 }]}
             hlines={[{ v: CAP.free_N, label: `unconstrained ${billions(CAP.free_N)}` }]}
