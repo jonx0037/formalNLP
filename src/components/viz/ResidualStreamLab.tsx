@@ -279,9 +279,10 @@ export default function ResidualStreamLab() {
             </Readouts>
             <Note>
               A wide kernel (small β) keeps τ below 1, and the pure stack shrinks the cloud to a point, under Theorem 1’s bound. A
-              narrow kernel (β = 4) makes each token attend to itself: τ stays near 1, the bound says nothing, and the cloud
-              freezes into clusters. With the skip the diameter never shrinks (Proposition 2), but at β = 0.25 the relative
-              spread still falls: the skip keeps the differences, not their share.
+              narrow kernel (β = 4) lets a few long tokens win the rows: τ stays near 1, the bound falls slowly, and at layer 12
+              the cloud holds two clusters, which merge by layer 18, past this slider. With the skip the diameter never shrinks
+              in these runs (Proposition 2 is the floor beneath them), but at β = 0.25 the relative spread still falls: the skip
+              keeps the diameter, not its share.
             </Note>
           </>
         )}
@@ -291,7 +292,7 @@ export default function ResidualStreamLab() {
             <Row>
               <Pill active={lnStep === 'raw'} onClick={() => setLnStep('raw')} data={{ 'data-ln': 'raw' }}>the points</Pill>
               <Pill active={lnStep === 'centered'} onClick={() => setLnStep('centered')} data={{ 'data-ln': 'centered' }}>1. center: drop onto the plane</Pill>
-              <Pill active={lnStep === 'normalized'} onClick={() => setLnStep('normalized')} data={{ 'data-ln': 'normalized' }}>2. normalize: out to the circle</Pill>
+              <Pill active={lnStep === 'normalized'} onClick={() => setLnStep('normalized')} data={{ 'data-ln': 'normalized' }}>2. normalize: onto the circle</Pill>
             </Row>
             <Slider id="ln-scale" label="scale the points by c" value={lnScale} max={LN_SCALES.length - 1} onChange={setLnScale} text={`c = ${c}`} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-start' }}>
@@ -318,7 +319,7 @@ export default function ResidualStreamLab() {
                 </Readouts>
                 <Note>
                   Each point of R³ is drawn at its shadow on the plane orthogonal to 1 = (1, 1, 1); the blue tick is its offset
-                  along 1. Centering removes the tick, and normalizing pushes every point out along its ray to the circle
+                  along 1. Centering removes the tick, and normalizing moves every point along its ray to the circle
                   (Proposition 3). Move c in the last step: the normalized points do not move, because LN(cx) = LN(x).
                 </Note>
               </div>
@@ -358,8 +359,9 @@ export default function ResidualStreamLab() {
             </Readouts>
             <Note>
               Switch L: the post-LN last block’s gradient stays near 22, and the pre-LN one falls like 1/√L, because the pre-LN
-              stream grows with depth and LayerNorm’s Jacobian shrinks as 1/‖Px‖ (Theorem 2 (ii)), the scaling Xiong and
-              colleagues predict. The profile’s shape depends on the initialization; the scaling is the claim.
+              stream grows with depth and the readout LayerNorm’s Jacobian shrinks as 1/‖Px_L‖, the scaling Xiong and colleagues
+              predict. That is the last block: the pre-LN first block’s gradient stays near 24. The profile’s shape depends on the
+              initialization; the last block’s scaling is the claim.
             </Note>
           </>
         )}
@@ -416,10 +418,11 @@ export default function ResidualStreamLab() {
                   {head === 'prev' && <Readout id="previous" label="previous position" value={t > 0 ? String(t - 1) : '—'} />}
                 </Readouts>
                 <Note>
-                  The previous-token head’s weight sits just left of the diagonal, at j = i − 1. The induction head attends to
-                  the earlier positions whose predecessor is the current token: i − p + 1 (outlined), and one or more periods
-                  further back on a long repetition. Each holds a copy of the next token. Its keys can find it only because the previous-token head wrote each predecessor into
-                  the stream (Proposition 5).
+                  The previous-token head’s weight sits just left of the diagonal, at j = i − 1, until position 39, where part of
+                  it moves to j = i − 39. The induction head attends to the earlier positions whose predecessor is the current
+                  token: i − p + 1 (outlined), and one or more periods further back on a long repetition. Unless the block repeats a
+                  token by chance, each holds a copy of the next token. Its keys can find them because the previous-token head wrote
+                  predecessors into the stream (Proposition 5).
                 </Note>
               </div>
             </div>
@@ -454,7 +457,7 @@ export default function ResidualStreamLab() {
                 <Readout key={g.key} id={`path-${g.key}`} label={g.label}
                   value={d3.sum(pathKeys.filter(g.test).map((k) => IND.paths[k][t])).toFixed(2)} />
               ))}
-              <Readout id="lens-here" label="P(next token) after layers 0, 1, 2" value={IND.lens.map((l) => l[t].toFixed(3)).join(', ')} />
+              <Readout id="lens-here" label="P(next token) after the embedding, layer 0, layer 1" value={IND.lens.map((l) => l[t].toFixed(3)).join(', ')} />
             </Readouts>
             <Note>
               The logit is centered (minus its mean over the vocabulary), so each bar is that path’s vote for the correct token
@@ -476,7 +479,7 @@ export default function ResidualStreamLab() {
                 `(0, ${h}) → (1, ${h2})`, IND.composition.k[i].toFixed(3), IND.composition.q[i].toFixed(3), IND.composition.v[i].toFixed(3),
               ])} />
             <Grid id="lens" head={['logit lens, read after', 'P(correct token)']} rows={
-              IND.lens_mean.map((v, l) => [l === 0 ? 'the embedding' : `layer ${l}`, v.toFixed(3)])} />
+              IND.lens_mean.map((v, l) => [l === 0 ? 'the embedding' : `layer ${l - 1}`, v.toFixed(3)])} />
             <Note>
               Cutting the K-composition, so layer 1’s keys cannot read what layer 0 wrote, takes the solved model below the
               one-layer one. K-composition dominates Q and V for every pair of heads. The lens finds the answer only after the
