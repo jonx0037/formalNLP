@@ -14,15 +14,20 @@ Every claim the topic makes has an executable check here, and every number its D
    unique and matches moments; it keeps the argmax but not the ranking of confidences across rows (Prop 2).
 4. Why τ = 1 is special. In a family closed under scaling the logits, a stationary point of the penalized training
    loss has d/dβ L_train = −2λΩ(θ) at β = 1: an unpenalized MLE sits at τ*_train = 1 exactly, an L2-penalized one
-   below 1 (Thm 3). Topic 14's decoder has no such direction and lands at 0.94.
+   below 1 (Thm 3). Topic 14's decoder has no such direction, stops short of a stationary point, and lands at 0.94
+   across its four training seeds. Theorem 3 says nothing about held-out temperatures; the bigram's cross 1 on some sets
+   and not on others, and the trigram's 1.003 is a balance between its known words and <unk>.
 5. Prediction sets. If f is canonically calibrated, any set chosen from f(X) covers Y with probability equal to its
    expected kept mass, so a nucleus of mass p covers at least p (Prop 3); sampling at τ ≠ 1 decalibrates a calibrated
    model (Cor 2).
 6. The corpus. Topic 3's KN trigram and Topic 14's decoder on three test sets: the same generator run on
    (in distribution), Topic 3's held-out split (a fresh run with new names), and real EDGAR filings.
-7. Finance case study. On EDGAR both engines are overconfident and the nucleus covers a third of the text; Topic 15's
-   fact model is underconfident on facts it has seen and overconfident on facts it has not, so no one temperature
-   calibrates it.
+7. Finance case study. On EDGAR both engines look overconfident, but the trigram's reading is one token: <unk> is
+   last in every row, so on its known words the means agree and τ* is 1.10, and coverage cannot pass the known share at
+   any temperature. A map that moves mass onto <unk> recovers six times what temperature does. Topic 15's fact model is
+   underconfident on facts it has seen and overconfident on facts it has not, so no one temperature calibrates it; on
+   the 111 probes no row mixes regimes, so the regime sits on the reliability side of Thm 1 and the refinement gap is
+   the company.
 
 Cross-checks: exact enumeration on random finite worlds for every identity; Poisson-binomial distributions for the
 estimator's expectation; scipy.optimize for every temperature fit; Topic 15's truncation_set for the nucleus.
@@ -36,6 +41,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -104,7 +110,7 @@ def recalibrated(world: World) -> np.ndarray:
 
 def log_loss(world: World, F: np.ndarray | None = None) -> float:
     F = world.F if F is None else F
-    with np.errstate(divide="ignore"):
+    with np.errstate(divide="ignore", invalid="ignore"):
         return float(world.w @ -np.where(world.P > 0, world.P * np.log(F), 0.0).sum(axis=1))
 
 
@@ -343,10 +349,10 @@ def _finish(Z: np.ndarray, ctx: list, y: list, sent: list) -> Rows:
     return Rows(Z, order, ctx_a, y_a, rank[ctx_a, y_a].astype(int), np.array(sent))
 
 
-def _trigram_rows(sents) -> Rows:
+def _trigram_rows(sents, vec=None) -> Rows:
     """Topic 3's interpolated KN trigram over its own alphabet with <unk> as an outcome (an unknown word is the event
-    <unk>), so every token of any text is scored; contexts pad with two <s>."""
-    vec = bs.trigram().vec
+    <unk>), so every token of any text is scored; contexts pad with two <s>. `vec` swaps in a refit model."""
+    vec = bs.trigram().vec if vec is None else vec
     ix = vec.index
     ids: dict = {}
     Zs, ctx, y, sent = [], [], [], []
@@ -364,11 +370,11 @@ def _trigram_rows(sents) -> Rows:
     return _finish(np.array(Zs), ctx, y, sent)
 
 
-def _decoder_rows(sents) -> Rows:
+def _decoder_rows(sents, dec=None) -> Rows:
     """Topic 14's decoder over its own 512-token alphabet with <unk> as an outcome and <s> masked (it never follows a
     word inside a sentence), every position of each sentence's first DEC_CTX inputs: words past position 32 are not
-    scored, since the position table ends there."""
-    dec = bs.decoder()
+    scored, since the position table ends there. `dec` swaps in another training seed."""
+    dec = bs.decoder() if dec is None else dec
     ix = dec.index
     seqs = [([ix[BOS]] + [ix.get(w, ix[UNK]) for w in s] + [ix[EOS]])[: bs.DEC_CTX + 1] for s in sents]
     by_len: dict[int, list[int]] = {}
@@ -416,6 +422,12 @@ def stats_at(engine: str, test: str, tau: float) -> TauStats:
     return tau_stats(rows(engine, test), tau)
 
 
+def _nucleus_tokens(cs: np.ndarray, R: Rows, p: float) -> tuple[np.ndarray, np.ndarray]:
+    """Per token: is y inside nucleus(p) of its row, and that nucleus's kept mass. cs is the rows' sorted cumulative mass."""
+    k = (cs < p - 1e-12).sum(axis=1) + 1  # Topic 15's nucleus: the shortest sorted prefix of mass ≥ p
+    return R.rank < k[R.ctx], cs[np.arange(len(k)), k - 1][R.ctx]
+
+
 def tau_stats(R: Rows, tau: float) -> TauStats:
     """Every per-token statistic of the tempered rows q = softmax(z/τ), from one pass over the distinct rows."""
     Zt = st.temper(R.Z, tau)
@@ -423,33 +435,241 @@ def tau_stats(R: Rows, tau: float) -> TauStats:
     cs = np.cumsum(np.exp(np.take_along_axis(Zt, R.order, axis=1)), axis=1)
     covered, kept = {}, {}
     for p in NUCLEUS_PS:
-        k = (cs < p - 1e-12).sum(axis=1) + 1  # Topic 15's nucleus: the shortest sorted prefix of mass ≥ p
-        covered[p] = float(np.mean(R.rank < k[R.ctx]))
-        kept[p] = float(np.mean(cs[np.arange(len(k)), k - 1][R.ctx]))
+        cv, km = _nucleus_tokens(cs, R, p)
+        covered[p], kept[p] = float(cv.mean()), float(km.mean())
     nll = float(-Zt[R.ctx, R.y].mean())
     return TauStats(conf_u[R.ctx], pred_u[R.ctx] == R.y, nll, covered, kept)
 
 
+def _unk(R: Rows) -> int:
+    """<unk>'s id, by the alphabet size of the rows: the trigram's 3,427 or the decoder's 512."""
+    return bs.trigram().unk if R.Z.shape[1] == len(bs.trigram().alphabet) else bs.decoder().unk
+
+
+def _temperature_gain(R: Rows, fit: np.ndarray, ev: np.ndarray) -> float:
+    """Fit τ on the tokens `fit`; the drop in mean NLL from τ = 1 that it gives on the tokens `ev`."""
+    n_fit = np.bincount(R.ctx[fit], minlength=len(R.Z)).astype(float)
+    n_ev = np.bincount(R.ctx[ev], minlength=len(R.Z)).astype(float)
+    b = fit_beta(R.Z, n_fit, R.s_y(fit))
+    return (temperature_objective(R.Z, n_ev, R.s_y(ev), 1.0)[0] - temperature_objective(R.Z, n_ev, R.s_y(ev), b)[0])
+
+
+def _fit_alpha(q: np.ndarray, is_unk: np.ndarray) -> float:
+    """The α minimizing the mean NLL of g_α(F) = (1 − α)F + α·e_<unk>, where q is F's probability of each observed token."""
+    res = optimize.minimize_scalar(lambda a: -np.mean(np.log((1 - a) * q + a * is_unk)), bounds=(1e-6, 1 - 1e-6),
+                                   method="bounded", options={"xatol": 1e-7})
+    return float(res.x)
+
+
+def _alpha_gain(R: Rows, fit: np.ndarray, ev: np.ndarray) -> float:
+    """_temperature_gain for g_α: a function of the forecast alone, so Cor 1 bounds it too."""
+    q, is_unk = np.exp(R.Z[R.ctx, R.y]), (R.y == _unk(R)).astype(float)
+    a = _fit_alpha(q[fit], is_unk[fit])
+    return float(-np.mean(np.log(q[ev])) + np.mean(np.log((1 - a) * q[ev] + a * is_unk[ev])))
+
+
+def _even_odd(R: Rows, gain) -> float:
+    """Fit on the even sentences and score the odd ones, and the reverse; the mean per evaluated token, so the two folds
+    count by their size (their token counts differ, and on 33 sentences that matters)."""
+    folds = [(np.flatnonzero(R.sent % 2 == k), np.flatnonzero(R.sent % 2 != k)) for k in (0, 1)]
+    return float(np.average([gain(R, f, e) for f, e in folds], weights=[len(e) for _, e in folds]))
+
+
 @lru_cache(maxsize=None)
 def cross_fit_gain(engine: str, test: str) -> float:
-    """The held-out NLL a temperature recovers, cross-fitted: fit τ on the even sentences and score the odd ones, and
-    the reverse; the mean drop in NLL from τ = 1. By Cor 1 it estimates a lower bound on the reliability term."""
+    """The held-out NLL a temperature recovers, cross-fitted on even and odd sentences. By Cor 1 it estimates a lower
+    bound on the reliability term, and that bound can be far from tight: see unk_map_gain."""
+    return _even_odd(rows(engine, test), _temperature_gain)
+
+
+@lru_cache(maxsize=None)
+def unk_map_gain(engine: str, test: str) -> float:
+    """cross_fit_gain for the one-parameter map g_α, which moves mass onto <unk> and nothing else."""
+    return _even_odd(rows(engine, test), _alpha_gain)
+
+
+SPLIT_STREAMS = {"temperature": 7100, "unk": 7400}  # 20 random halves of the sentences, the same halves for every cell
+N_SPLITS = 20
+
+
+@lru_cache(maxsize=None)
+def random_split_gains(engine: str, test: str, kind: str = "temperature") -> tuple[float, float]:
+    """(mean, SD) of the cross-fitted gain over N_SPLITS random halves of the sentences: fit on one half, score the other."""
     R = rows(engine, test)
-    gains = []
-    for fold in (0, 1):
-        fit, ev = np.flatnonzero(R.sent % 2 == fold), np.flatnonzero(R.sent % 2 != fold)
-        n_fit = np.bincount(R.ctx[fit], minlength=len(R.Z)).astype(float)
-        n_ev = np.bincount(R.ctx[ev], minlength=len(R.Z)).astype(float)
-        b = fit_beta(R.Z, n_fit, R.s_y(fit))
-        gains.append(temperature_objective(R.Z, n_ev, R.s_y(ev), 1.0)[0]
-                     - temperature_objective(R.Z, n_ev, R.s_y(ev), b)[0])
-    return float(np.mean(gains))
+    rng = np.random.default_rng([SEED, SPLIT_STREAMS[kind]])
+    ns = int(R.sent.max()) + 1
+    out = []
+    for _ in range(N_SPLITS):
+        half = (rng.permutation(ns) < ns // 2)[R.sent]
+        gain = _temperature_gain if kind == "temperature" else _alpha_gain
+        out.append(gain(R, np.flatnonzero(half), np.flatnonzero(~half)))
+    return float(np.mean(out)), float(np.std(out, ddof=1))
 
 
-def confidence_kendall(engine: str, test: str, tau: float) -> float:
-    """Kendall's τ_b between the distinct rows' confidences at temperature 1 and at `tau` (1 iff no pair swaps)."""
-    Z = rows(engine, test).Z
-    return float(stats.kendalltau(Z.max(axis=1), st.temper(Z, tau).max(axis=1)).statistic)
+def unk_map_stats(engine: str, test: str) -> dict:
+    """g_α fit on all of a test set: α, the NLL it reaches, and the nucleus's coverage against its kept mass."""
+    R = rows(engine, test)
+    u, n = _unk(R), len(R.y)
+    a = _fit_alpha(np.exp(R.Z[R.ctx, R.y]), (R.y == u).astype(float))
+    P = np.exp(R.Z) * (1 - a)
+    P[:, u] += a
+    o = np.argsort(-P, axis=1, kind="stable")
+    cs = np.cumsum(np.take_along_axis(P, o, axis=1), axis=1)
+    k = (cs < 0.9 - 1e-12).sum(axis=1) + 1
+    rank = np.argsort(o, axis=1)[R.ctx, R.y]
+    return {"alpha": a, "nll": float(-np.log(P[R.ctx, R.y]).mean()), "cover": float(np.mean(rank < k[R.ctx])),
+            "kept": float(cs[np.arange(len(k)), k - 1][R.ctx].mean()), "n": n}
+
+
+def confidence_kendall(engine: str, test: str, tau: float, tokens: bool = False) -> float:
+    """Kendall's τ_b between confidences at temperature 1 and at `tau` (1 iff no pair swaps), over the distinct rows, or
+    over the tokens, which weights each row by how often it occurs."""
+    R = rows(engine, test)
+    c1, c2 = R.Z.max(axis=1), st.temper(R.Z, tau).max(axis=1)
+    return float(stats.kendalltau(*((c1[R.ctx], c2[R.ctx]) if tokens else (c1, c2))).statistic)
+
+
+def top_fifth(engine: str, test: str, tau: float) -> dict:
+    """A selective rule that keeps the fifth of the tokens with the highest confidence, at τ = 1 and at `tau`: the share
+    of its tokens that stay, and the accuracy of each selection."""
+    R, s = rows(engine, test), stats_at(engine, test, 1.0)
+    c1, c2 = R.Z.max(axis=1)[R.ctx], st.temper(R.Z, tau).max(axis=1)[R.ctx]
+    q = len(c1) // 5
+    a, b = np.argsort(-c1, kind="stable")[:q], np.argsort(-c2, kind="stable")[:q]
+    return {"overlap": len(set(a.tolist()) & set(b.tolist())) / q, "acc1": float(s.correct[a].mean()),
+            "acc2": float(s.correct[b].mean())}
+
+
+# Reading the trigram's reliability diagram.
+
+
+def top_bin_positions() -> dict:
+    """Where the trigram's 15-bin top bin sits in a continuation sentence: the share of its tokens at positions 0–5, the
+    same share among all tokens, and the shares of a sentence's first three tokens and of all tokens that land in it."""
+    R, s = rows("trigram", "continuation"), stats_at("trigram", "continuation", 1.0)
+    top = bin_index(s.conf, 15) == 14
+    pos = np.arange(len(R.sent)) - np.searchsorted(R.sent, R.sent)
+    return {"top_at_0_5": float(np.mean(pos[top] < 6)), "all_at_0_5": float(np.mean(pos < 6)),
+            "first3_in_top": float(np.mean(top[pos < 3])), "all_in_top": float(top.mean()), "n": int(top.sum()),
+            "acc": float(s.correct[top].mean())}
+
+
+DISCOUNT_SCALES = (0.1, 0.25, 0.5, 1.0, 1.4)  # × Ney's discount, capped at 0.99
+
+
+@lru_cache(maxsize=None)
+def rediscounted_rows(f: float, test: str = "continuation") -> Rows:
+    """The trigram refit with every order's discount scaled by f (Ney's D₃ is 0.849, so 1.4 hits the cap)."""
+    ds = {k: (min(v[0] * f, 0.99),) for k, v in ng.kn_models()["ikn"].discounts.items()}
+    return _trigram_rows(sentences(test), pce.KNVector(ng.kn_fit(ng.corpus()["train"], discounts=ds), pce.word_alphabet()))
+
+
+def discount_shape() -> dict:
+    """f → (τ*, gap from 1/3 to 0.6, gap above 2/3), accuracy minus confidence on the continuation. The two regions are
+    the tokens Ney's trigram puts there, the same tokens in every column, so only the model moves."""
+    c0 = stats_at("trigram", "continuation", 1.0).conf
+    mid, top = (c0 >= 1 / 3) & (c0 < 0.6), c0 > 2 / 3
+    out = {}
+    for f in DISCOUNT_SCALES:
+        R = rediscounted_rows(f)
+        s = tau_stats(R, 1.0)
+        out[f] = (1 / fit_beta(R.Z, R.n_u, R.s_y()), float(s.correct[mid].mean() - s.conf[mid].mean()),
+                  float(s.correct[top].mean() - s.conf[top].mean()))
+    return out
+
+
+def by_top_label(engine: str, test: str) -> dict:
+    """(tokens, mean confidence, accuracy) split by what the forecast puts on top: <unk> or a word."""
+    R, s = rows(engine, test), stats_at(engine, test, 1.0)
+    m = R.Z.argmax(axis=1)[R.ctx] == _unk(R)
+    return {k: (int(x.sum()), float(s.conf[x].mean()), float(s.correct[x].mean())) for k, x in (("unk", m), ("word", ~m))}
+
+
+def seen_context_rows(test: str = "continuation") -> dict:
+    """The trigram's contexts in a test set, how many occurred in training, and how many distinct rows those have."""
+    R = rows("trigram", test)
+    ids: dict = {}
+    ix = bs.trigram().vec.index
+    for s in sentences(test):
+        p = [BOS, BOS] + [w if w in ix else UNK for w in s] + [EOS]
+        for i in range(2, len(p)):
+            ids.setdefault((p[i - 2], p[i - 1]))
+    totals = bs.trigram().vec.model.totals
+    seen = np.array([totals.get(u, 0) > 0 for u in ids])
+    return {"contexts": len(ids), "seen": int(seen.sum()), "seen_rows": len(np.unique(np.round(R.Z[seen], 10), axis=0))}
+
+
+def repeated_sentences(test: str = "continuation") -> dict:
+    """How many of a test set's sentences repeat a training sentence word for word, and their share of the tokens."""
+    tr = set(ng.corpus()["train"])
+    dup = np.array([s in tr for s in sentences(test)])
+    return {"sentences": int(dup.sum()), "of": len(dup), "token_share": float(dup[rows("trigram", test).sent].mean())}
+
+
+# The known-word cut: EDGAR's numbers are mostly one token.
+
+
+@lru_cache(maxsize=None)
+def known_rows(engine: str, test: str) -> Rows:
+    """The engine's rows conditioned on the next token not being <unk>, on the tokens where it isn't. A forecast of the
+    known words alone; on the trigram, whose P(<unk>) is about 1e-5, the conditioning changes nothing that shows."""
+    R = rows(engine, test)
+    u = _unk(R)
+    Z = R.Z.copy()
+    Z[:, u] = -np.inf
+    i = np.flatnonzero(R.y != u)
+    return _finish(Z - st._lse(Z, axis=1, keepdims=True), R.ctx[i].tolist(), R.y[i].tolist(), R.sent[i].tolist())
+
+
+KNOWN_TWIN_STREAM = 7500
+
+
+@lru_cache(maxsize=None)
+def known_summary(engine: str, test: str) -> dict:
+    """The table row of the known-word cut, in the same order as the full test set's row."""
+    R = known_rows(engine, test)
+    s = tau_stats(R, 1.0)
+    tw = twin_ece(s.conf, (15,), TWIN_R, np.random.default_rng([SEED, KNOWN_TWIN_STREAM]))
+    return {"n": len(R.y), "conf": float(s.conf.mean()), "acc": float(s.correct.mean()),
+            "ece15": ece_hat(s.conf, s.correct, 15), "twin15": float(tw.mean()), "tau_star": 1 / fit_beta(R.Z, R.n_u, R.s_y()),
+            "cover90": s.covered[0.9], "kept90": s.kept[0.9], "nll": s.nll}
+
+
+def unk_summary(engine: str, test: str) -> dict:
+    """<unk>'s place in the engine's rows: the worst rank of the outcome, its largest and mean probability, and the
+    <unk> tokens' hits and nucleus(0.9) coverage."""
+    R, s = rows(engine, test), stats_at(engine, test, 1.0)
+    u, unk = _unk(R), R.y == _unk(R)
+    cv, _ = _nucleus_tokens(np.cumsum(np.exp(np.take_along_axis(R.Z, R.order, axis=1)), axis=1), R, 0.9)
+    r = np.argsort(R.order, axis=1)[:, u]
+    return {"last_in_every_row": bool(np.all(r == R.Z.shape[1] - 1)), "share": float(unk.mean()), "tokens": int(unk.sum()),
+            "max_p": float(np.exp(R.Z[:, u]).max()), "hits": int(s.correct[unk].sum()), "covered": int(cv[unk].sum())}
+
+
+def nll_by_token_type(engine: str, test: str, tau: float) -> dict:
+    """Mean −log q(y) on the known and the <unk> tokens at temperature τ."""
+    R = rows(engine, test)
+    z, unk = st.temper(R.Z, tau)[R.ctx, R.y], R.y == _unk(R)
+    return {"known": float(-z[~unk].mean()), "unk": float(-z[unk].mean())}
+
+
+def edgar_tau_reading(engine: str = "trigram") -> dict:
+    """What τ* does and does not do to top-label calibration on EDGAR: the τ at which mean confidence equals accuracy,
+    the 15-bin occupancy at τ*, the ECE there, and the smallest ECE on a grid of τ from 0.5 to 12."""
+    R = rows(engine, "edgar")
+    acc = float(stats_at(engine, "edgar", 1.0).correct.mean())
+    match = optimize.brentq(lambda t: np.exp(st.temper(R.Z, t).max(axis=1))[R.ctx].mean() - acc, 1.0, 3.0, xtol=1e-4)
+    s = stats_at(engine, "edgar", tau_star(engine, "edgar"))
+    grid = [ece_hat(*(lambda x: (x.conf, x.correct))(tau_stats(R, float(t))), 15) for t in np.geomspace(0.5, 12, 33)]
+    return {"tau_conf_eq_acc": float(match), "bins_at_tau_star": reliability_bins(s.conf, s.correct, 15)[0].tolist(),
+            "ece_at_tau_star": ece_hat(s.conf, s.correct, 15), "ece_min": float(min(grid))}
+
+
+def coverage_ceiling(taus=tuple(np.geomspace(0.5, 10, 25))) -> dict:
+    """The trigram's nucleus(0.9) on EDGAR across τ: its best coverage against the known share. <unk> is the least likely
+    token of its row at every τ, so its mass is at most 1/V, and a prefix of mass ≥ 0.9 never needs it."""
+    R = rows("trigram", "edgar")
+    return {"best": max(tau_stats(R, float(t)).covered[0.9] for t in taus), "known_share": float(np.mean(R.y != _unk(R)))}
 
 
 # --------------------------------------------------------------------------------------------
@@ -463,6 +683,7 @@ class LogLinearConfig:
 
 
 LAMBDAS = (1e-3, 1e-4, 1e-5)
+LAMBDA_GRID = (1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5, 3e-6, 1e-6, 1e-7)
 
 
 @lru_cache(maxsize=None)
@@ -506,6 +727,41 @@ def bigram_dbeta(W: np.ndarray) -> float:
     """d/dβ of the mean training NLL of βW at β = 1."""
     C = bigram_counts("train")
     return temperature_objective(W, C.sum(axis=1), float((C * W).sum()), 1.0)[1]
+
+
+def bigram_temperatures(lam: float) -> dict:
+    """τ* on training and on every test set: Theorem 3 pins only the first."""
+    W = loglinear_bigram(LogLinearConfig(lam))
+    return {name: bigram_temperature(W, name) for name in ("train",) + TEST_SETS}
+
+
+DECODER_SEEDS = st.DECODER_SEEDS
+
+
+def decoder_train_tau(name: str) -> float:
+    """τ* of one training seed of the decoder on every second training sentence."""
+    R = _decoder_rows(sentences("train_half"), st.engine(name))
+    return 1 / fit_beta(R.Z, R.n_u, R.s_y())
+
+
+def decoder_gradient_norm(name: str = "decoder") -> tuple[float, float]:
+    """(‖∇L‖, the drop in L from one gradient step of size 0.5), L the mean NLL over every training window. Neither is
+    zero, so 1,200 steps of Adam did not end at a stationary point."""
+    lm = st.engine(name)
+    stream, starts = bs.sentence_stream()
+    X = stream[starts[:, None] + np.arange(bs.DEC_CTX + 1)]
+    P32 = {k: v.astype(np.float32) for k, v in lm.P.items()}
+    b32 = [{s: {k: v.astype(np.float32) for k, v in blk[s].items()} for s in blk} for blk in lm.blocks]
+    loss, G, Gb = sl.decoder_loss_grad(P32, b32, X[:, :-1], X[:, 1:])
+    grads = [G[k] for k in P32] + [Gb[i][s][k] for i, blk in enumerate(b32) for s in blk for k in blk[s]]
+    norm = math.sqrt(sum(float((g.astype(np.float64) ** 2).sum()) for g in grads))
+    for k in P32:
+        P32[k] = P32[k] - 0.5 * G[k]
+    for i, blk in enumerate(b32):
+        for s in blk:
+            for k in blk[s]:
+                blk[s][k] = blk[s][k] - 0.5 * Gb[i][s][k]
+    return norm, float(loss) - float(sl.decoder_loss_grad(P32, b32, X[:, :-1], X[:, 1:])[0])
 
 
 # --------------------------------------------------------------------------------------------
@@ -556,8 +812,108 @@ def fact_tau_star(g: str) -> float:
     return float(math.exp(res.x))
 
 
+def fact_conf(p: st.Probe) -> float:
+    return math.exp(st.temper(p.row[p.answers], 1.0).max())
+
+
+def fact_confidence_by_count() -> dict:
+    """Training count → mean confidence, plus the lowest confidence among probes seen twice or more, the highest among
+    the rest, and the probability that a once-seen probe outranks a never-seen one."""
+    ps = st.probes()
+    conf = {c: [fact_conf(p) for p in ps if p.count == c] for c in sorted({p.count for p in ps})}
+    a, b = conf[1], conf[0]
+    return {"mean": {c: float(np.mean(v)) for c, v in conf.items()},
+            "seen_min": min(fact_conf(p) for p in ps if p.regime == "seen"),
+            "rest_max": max(fact_conf(p) for p in ps if p.regime != "seen"),
+            "once_over_never": float(stats.mannwhitneyu(a, b).statistic / (len(a) * len(b)))}
+
+
+@lru_cache(maxsize=1)
+def fact_row_labels() -> np.ndarray:
+    """A label per probe: probes share one iff the model gives them the same row."""
+    keys = [np.round(p.row, 9).tobytes() for p in st.probes()]
+    return np.unique(keys, return_inverse=True)[1].ravel()
+
+
+def fact_world() -> World:
+    """Theorem 1's world on the probes: each probe a context of equal weight, the knowledge base's answer as the truth
+    (a point mass, so the irreducible term is 0), and the forecast the row restricted to the relation's answers. The
+    columns are the union of the two relations' answers."""
+    ps = st.probes()
+    cols = np.unique(np.concatenate([p.answers for p in ps]))
+    F, P = np.zeros((len(ps), len(cols))), np.zeros((len(ps), len(cols)))
+    labels = fact_row_labels()
+    first = {}
+    for i, p in enumerate(ps):
+        F[i, np.searchsorted(cols, p.answers)] = np.exp(first.setdefault(labels[i], st.temper(p.row[p.answers], 1.0)))
+        P[i, np.searchsorted(cols, p.correct)] = 1.0
+    return World(np.full(len(ps), 1 / len(ps)), P, F)
+
+
+def fact_rows_summary() -> dict:
+    """How the probes sit on rows: the row count, the rows that mix regimes, the never-seen probes and their rows."""
+    ps, labels = st.probes(), fact_row_labels()
+    reg = np.array([p.regime for p in ps])
+    w = fact_world()
+    d = log_decomposition(w)
+    gap = -np.log(recalibrated(w)[w.P > 0])  # with a point-mass truth, KL(P ‖ C) is −log C(the right answer)
+    return {"rows": int(labels.max()) + 1, "mixed": sum(len(set(reg[labels == k])) > 1 for k in np.unique(labels)),
+            "never": int((reg == "unseen").sum()), "never_rows": len(set(labels[reg == "unseen"])),
+            "refinement_never": float(gap[reg == "unseen"].sum() / len(ps)), **d}
+
+
+@lru_cache(maxsize=1)
+def _fact_nll_grid() -> np.ndarray:
+    """(probes, len(FIN_TAUS)) −log P(KB answer) at every grid temperature."""
+    return np.array([[fact_stats((p,), t)["nll"] for t in FIN_TAUS] for p in st.probes()])
+
+
+def fact_leave_one_row_out() -> dict:
+    """The grid τ fit on every probe off a row, scored on that row's probes: pooled, and within the row's regime."""
+    G, labels = _fact_nll_grid(), fact_row_labels()
+    reg = np.array([p.regime for p in st.probes()])
+    pooled, regime = np.zeros(len(G)), np.zeros(len(G))
+    for i in range(len(G)):
+        off = labels != labels[i]
+        pooled[i] = G[i, G[off].mean(axis=0).argmin()]
+        same = off & (reg == reg[i])
+        regime[i] = G[i, G[same].mean(axis=0).argmin()] if same.any() else G[i, FIN_TAUS.index(1.0)]
+    return {"pooled": float(pooled.mean()), "regime": float(regime.mean())}
+
+
+def fact_by_relation(g: str, k: int) -> tuple[st.Probe, ...]:
+    """One regime's probes for one relation, named by its answer count: 6 sectors or 13 cities."""
+    return tuple(p for p in fact_regime(g) if len(p.answers) == k)
+
+
+def fact_grid_tau(probes) -> float:
+    """The grid τ of least mean NLL on a set of probes."""
+    return float(FIN_TAUS[int(np.argmin([fact_stats(probes, t)["nll"] for t in FIN_TAUS]))])
+
+
+def never_seen_past_the_dial() -> dict:
+    """Never-seen probes at τ = 10, the top of the grid, against the uniform forecast and chance; and the sector probes'
+    L(β) on the whole line: these logits are finite, so L is convex there and its minimizer can be negative."""
+    ps = fact_regime("unseen")
+    s = fact_stats(ps, 10.0)
+    ks = np.array([len(p.answers) for p in ps])
+    sec = fact_by_relation("unseen", 6)
+    Z = np.array([_fact_logits(p)[0] for p in sec])
+    n_u, s_y = np.ones(len(sec)), float(sum(z[j] for z, j in map(_fact_logits, sec)))
+    r = optimize.minimize_scalar(lambda b: temperature_objective(Z, n_u, s_y, b)[0], bounds=(-3, 8), method="bounded",
+                                 options={"xatol": 1e-6})
+    names = st.fact_model().alphabet
+    regimes_of = {a: Counter(p.regime for p in st.probes() if len(p.answers) == 6 and p.answer == a)
+                  for a in ("technology", "industrials")}
+    return {"favorites": Counter(names[p.answers[p.row[p.answers].argmax()]] for p in sec), "regimes_of": regimes_of,
+            "conf": s["conf"], "acc": s["acc"], "nll": s["nll"], "uniform": float(np.log(ks).mean()),
+            "chance": float(np.mean(1 / ks)), "sectors": len(sec), "sector_rows": len({z.tobytes() for z in Z}),
+            "sector_hits": int(fact_stats(sec, 1.0)["acc"] * len(sec) + 0.5), "beta": float(r.x), "beta_nll": float(r.fun),
+            "dL0": temperature_objective(Z, n_u, s_y, 0.0)[1], "log6": math.log(6)}
+
+
 def count_aware_nll() -> dict:
-    """Pooled NLL of the KB answer at τ = 1, at the one pooled τ*, and with each regime at its own τ*."""
+    """Pooled NLL of the KB answer at τ = 1, at the one pooled τ*, and with each regime at its own τ*: all in sample."""
     ps = fact_regime("all")
     per = sum(len(fact_regime(g)) * fact_stats(fact_regime(g), fact_tau_star(g))["nll"] for g in REGIMES) / len(ps)
     return {"tau1": fact_stats(ps, 1.0)["nll"], "pooled": fact_stats(ps, fact_tau_star("all"))["nll"], "per_regime": per}
@@ -640,8 +996,18 @@ def summary() -> dict:
             out[f"{e}_{t}_sq_ece15_plugin"] = float(sum(
                 n * (a - c) ** 2 for n, c, a in zip(*reliability_bins(s1.conf, s1.correct, 15))) / len(R.y))
             out[f"{e}_{t}_sq_ece15_debiased"] = sq_ece_debiased(s1.conf, s1.correct, 15)
+    for e, t in (("trigram", "continuation"), ("trigram", "edgar"), ("decoder", "edgar")):
+        out[f"{e}_{t}_gain_random_mean"], out[f"{e}_{t}_gain_random_sd"] = random_split_gains(e, t)
+        out[f"{e}_{t}_unk_map_gain"] = unk_map_gain(e, t)
+        out[f"{e}_{t}_unk_map_random_mean"], out[f"{e}_{t}_unk_map_random_sd"] = random_split_gains(e, t, "unk")
+        for k, v in known_summary(e, t).items():
+            out[f"{e}_{t}_known_{k}"] = v
+    out["good_turing_unseen_mass"] = ng.good_turing_unseen_mass()
+    for name in DECODER_SEEDS:
+        out[f"{name}_train_tau_star"] = decoder_train_tau(name)
     out["decoder_train_tau_star"] = tau_star("decoder", "train_half")
     out["trigram_continuation_kendall_tau2"] = confidence_kendall("trigram", "continuation", 2.0)
+    out["trigram_continuation_kendall_tau2_tokens"] = confidence_kendall("trigram", "continuation", 2.0, tokens=True)
     for lam in LAMBDAS:
         W = loglinear_bigram(LogLinearConfig(lam))
         out[f"bigram_{lam:g}_dbeta"] = bigram_dbeta(W)
@@ -655,6 +1021,8 @@ def summary() -> dict:
         out[f"fact_{g}_tau_star"] = fact_tau_star(g)
     for k, v in count_aware_nll().items():
         out[f"fact_nll_{k}"] = v
+    for k, v in fact_leave_one_row_out().items():
+        out[f"fact_nll_leave_one_row_{k}"] = v
     return out
 
 
@@ -749,8 +1117,9 @@ def test_calibrated_twin_floor():
 
 def test_temperature_fit_is_convex_and_matches_moments():
     """Prop 2: on every engine × test set, L'' > 0 and finite differences match L' and L''; at Newton's τ* the
-    expected logit equals the observed one (|L'| < 1e-10), which by convexity is the global optimum; on the EDGAR sets
-    Newton also agrees with scipy's bounded search."""
+    expected logit equals the observed one (|L'| < 1e-10), which by convexity is the global optimum. On the two EDGAR sets
+    alone, Newton is also checked against scipy's bounded search (each evaluation on a large set is expensive, and
+    convexity already settles the rest)."""
     for e in ENGINES:
         for t in TEST_SETS:
             R = rows(e, t)
@@ -783,7 +1152,7 @@ def test_temperature_keeps_argmax_not_ranking():
 
 def test_kneser_ney_reliability_shape():
     """The in-distribution trigram's 15-bin reliability diagram: every bin with mean confidence in [1/3, 0.6) is
-    overconfident and every bin above 2/3 is underconfident (KN's discounts), and the top bin holds the most tokens."""
+    overconfident and every bin above 2/3 is underconfident, and the top bin holds the most tokens."""
     s = stats_at("trigram", "continuation", 1.0)
     n, c, a = reliability_bins(s.conf, s.correct, 15)
     mid, top = (c >= 1 / 3) & (c < 0.6), c > 2 / 3
@@ -805,10 +1174,17 @@ def test_scale_closed_stationarity():
 
 
 def test_decoder_has_no_temperature_direction():
-    """Thm 3's contrapositive in practice: Topic 14's decoder (parameter-free final LayerNorm, tied unembedding scaled
-    by a fixed 1/√d) has no parameter that scales its logits, and its training-data τ* is not 1."""
+    """Topic 14's decoder (parameter-free final LayerNorm, tied unembedding scaled by a fixed 1/√d) has no parameter
+    that scales its logits, and 1,200 steps of Adam leave it off a stationary point: the full training gradient is not
+    zero, and one step along it lowers the training loss. Both of Thm 3's hypotheses fail, and on every second training
+    sentence its τ* is 0.937–0.943 across #14's four seeds."""
     t = tau_star("decoder", "train_half")
     assert 0.9 < t < 0.97
+    taus = [decoder_train_tau(n) for n in DECODER_SEEDS]
+    assert abs(taus[0] - t) < 1e-12 and 0.936 < min(taus) and max(taus) < 0.944
+    assert len(sentences("train_half")) == (len(ng.corpus()["train"]) + 1) // 2
+    norm, drop = decoder_gradient_norm()
+    assert norm > 0.01 and drop > 1e-4
 
 
 def test_in_distribution_nearly_calibrated():
@@ -829,9 +1205,10 @@ def test_shift_can_go_either_way():
 
 
 def test_edgar_overconfidence():
-    """Real filings: both engines are overconfident (confidence above accuracy, τ* > 1.5, a positive cross-fitted
-    gain); the trigram's nucleus(0.9) covers under half of the tokens and still does at its τ*; and the NLL-optimal
-    temperature overshoots top-label calibration (confidence falls below accuracy)."""
+    """Real filings, all tokens: both engines read overconfident (confidence above accuracy, τ* > 1.5, a positive
+    cross-fitted gain); the trigram's nucleus(0.9) covers under half of the tokens and still does at its τ*; and at its
+    NLL-optimal temperature the trigram's mean confidence falls below its accuracy. See test_ece_barely_moves_past_tau_star
+    for what that does and doesn't mean, and test_edgar_is_mostly_one_token for where the reading comes from."""
     for e in ENGINES:
         s = stats_at(e, "edgar", 1.0)
         assert s.conf.mean() > s.correct.mean() + 0.05 and tau_star(e, "edgar") > 1.5 and cross_fit_gain(e, "edgar") > 0
@@ -887,8 +1264,8 @@ def test_fast_nucleus_matches_topic15():
 def test_fact_regimes_pull_apart():
     """The finance case study: seen facts are always right but under-confident (τ* at the grid's low edge; NLL falls
     as τ falls, reaching 0 to double precision); unseen facts are over-confident (τ* at the high edge; NLL falls with τ
-    to within 0.05 of the mean log answer count, the uniform forecast's loss);
-    one pooled temperature recovers under 0.02 nats while a temperature per regime recovers more than 0.4."""
+    to within 0.05 of the mean log answer count, the uniform forecast's loss, and stays above it);
+    in sample, one pooled temperature recovers under 0.02 nats while a temperature per regime recovers more than 0.4."""
     seen, un = fact_stats(fact_regime("seen"), 1.0), fact_stats(fact_regime("unseen"), 1.0)
     assert seen["acc"] == 1.0 and seen["conf"] < 0.9 and un["conf"] > un["acc"] + 0.2
     assert fact_tau_star("seen") < 1.001 * FIN_TAUS[0] and fact_tau_star("unseen") > 0.999 * FIN_TAUS[-1]
@@ -901,6 +1278,227 @@ def test_fact_regimes_pull_apart():
     assert FIN_TAUS[0] < fact_tau_star("once") < 1
     c = count_aware_nll()
     assert c["tau1"] - c["pooled"] < 0.02 and c["tau1"] - c["per_regime"] > 0.4
+
+
+def test_twin_floor_grows_like_root_b():
+    """Thm 2(b) on the corpus: the twin's mean is about 0.25·√(B/n) at every lab bin count, so it grows like √B. The
+    trigram's plug-in ECE rises 0.019 from one bin to 60, and the twin's floor accounts for 0.010 of that: part (a) is
+    about the population ECE, so it does not predict the plug-in's rise, and bin counts 10 and 15 aren't nested anyway."""
+    s = stats_at("trigram", "continuation", 1.0)
+    m = twin_ece(s.conf, LAB_BINS, TWIN_R, np.random.default_rng([SEED, TWIN_STREAM, 0, 0])).mean(axis=0)
+    c = m / np.sqrt(np.array(LAB_BINS) / len(s.conf))
+    assert c.min() > 0.2 and c.max() < 0.3
+    assert 0.018 < ece_hat(s.conf, s.correct, 60) - ece_hat(s.conf, s.correct, 1) < 0.02 and 0.0095 < m[-1] - m[0] < 0.0105
+    assert 15 % 10 != 0
+
+
+def test_top_bin_is_not_sentence_openers():
+    """The top bin of the in-distribution trigram holds the generator's fixed phrases, wherever they fall: 55% of its
+    tokens are at positions 0–5, against 53% of all tokens, and only 24% of a sentence's first three tokens land in it,
+    against 33% overall."""
+    t = top_bin_positions()
+    assert t["n"] == 7652 and t["acc"] > 0.999
+    assert 0.54 < t["top_at_0_5"] < 0.56 and 0.52 < t["all_at_0_5"] < 0.54
+    assert 0.23 < t["first3_in_top"] < 0.25 and 0.32 < t["all_in_top"] < 0.34
+
+
+def test_discounts_explain_half_the_shape():
+    """Refit with scaled discounts, scored on the same tokens per region. The gap above 2/3 flips sign with D (−0.006 at a
+    tenth of Ney's, +0.012 at Ney's). The overconfidence between 1/3 and 0.6 is there at every D and shrinks as D grows
+    (−0.070 to −0.023), so the discounts relieve it. Scale 1 is the page's own trigram, and τ* falls as D grows."""
+    d = discount_shape()
+    fs = sorted(d)
+    assert abs(d[1.0][0] - tau_star("trigram", "continuation")) < 1e-9
+    assert all(d[a][0] > d[b][0] for a, b in zip(fs, fs[1:]))
+    assert all(d[f][1] < 0 for f in fs) and all(d[a][1] < d[b][1] for a, b in zip(fs, fs[1:]))
+    assert d[0.1][2] < -0.005 and d[1.0][2] > 0.01 and round(d[0.1][1], 3) == -0.07 and round(d[1.4][1], 3) == -0.023
+
+
+def test_trigram_temperature_is_a_balance():
+    """Theorem 3 doesn't apply to the trigram, which is no likelihood optimum and has no scaling direction, and 1.003 is a
+    balance: on its known words alone τ* is 0.96, and <unk>, which it almost never forecasts, pulls the fit back up."""
+    assert abs(tau_star("trigram", "continuation") - 1) < 0.005
+    assert 0.955 < known_summary("trigram", "continuation")["tau_star"] < 0.965
+
+
+def test_edgar_is_mostly_one_token():
+    """The known-word cut. 478 of the trigram's 830 EDGAR tokens are <unk>, which is last in every row, with P under 1 in
+    20,000, 0 hits and 0 of 478 covered. On the other 352: confidence 0.146, accuracy 0.139, τ* 1.10, coverage 0.841 against
+    kept 0.904. Not calibrated: ECE 0.118 against a twin's 0.037, since the 50 tokens above 0.2 hit 7 times. The decoder's
+    trouble is real: given a known word, confidence 0.383, accuracy 0.095, τ* 3.23, coverage 0.321."""
+    u = unk_summary("trigram", "edgar")
+    assert u["tokens"] == 478 and len(rows("trigram", "edgar").y) == 830 and u["max_p"] < 1 / 20000
+    assert u["hits"] == 0 and u["covered"] == 0
+    assert all(unk_summary("trigram", t)["last_in_every_row"] for t in TEST_SETS)
+    k = known_summary("trigram", "edgar")
+    assert k["n"] == 352 and abs(k["conf"] - k["acc"]) < 0.01 and 1.09 < k["tau_star"] < 1.11
+    assert 0.84 < k["cover90"] < 0.842 and 0.903 < k["kept90"] < 0.905
+    assert k["ece15"] > 3 * k["twin15"] and 0.117 < k["ece15"] < 0.119 and 0.035 < k["twin15"] < 0.039
+    R = known_rows("trigram", "edgar")
+    s = tau_stats(R, 1.0)
+    high = s.conf >= 0.2
+    assert high.sum() == 50 and s.correct[high].sum() == 7
+    d = known_summary("decoder", "edgar")
+    assert d["n"] == 296 and 0.38 < d["conf"] < 0.385 and 0.09 < d["acc"] < 0.1 and 3.2 < d["tau_star"] < 3.25
+    a, b = nll_by_token_type("trigram", "edgar", 1.0), nll_by_token_type("trigram", "edgar", tau_star("trigram", "edgar"))
+    assert b["known"] > a["known"] + 0.6 and b["unk"] < a["unk"] - 2
+
+
+def test_coverage_cannot_pass_the_known_share():
+    """Temperature keeps each row's order (Prop 2), a nucleus keeps a sorted prefix, and <unk> is last, so its tempered
+    mass is at most 1/V and a prefix of mass ≥ 0.9 never needs it. Coverage stays at or below the known share, 0.424."""
+    c = coverage_ceiling()
+    assert c["best"] <= c["known_share"] and 0.42 < c["best"] and round(c["known_share"], 3) == 0.424
+    assert 1 / len(bs.trigram().alphabet) < 1 - 0.9
+
+
+def test_a_map_of_the_forecast_beats_temperature_by_six():
+    """Cor 1's bound from temperature is far from tight. g_α(F) = (1 − α)F + α·e_<unk> is one parameter and a function of
+    the forecast alone, and it recovers 5.5 nats on trigram EDGAR (temperature 0.89), 1.75 on decoder EDGAR (0.71), and
+    0.173 on the continuation (temperature about 0), where α = 0.0275 is the <unk> share and Good–Turing's N₁/N = 0.0271
+    forecasts it from training alone. On the decoder's in-distribution text it recovers nothing."""
+    for e, t, lo, hi in (("trigram", "edgar", 5.3, 5.7), ("decoder", "edgar", 1.6, 1.9), ("trigram", "continuation", 0.16, 0.18)):
+        m, sd = random_split_gains(e, t, "unk")
+        assert lo < m < hi and sd < 0.2 and lo < unk_map_gain(e, t) < hi
+        assert m > random_split_gains(e, t)[0]
+    g = unk_map_stats("trigram", "continuation")
+    assert 0.027 < g["alpha"] < 0.028 and abs(ng.good_turing_unseen_mass() - 0.0271) < 5e-5
+    assert unk_map_gain("decoder", "continuation") < 1e-3
+    h = unk_map_stats("trigram", "edgar")
+    assert 0.57 < h["alpha"] < 0.58 and 3.3 < h["nll"] < 3.32 and abs(h["cover"] - h["kept"]) < 0.02
+
+
+def test_cross_fit_counts_tokens():
+    """The even and odd folds of EDGAR differ in size, so their unweighted mean (0.886) would sit above the in-sample
+    gain (0.885), which a held-out fit shouldn't manage. Weighted by tokens it is 0.883; 20 random halves give
+    0.890 ± 0.025, trigram, and 0.712 ± 0.062, decoder; on the continuation the trigram's random halves average zero."""
+    R = rows("trigram", "edgar")
+    inside = stats_at("trigram", "edgar", 1.0).nll - stats_at("trigram", "edgar", tau_star("trigram", "edgar")).nll
+    assert 0.88 < cross_fit_gain("trigram", "edgar") < inside < 0.886
+    folds = [(np.flatnonzero(R.sent % 2 == k), np.flatnonzero(R.sent % 2 != k)) for k in (0, 1)]
+    assert len(folds[0][1]) != len(folds[1][1]) and np.mean([_temperature_gain(R, f, e) for f, e in folds]) > inside
+    m, sd = random_split_gains("trigram", "edgar")
+    assert round(m, 2) == 0.89 and 0.02 < sd < 0.03
+    m, sd = random_split_gains("decoder", "edgar")
+    assert round(m, 2) == 0.71 and 0.05 < sd < 0.07
+    assert abs(random_split_gains("trigram", "continuation")[0]) < 1e-4
+
+
+def test_ece_barely_moves_past_tau_star():
+    """On trigram EDGAR the NLL-optimal 2.366 overshoots mean confidence only: mean confidence equals accuracy near
+    τ = 1.40. ECE is within 0.001 of its smallest value on the grid at τ*, because 820 of 830 tokens sit in the bottom
+    bin, so ECE there is the mean gap."""
+    r = edgar_tau_reading()
+    assert 1.39 < r["tau_conf_eq_acc"] < 1.41 and r["bins_at_tau_star"][0] == 820
+    assert r["ece_at_tau_star"] - r["ece_min"] < 0.001
+
+
+def test_decoder_held_gap_is_unk_on_top():
+    """Nearly all of the decoder's underconfidence on held sits on the rows whose top label is <unk> (3,649 tokens,
+    confidence 0.456, accuracy 0.785); rows with a word on top read 0.686 and 0.693. <unk> rises from 10.3% of the
+    decoder's continuation tokens to 16.0% of held."""
+    b = by_top_label("decoder", "held")
+    assert b["unk"][0] == 3649 and b["unk"][2] - b["unk"][1] > 0.3 and abs(b["word"][2] - b["word"][1]) < 0.01
+    share = {t: float(np.mean(rows("decoder", t).y == bs.decoder().unk)) for t in ("continuation", "held")}
+    assert round(share["continuation"], 3) == 0.103 and round(share["held"], 3) == 0.16
+
+
+def test_confidence_tracks_the_count():
+    """The fact model's confidence does record how often it saw a fact, down to once. Mean confidence rises with the
+    count, every probe seen twice or more has confidence ≥ 0.677, and every other ≤ 0.505. Only once against never can't
+    be separated: a once-seen probe outranks a never-seen one with probability 0.516."""
+    c = fact_confidence_by_count()
+    m = list(c["mean"].values())
+    assert all(a < b for a, b in zip(m, m[1:])) and [round(x, 3) for x in m] == [0.303, 0.332, 0.705, 0.807, 0.870, 0.895]
+    assert c["seen_min"] > 0.677 and c["rest_max"] < 0.505 and 0.5 < c["once_over_never"] < 0.53
+
+
+def test_fact_regime_is_a_function_of_the_row():
+    """Thm 1 on the probes, each a context, the knowledge base as truth: 1.623 = 0 + 0.736 refinement + 0.887 reliability.
+    111 probes sit on 42 rows and no row mixes regimes, so the regime is a function of the row, a temperature per regime
+    is a map of the forecast, and its gain falls under Cor 1. The refinement gap is the company: all of it comes from
+    the 48 never-seen probes, which share 3 rows with different right answers."""
+    r = fact_rows_summary()
+    assert r["rows"] == 42 and r["mixed"] == 0 and r["never"] == 48 and r["never_rows"] == 3
+    assert r["irreducible"] == 0 and abs(r["loss"] - r["refinement_gap"] - r["reliability"]) < 1e-12
+    assert abs(r["refinement_never"] - r["refinement_gap"]) < 1e-12
+    assert (round(r["loss"], 3), round(r["refinement_gap"], 3), round(r["reliability"], 3)) == (1.623, 0.736, 0.887)
+    c = count_aware_nll()
+    assert abs(r["loss"] - c["tau1"]) < 1e-12 and c["tau1"] - c["per_regime"] < r["reliability"]
+
+
+def test_one_temperature_fails_off_its_rows():
+    """Leave one row out and the pooled temperature does worse than τ = 1 (1.769 against 1.623), while a temperature per
+    regime holds up (1.130): the pooled in-sample 1.613 was flattery."""
+    o, c = fact_leave_one_row_out(), count_aware_nll()
+    assert o["pooled"] > c["tau1"] > c["pooled"] and round(o["pooled"], 3) == 1.769 and round(o["regime"], 3) == 1.13
+
+
+def test_never_seen_is_past_the_end_of_the_dial():
+    """τ = 10 is the grid's edge, not a calibration. Never-seen probes there still lose to uniform (2.056 against 2.017),
+    and accuracy (0.0625) is below chance (0.14), so no positive temperature calibrates them: mean confidence is at least
+    chance at every τ. On their 34 sector probes, on 2 rows, the top answer is right once, and the convex L has its
+    minimum at β = −1.14 (1.555 against log 6 = 1.792). That is a selection effect: the rows' favorites are industrials
+    and technology, the sectors the model has seen most, so a company it hasn't seen is rarely in one (every technology
+    probe's context occurred in training, and 12 of the 14 industrials probes')."""
+    n = never_seen_past_the_dial()
+    assert n["nll"] > n["uniform"] and n["acc"] < n["chance"] < n["conf"]
+    assert n["sectors"] == 34 and n["sector_rows"] == 2 and n["sector_hits"] == 1 and n["dL0"] > 0.4
+    assert -1.2 < n["beta"] < -1.1 and 1.55 < n["beta_nll"] < 1.56 < n["log6"]
+    assert n["favorites"] == {"industrials": 20, "technology": 14}
+    assert n["regimes_of"]["technology"]["unseen"] == 0 and n["regimes_of"]["industrials"]["unseen"] == 2
+
+
+def test_once_hides_two_relations():
+    """"Seen once" pools sectors (21 probes, accuracy 0.524, grid τ* 0.447) and cities (12, accuracy 1.0, grid τ* at the
+    edge), so its best τ, 0.260, fits neither."""
+    sec, cit = fact_by_relation("once", 6), fact_by_relation("once", 13)
+    assert len(sec) == 21 and len(cit) == 12 and fact_stats(cit, 1.0)["acc"] == 1.0
+    assert round(fact_stats(sec, 1.0)["acc"], 3) == 0.524
+    assert round(fact_grid_tau(sec), 3) == 0.447 and fact_grid_tau(cit) == FIN_TAUS[0]
+    assert fact_tau_star("once") < 0.27 < fact_grid_tau(sec)
+
+
+def test_reordering_by_tokens():
+    """Kendall's 0.860 is over distinct rows; over tokens it is about 0.81. A rule that keeps the top fifth by confidence
+    keeps 91.5% of its tokens when τ goes from 1 to 2, and its accuracy goes from 1.000 to 0.997."""
+    assert round(confidence_kendall("trigram", "continuation", 2.0), 3) == 0.860
+    assert round(confidence_kendall("trigram", "continuation", 2.0, tokens=True), 2) == 0.81
+    t = top_fifth("trigram", "continuation", 2.0)
+    assert round(t["overlap"], 3) == 0.915 and t["acc1"] > t["acc2"] and round(t["acc2"], 3) == 0.997
+
+
+def test_held_out_temperatures_are_not_pinned():
+    """Thm 3 at all ten penalties, and what it doesn't say. Training τ* stays below 1 and climbs as λ falls. On the
+    continuation τ* crosses 1 near λ = 1e-6, on EDGAR between 1e-4 and 3e-5, and on held it never crosses on this grid."""
+    prev = 0.0
+    for lam in LAMBDA_GRID:
+        W = loglinear_bigram(LogLinearConfig(lam))
+        d, target = bigram_dbeta(W), -lam * float((W**2).sum())
+        assert abs(d - target) < 1e-5 * abs(target)
+        t = bigram_temperatures(lam)
+        assert prev < t["train"] < 1 and t["held"] < 1
+        prev = t["train"]
+    t = {lam: bigram_temperatures(lam) for lam in (1e-4, 3e-5, 3e-6, 1e-6)}
+    assert t[1e-4]["edgar"] < 1 < t[3e-5]["edgar"] and t[3e-6]["continuation"] < 1 < t[1e-6]["continuation"] < 1.01
+
+
+def test_vocabularies():
+    """The event spaces: the trigram's 3,427 outcomes are 3,425 word types plus </s> and <unk>; the decoder's 512 are 509
+    words plus <s>, </s>, and <unk>, and <s> is never scored."""
+    a, d = bs.trigram().alphabet, bs.decoder_vocab()
+    assert len(a) == 3427 and len([w for w in a if w not in (EOS, UNK)]) == 3425 and BOS not in a
+    assert len(d) == 512 and tuple(d[-3:]) == (BOS, EOS, UNK)
+    assert bs.decoder().bos not in rows("decoder", "held").y and np.isneginf(rows("decoder", "held").Z[:, bs.decoder().bos]).all()
+
+
+def test_test_set_anatomy():
+    """What the two ends of the table are. 486 of the continuation's 2,043 sentences repeat a training sentence word for
+    word (20% of its tokens), and EDGAR is 33 sentences. The trigram meets 5,462 contexts on the continuation; 2,950 were
+    seen in training, on 2,480 distinct rows, so most seen contexts have a row of their own, and not all."""
+    r = repeated_sentences()
+    assert r["sentences"] == 486 and r["of"] == 2043 and 0.2 < r["token_share"] < 0.21 and len(sentences("edgar")) == 33
+    assert seen_context_rows() == {"contexts": 5462, "seen": 2950, "seen_rows": 2480}
 
 
 def test_viz_payload():

@@ -4,7 +4,8 @@ import * as d3 from 'd3';
 // test_viz_mirror_matches_payload asserts this file equals it exactly, and the harness's tests assert the claims the
 // views make (test_binning_hides, test_calibrated_twin_floor, test_temperature_keeps_argmax_not_ranking,
 // test_kneser_ney_reliability_shape, test_in_distribution_nearly_calibrated, test_shift_can_go_either_way,
-// test_edgar_overconfidence, test_fact_regimes_pull_apart). Change the .py, regenerate, never the reverse.
+// test_edgar_overconfidence, test_edgar_is_mostly_one_token, test_coverage_cannot_pass_the_known_share,
+// test_fact_regimes_pull_apart). Change the .py, regenerate, never the reverse.
 import payload from './data/language-model-calibration-lab.json';
 
 /**
@@ -329,9 +330,10 @@ export default function CalibrationLab() {
         </Readouts>
         <Note>
           Fewer bins average miscalibration away and more bins invent it (Theorem 2): the twin, calibrated by construction,
-          shows how much of an ECE is noise at this sample size. Temperature moves every circle sideways but never changes
-          the accuracy. In distribution both engines sit near the diagonal; on the EDGAR filings no temperature brings the
-          nucleus’s coverage near its kept mass (Proposition 3).
+          shows how much of an ECE is noise at this sample size. Temperature moves tokens between bins, so the circles can
+          jump, and only the overall accuracy readout stays fixed (Proposition 2). In distribution both engines sit near the
+          diagonal. On the EDGAR filings the trigram’s coverage can’t pass its share of known words at any temperature,
+          because the unknown-word token is last in every row (Proposition 3); the decoder’s comes close only at high τ.
         </Note>
       </figure>
 
@@ -350,7 +352,7 @@ export default function CalibrationLab() {
               value={`${f3(FACTS[g].conf[fti])} / ${f3(FACTS[g].acc)}`} />
           ))}
           <Readout id="fact-nll-all" label="all probes: log loss at this τ" value={f3(FACTS.all.nll[fti])} />
-          <Readout id="count-aware" label="log loss: τ = 1 / one τ* / τ* per regime"
+          <Readout id="count-aware" label="log loss, in sample: τ = 1 / one τ* / τ* per regime"
             value={`${f3(ca.tau1)} / ${f3(ca.pooled)} / ${f3(ca.per_regime)}`} emphasis />
         </Readouts>
         <Note>
