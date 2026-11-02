@@ -360,8 +360,8 @@ export default function BeamSearchLab() {
         </Readouts>
         <Note>
           {engine === 'trigram'
-            ? 'At α = 0: the trigram’s prefixes recombine, so a beam of 64 always reaches the mode, and always proves it; its outputs shrink to the mode’s length, a third of the text’s. Greedy decoding cycles on a share of the prompts, so its length counts only the outputs that end.'
-            : 'At α = 0: nothing recombines in the transformer, so even a beam of 64 misses the mode on a fifth of the prompts. Its outputs shorten as the beam widens, toward a mode that is never empty but still shorter than the text.'}
+            ? 'At α = 0: the trigram’s prefixes recombine, so a beam of 32 already reaches the mode, and proves it; its outputs shrink to the mode’s length, a third of the text’s. Greedy decoding cycles on a share of the prompts, so its length counts only the outputs that end.'
+            : 'At α = 0: nothing recombines in the transformer, so on this training seed, the hardest of four, a beam of 64 still misses the mode on a fifth of the prompts. Its outputs shorten as the beam widens, toward a mode that on this seed is never empty but is still shorter than the text.'}
           {!exact && ' Under normalization there is no exact optimum to compare against, only the certificate, which a length cap makes possible.'}
         </Note>
       </figure>
@@ -386,7 +386,7 @@ export default function BeamSearchLab() {
         </Readouts>
         <Note>
           Greedy decoding on a finite-state model is a walk on its states. After “include” the likeliest word is “and”, and
-          after “and and” it is “and” again: every looping prompt drains into the same one-word cycle.
+          after “and and” it is “and” again: every looping prompt drains into the same one-word cycle, a product of Kneser–Ney backoff, since neither pair occurs in training.
         </Note>
 
         <div style={{ marginTop: '1.25rem' }}>
@@ -410,7 +410,7 @@ export default function BeamSearchLab() {
           <Note>
             {exEngine === 'trigram'
               ? `The trigram’s mode often just stops. Normalization lengthens its outputs by steering them onto the 8-K template; at k = 16, ${f3(ATTRACTOR.share)} of all prompts end in “${ATTRACTOR.tail}”.`
-              : 'The transformer’s outputs are longer and more varied, and its mode is never empty, but greedy decoding and the beam still disagree with it often.'}
+              : 'The transformer’s outputs are longer and more varied, and on this seed its mode is never empty, but greedy decoding and the beam still disagree with it often.'}
           </Note>
         </div>
       </figure>
