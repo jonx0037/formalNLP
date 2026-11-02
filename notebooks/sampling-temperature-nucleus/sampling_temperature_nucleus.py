@@ -5,28 +5,31 @@ Every claim the topic makes has an executable check here, and every number its D
 
 1. Sampling is exact; search is not. Ancestral sampling returns each finite string with exactly its model probability,
    and halts almost surely iff the model is consistent (Thm 1). The Gumbel-max trick makes a draw the argmax of
-   perturbed log-probabilities, so sampling and search differ only by noise (Prop 1).
+   perturbed log-probabilities, so greedy decoding is that loop with the noise off (Prop 1).
 2. Temperature as a Gibbs distribution: softmax(z/τ) maximizes ⟨q, z⟩ + τH(q); its entropy rises with τ at rate
-   Var(z)/τ³; τ → 0 and τ → ∞ give the argmax and the uniform distribution (Thm 2). Tempering divides every
-   least-squares Zipf slope by τ exactly (Prop 2).
+   Var(z)/τ³; τ → 0 and τ → ∞ give the uniform distributions on the argmax set and on the support (Thm 2). Tempering
+   divides every least-squares Zipf slope by τ exactly, and moves the intercept too (Prop 2).
 3. Local against global temperature: the per-step tempered sampler is p(y)^{1/τ} divided by the product of the steps'
    normalizers, so it equals the tempered sequence distribution only when that product is constant. It upweights
    strings in proportion to exp((1/τ − 1)·Σ_t H_{1/τ}(p(·|h_t))), the accumulated Rényi entropy of their prefixes, and
-   as τ → 0 it lands on greedy's string, not the mode. For τ > 1 the tempered sequence distribution can fail to exist
-   (Thm 3).
+   as τ → 0 on a finite tree with a unique mode and unique argmaxes along greedy's path it lands on greedy's string,
+   not the mode. For τ > 1 the tempered sequence distribution can fail to exist (Thm 3).
 4. Truncation: the nucleus is a minimum-cardinality set of mass ≥ p. Keeping a set of mass m costs TV = 1 − m and
    KL = −log m per step. Over a sequence, KL(q ‖ p) = E_q Σ_t −log m(h_t) exactly, TV(q, p) ≤ E_q Σ_t (1 − m(h_t)), and
    the probability that pure sampling never leaves the kept sets is E_q Π_t m(h_t) (Thm 4).
-5. Truncation as desmoothing: a uniform mixture's support is recovered by one threshold (Prop 3). In interpolated
-   Kneser–Ney the seen set is recovered exactly from the model's own decomposition, but no single setting of any rule
-   recovers it on every row (Prop 4).
-6. Typicality: E NLL = E Σ_t H(h_t), and the gap is a martingale, so a sample's NLL tracks its own path's entropy. It
-   sits between the mode and the held-out text (Prop 5).
+5. Truncation as desmoothing: one threshold recovers the support of a uniform mixture with λ < 1 (Prop 3). In
+   interpolated Kneser–Ney the seen set is recovered exactly from the model's own decomposition at a context with
+   c(h) > 0, but no single setting of any rule recovers it on every row (Prop 4).
+6. Typicality: E NLL = E Σ_t H(h_t), and the gap is a martingale, so a sample's NLL tracks its own path's entropy
+   (Prop 5). Prop 5 places the samples and says nothing about the text: the mode, sample, and text averages are three
+   different pools, and on the text's weights the comparison depends on the statistic (pools).
 7. Quality against diversity on the corpus: Topic 3's trigram and Topic 14's decoder under every rule, with the
-   per-word NLL under an oracle KN model fit to five times more text from the same generator.
+   per-word NLL under an oracle KN model fit to five times more text from the same generator. Sampled claims that
+   move with the stream are read over STREAMS, and the decoder's over its training seeds.
 8. Finance case study, boilerplate against fabrication: an order-5 Kneser–Ney model as a fact model, probed with
-   "<company> operates in the" and similar frames and scored exactly against the knowledge base. Facts seen twice or
-   more, facts seen once, and facts never seen respond to temperature and truncation in opposite ways.
+   "<company> operates in the" and similar frames and scored exactly against the knowledge base. Contexts seen twice or
+   more, once, and never respond to temperature and truncation in different ways, and a never-seen context is not a
+   never-seen fact: "seen" counts the four-word context.
 
 Cross-checks: exact enumeration on random trees for every identity; the Gibbs variational principle against
 scipy.optimize; the Kneser–Ney decomposition against the model's own probabilities.
@@ -166,6 +169,15 @@ def zipf_slope(lp: np.ndarray) -> float:
     return zh.ols_loglog_slope(np.arange(1, len(p) + 1), p)
 
 
+def zipf_crossing(s: float, n: int, tau: float) -> dict:
+    """What tempering does to a Zipf(s) line besides its slope: log p at rank 1 before and after, and the rank where
+    the two lines cross, which is where (1/τ − 1)·log p(r) = log Z_τ."""
+    lp = np.log(zh.zipf_pmf(s, n))
+    log_Z = float(_lse(lp / tau))
+    return {"before": float(lp[0]), "after": float(temper(lp, tau)[0]),
+            "cross": math.exp((float(lp[0]) - log_Z / (1 / tau - 1)) / s)}
+
+
 # --------------------------------------------------------------------------------------------
 # 3. Local against global temperature.
 # --------------------------------------------------------------------------------------------
@@ -188,6 +200,11 @@ def tv(a: dict, b: dict) -> float:
     return 0.5 * sum(abs(a.get(y, 0.0) - b.get(y, 0.0)) for y in set(a) | set(b))
 
 
+def argmax_ties(lm: bs.TableLM, h: Prefix) -> int:
+    """How many tokens tie for the largest probability at prefix h (1 = a unique argmax)."""
+    return int(np.sum(lm.rows[h] >= lm.rows[h].max() - 1e-12))
+
+
 def renyi_path(lm: bs.TableLM, y: Prefix, tau: float) -> float:
     """Σ_t H_α(p(· | h_t)) along y's prefixes, α = 1/τ (Rényi entropy; H_α = log Σ p^α/(1 − α))."""
     a, tot = 1 / tau, 0.0
@@ -200,7 +217,9 @@ def renyi_path(lm: bs.TableLM, y: Prefix, tau: float) -> float:
 
 def permutation_tree(rng: np.random.Generator, m: int, depth: int) -> bs.TableLM:
     """Every open prefix shorter than `depth` draws a permutation of one fixed vector over the m words (no </s>), and
-    </s> is forced at depth: every string has the same normalizer product, so local = global (Thm 3(a))."""
+    </s> is forced at depth. So every string multiplies `depth` copies of one Z_τ and the forced row's 1: the condition
+    of Thm 3(a) holds, and local = global. The forced row is why "every row is a permutation of one vector" needs its
+    exception: the last row of a same-length string is all </s>."""
     v = rng.dirichlet(np.full(m, 0.7))
     alphabet = (EOS,) + tuple(f"w{i}" for i in range(m))
     rows: dict[Prefix, np.ndarray] = {}
@@ -216,7 +235,7 @@ def permutation_tree(rng: np.random.Generator, m: int, depth: int) -> bs.TableLM
 
 
 def welleck_ratio(k: int, tau: float, eps: float = 0.05) -> float:
-    """The global tempered partition function of Welleck's stationary model is Σ_t r^t·ε^{1/τ} with
+    """The global tempered partition function of #14's stationary model (bs.welleck_model) is Σ_t r^t·ε^{1/τ} with
     r = k^{1 − 1/τ}(1 − ε)^{1/τ}: finite iff r < 1."""
     return k ** (1 - 1 / tau) * (1 - eps) ** (1 / tau)
 
@@ -433,6 +452,8 @@ def desmoothing_table() -> dict:
 
 N_PER_PROMPT = 8
 ENGINE_STREAM = {"trigram": 1820, "decoder": 1821}
+STREAMS = (0, 1, 2, 3, 4)  # stream s is default_rng([SEED, ENGINE_STREAM[engine] + 10·s]); the lab shows stream 0
+DECODER_SEEDS = ("decoder", "decoder1", "decoder2", "decoder3")  # #14's SEEDS: "decoder" is seed 0
 SETTINGS: tuple[tuple[str, float], ...] = (
     *(("temperature", t) for t in (0.4, 0.5, 0.7, 0.85, 1.0, 1.15, 1.3, 1.5)),
     *(("top-k", k) for k in (5, 20, 80)),
@@ -459,12 +480,19 @@ def _max_len(name: str, lm, root: Prefix) -> int:
 
 
 @lru_cache(maxsize=None)
-def draws(name: str, setting: tuple[str, float]) -> Draws:
-    """N_PER_PROMPT draws per prompt from one engine under one setting. Every setting restarts the engine's one stream
-    (common random numbers: settings differ by their rule, not by their luck). Each step draws one uniform per open
-    string and inverts the sampler's CDF; the trigram transforms each Markov state once."""
-    lm = bs.engine(name)
-    rng = np.random.default_rng([SEED, ENGINE_STREAM[name]])
+def engine(name: str):
+    """#14's two engines, plus "decoder1" to "decoder3": the same decoder trained from #14's other seeds."""
+    return bs.DecoderLM(bs.DecoderConfig(seed=int(name[-1]))) if name[-1] in "123" else bs.engine(name)
+
+
+@lru_cache(maxsize=None)
+def draws(name: str, setting: tuple[str, float], stream: int = 0) -> Draws:
+    """N_PER_PROMPT draws per prompt from one engine under one setting. Every setting restarts the engine's stream
+    (common random numbers: settings differ by their rule, not by their luck), and a decoder's other training seeds
+    share its stream. Each step draws one uniform per open string and inverts the sampler's CDF; the trigram transforms
+    each Markov state once."""
+    lm = engine(name)
+    rng = np.random.default_rng([SEED, ENGINE_STREAM[name.rstrip("123")] + 10 * stream])
     roots = [lm.root(p) for p in bs.prompts() for _ in range(N_PER_PROMPT)]
     n = len(roots)
     seqs = [list(r) for r in roots]
@@ -546,12 +574,14 @@ def _loops(words: tuple[str, ...]) -> bool:
 
 
 @lru_cache(maxsize=None)
-def metrics(name: str, setting: tuple[str, float]) -> dict:
+def metrics(name: str, setting: tuple[str, float], stream: int = 0) -> dict:
     """One point of the frontier: finished share; mean words of finished continuations; per-word NLL under the model
     and under the oracle (pooled over finished continuations, </s> included); distinct-2 over all continuations;
-    distinct sentences; copy rate (prompt + continuation is a training sentence); loop rate (a word three times in a
-    row); share ending on the 8-K tail; per-word KL(q ‖ p), estimated as E_q Σ (log q − log p) over all draws."""
-    lm, d = bs.engine(name), draws(name, setting)
+    distinct sentences; copy rate over finished strings (prompt + continuation is a training sentence); loop rate (a
+    word three times in a row); share ending on the 8-K tail; per-word KL(q ‖ p), estimated as E_q Σ (log q − log p)
+    over all draws. The NLLs, the distinct sentences, and the copy rate leave unfinished draws out, which matters at
+    τ = 1.5."""
+    lm, d = engine(name), draws(name, setting, stream)
     P, train = bs.prompts(), bs.training_sentences()
     fin = np.flatnonzero(d.finished)
     words = [tuple(lm.words(t[:-1] if d.finished[i] else t)) for i, t in enumerate(d.tokens)]
@@ -573,11 +603,16 @@ def metrics(name: str, setting: tuple[str, float]) -> dict:
     }
 
 
+def temperature_curve(name: str, stream: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """The temperature settings' (model NLL, oracle NLL), coldest first: one curve on the frontier's axes."""
+    temps = [metrics(name, s, stream) for s in SETTINGS if s[0] == "temperature"]
+    return np.array([m["nll"] for m in temps]), np.array([m["oracle_nll"] for m in temps])
+
+
 def frontier_offset(name: str, setting: tuple[str, float]) -> float | None:
     """How far a setting's oracle NLL sits above the temperature curve at the same model NLL (linear interpolation
     between the temperature settings); None outside the temperature curve's range."""
-    temps = [metrics(name, s) for s in SETTINGS if s[0] == "temperature"]
-    x, y = np.array([m["nll"] for m in temps]), np.array([m["oracle_nll"] for m in temps])
+    x, y = temperature_curve(name)
     m = metrics(name, setting)
     if not x[0] <= m["nll"] <= x[-1]:
         return None
@@ -609,7 +644,7 @@ def heldout_reference(name: str) -> dict:
     continuations (</s> included) under the engine and under the oracle. Only sentences the engine can score count:
     every word in its vocabulary and, for the decoder, inside its 32 positions. On the trigram this is #14's
     reference_nll."""
-    lm = bs.engine(name)
+    lm = engine(name)
     want, tot, orc, n = set(bs.prompts()), 0.0, 0.0, 0
     for d in fc.generate_corpus(100, 1):
         if d.doc_type != "mdna":
@@ -653,6 +688,136 @@ def avoid_tail(name: str, p: float = 0.95) -> dict:
     return {"identity": est, "direct": float(np.mean(hits)), "se": float(np.std(hits, ddof=1) / math.sqrt(len(hits)))}
 
 
+def head_is_typical(stream: int = 0) -> dict:
+    """How often the likeliest token is also the most typical one (least |−log p − H|), on the trigram: over the 188
+    prompt rows, and over the steps of pure samples. The rest of the time typical sampling at a small mass can drop
+    the head of a distribution."""
+
+    def hit(lp: np.ndarray) -> bool:
+        return int(np.argmin(np.where(np.isfinite(lp), np.abs(-lp - entropy_rows(lp)[0]), np.inf))) == int(lp.argmax())
+
+    lm, P, d = bs.trigram(), bs.prompts(), draws("trigram", PURE, stream)
+    states: Counter = Counter()
+    for i, t in enumerate(d.tokens):
+        h = lm.root(P[d.prompt[i]])
+        for j in t:
+            states[h[-2:]] += 1
+            h = h[-2:] + (j,)
+    w = {k: hit(lm.next_logp([k])[0]) for k in states}
+    steps = sum(states.values())
+    return {"rows": float(np.mean([hit(lp) for lp in trigram_rows()[0]])), "n_steps": steps,
+            "steps": sum(states[k] * w[k] for k in states) / steps}
+
+
+def typical_nll(name: str, stream: int = 0) -> dict[float, float]:
+    """Per-word model NLL of typical sampling at each mass of SETTINGS."""
+    return {x: metrics(name, (r, x), stream)["nll"] for r, x in SETTINGS if r == "typical"}
+
+
+def token_costs(prompt: tuple[str, ...], words: tuple[str, ...]) -> np.ndarray:
+    """One row per generated token, </s> included: (cost under the trigram, cost under the oracle, outside the oracle's
+    vocabulary). The oracle's columns sum to −oracle_logp."""
+    lm, vocab = bs.trigram(), oracle()[1]
+    seq = [BOS] * (ORACLE_ORDER - 1) + [w if w in vocab else UNK for w in prompt]
+    h, out = lm.root(prompt), []
+    for w in (*words, EOS):
+        j, o = lm.index[w], w if w == EOS or w in vocab else UNK
+        out.append((-lm.next_logp([h])[0][j], -math.log(_oracle_prob(o, tuple(seq[-(ORACLE_ORDER - 1):]))), o == UNK))
+        h += (j,)
+        seq.append(o)
+    return np.array(out)
+
+
+@lru_cache(maxsize=1)
+def held_text() -> dict:
+    """The trigram's held-out text, sentence by sentence: how many held-out MD&A sentences open a prompt, and for each
+    one it can score, the prompt's index and its token_costs."""
+    at, lm = {p: i for i, p in enumerate(bs.prompts())}, bs.trigram()
+    n_open, rows = 0, []
+    for d in fc.generate_corpus(100, 1):
+        if d.doc_type != "mdna":
+            continue
+        for s in ng.split_sentences(d.text):
+            n_open += s[:3] in at
+            if s[:3] in at and all(w in lm.index for w in s):
+                rows.append((at[s[:3]], token_costs(s[:3], s[3:])))
+    return {"n_open": n_open, "rows": rows}
+
+
+def _weighted_median(x: np.ndarray, w: np.ndarray) -> float:
+    o = np.argsort(x, kind="stable")
+    c = np.cumsum(w[o])
+    return float(x[o][np.searchsorted(c, c[-1] / 2)])
+
+
+BAND = (6, 12)  # a string length, in tokens, that both the samples and the text have plenty of
+
+
+def pools(stream: int = 0) -> dict:
+    """The trigram's samples on the text's weights. The mode, sample, and text averages come from three pools: 188
+    prompts, 8 draws per prompt, and the scorable sentences, which cover fewer prompts and weigh them unequally. So each
+    finished sample gets its prompt's sentence count as a weight, and both sides report nats per word, mean and median
+    nats per string, and nats per word on strings of BAND tokens."""
+    text = held_text()["rows"]
+    per_prompt = Counter(i for i, _ in text)
+    d, lm = draws("trigram", PURE, stream), bs.trigram()
+    idx = np.array([i for i in np.flatnonzero(d.finished) if d.prompt[i] in per_prompt])
+    N, L = -d.logp[idx], np.array([len(d.tokens[i]) for i in idx], dtype=float)
+    w = np.array([per_prompt[d.prompt[i]] for i in idx], dtype=float)
+    tN = np.array([c[:, 0].sum() for _, c in text])
+    tL = np.array([len(c) for _, c in text], dtype=float)
+    band, tband = (L >= BAND[0]) & (L <= BAND[1]), (tL >= BAND[0]) & (tL <= BAND[1])
+    return {"n_text_prompts": len(per_prompt), "per_prompt": (min(per_prompt.values()), max(per_prompt.values())),
+            "samples": {"per_word": float((w * N).sum() / (w * L).sum()), "mean": float(np.average(N, weights=w)),
+                        "median": _weighted_median(N, w),
+                        "band": float((w[band] * N[band]).sum() / (w[band] * L[band]).sum())},
+            "text": {"per_word": float(tN.sum() / tL.sum()), "mean": float(tN.mean()), "median": float(np.median(tN)),
+                     "band": float(tN[tband].sum() / tL[tband].sum())}}
+
+
+def text_distance(stream: int = 0) -> dict:
+    """Where the held-out text sits against the trigram's temperature curve: the curve's oracle NLL at the text's own
+    model NLL, and the model NLL at which the curve reaches the text's oracle NLL."""
+    held, (x, y) = heldout_reference("trigram"), temperature_curve("trigram", stream)
+    return {"curve_at_text": float(np.interp(held["nll"], x, y)),
+            "model_at_text_oracle": float(np.interp(held["oracle_nll"], y, x))}
+
+
+def text_margin(stream: int = 0, settings: tuple[tuple[str, float], ...] = SETTINGS) -> float:
+    """The least, over settings, by which a setting's oracle NLL exceeds its model NLL by more than the text's does."""
+    held = heldout_reference("trigram")
+    ms = [metrics("trigram", s, stream) for s in settings]
+    return min(m["oracle_nll"] - m["nll"] for m in ms) - (held["oracle_nll"] - held["nll"])
+
+
+HOT_TAUS = (1.75, 2.0)  # past the frontier's grid: the margin above has crossed zero by here
+
+
+def rare_words(stream: int = 0) -> dict:
+    """The text's distance from the curve, taken apart. Tokens outside the oracle's vocabulary all score as <unk>, so
+    the oracle charges them far less than the trigram does, and the text has more of them than samples do. The
+    temperature curve is redrawn on the other tokens, and read at the text's own cost on them."""
+    P, lm = bs.prompts(), bs.trigram()
+    text = np.vstack([c for _, c in held_text()["rows"]])
+    rare = text[:, 2] > 0
+    xs, ys, share = [], [], None
+    for s in SETTINGS:
+        if s[0] != "temperature":
+            continue
+        d = draws("trigram", s, stream)
+        fin = np.flatnonzero(d.finished)
+        A = np.vstack([token_costs(P[d.prompt[i]], tuple(lm.words(d.tokens[i][:-1]))) for i in fin])
+        known = A[:, 2] == 0
+        xs.append(A[known, 0].mean())
+        ys.append(A[known, 1].mean())
+        if s == PURE:
+            share = float((~known).mean())
+    return {"text_share": float(rare.mean()), "sample_share": share,  # at τ = 1
+            "rare_model": float(text[rare, 0].mean()), "rare_oracle": float(text[rare, 1].mean()),
+            "known_model": float(text[~rare, 0].mean()), "known_oracle": float(text[~rare, 1].mean()),
+            "known_gap": float(np.interp(text[~rare, 0].mean(), xs, ys) - text[~rare, 1].mean())}
+
+
 # --------------------------------------------------------------------------------------------
 # 8. Finance case study: boilerplate against fabrication.
 # --------------------------------------------------------------------------------------------
@@ -686,6 +851,10 @@ class Probe:
         return "unseen" if self.count == 0 else "once" if self.count == 1 else "seen"
 
 
+def _fact_context(entity: str, frame: tuple[str, ...]) -> tuple[str, ...]:
+    return ((BOS,) * (FACT_ORDER - 1) + tuple(fc._tokens(entity)) + frame)[-(FACT_ORDER - 1):]
+
+
 @lru_cache(maxsize=1)
 def probes() -> tuple[Probe, ...]:
     """Every (entity, frame) of FRAMES whose KB answer is a single in-vocabulary word: public companies and
@@ -697,7 +866,7 @@ def probes() -> tuple[Probe, ...]:
         facts = kb.facts(rel)
         answers = np.array(sorted({vec.index[t.lower()] for _, t in facts}))
         for h, t in facts:
-            u = ((BOS,) * (FACT_ORDER - 1) + tuple(fc._tokens(h)) + frame)[-(FACT_ORDER - 1):]
+            u = _fact_context(h, frame)
             p = vec(u).copy()
             p[unk] = 0.0
             with np.errstate(divide="ignore"):
@@ -718,7 +887,8 @@ TAUS = tuple(float(10 ** (k / 20)) for k in range(-28, 21))
 FIN_TAUS = TAUS
 FIN_GRID = {"nucleus": (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0),
             "top-k": (1, 2, 3, 4, 5, 6, 8, 10, 20, 50),
-            "min-p": (0.9, 0.7, 0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01)}
+            "min-p": (0.9, 0.7, 0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01),
+            "eta": ROW_GRID["eta"], "typical": ROW_GRID["typical"]}
 REGIMES = ("seen", "once", "unseen")
 
 
@@ -740,17 +910,83 @@ def fabrication_curves() -> dict:
     return out
 
 
+def _argmax_wrong(p: Probe) -> bool:
+    return p.answers[p.row[p.answers].argmax()] != p.correct
+
+
+def _fabrication_at(rule: str, x: float, regime: str) -> tuple[float, float]:
+    """Mean (P(the KB's answer), P(any other answer)) of a regime's probes under one setting."""
+    sub = [p for p in probes() if p.regime == regime]
+    return tuple(np.mean([answer_split(truncate(p.row, rule, x)[0], p) for p in sub], axis=0))
+
+
+def favorite_dropped(rule: str, x: float, regime: str) -> float:
+    """The share of a regime's probes whose likeliest answer the rule's kept set leaves out."""
+    return float(np.mean([not truncation_set(p.row, rule, x)[0][p.answers[p.row[p.answers].argmax()]]
+                          for p in probes() if p.regime == regime]))
+
+
+def seen_context_anatomy() -> dict:
+    """What "seen once" means, relation by relation. `sighting` is the one discounted count's share of P(answer | u),
+    the first term of Prop 4, on the fact model's renormalized row; `top_prior` is the backoff's largest answer, its
+    favorite before that count, averaged over the probes; `wrong` counts the probes whose argmax is wrong."""
+    vec = fact_model()
+    out = {}
+    for rel in ("IN_SECTOR", "HQ_IN"):
+        sub = [p for p in probes() if p.regime == "once" and p.relation == rel]
+        gain, top = [], []
+        for p in sub:
+            full, back, _ = kn_decomposition(vec, _fact_context(p.entity, p.frame))
+            z = 1 - full[vec.index[UNK]]
+            gain.append((full[p.correct] - back[p.correct]) / z)
+            top.append(back[p.answers].max() / z)
+        out[rel] = {"n": len(sub), "wrong": sum(_argmax_wrong(p) for p in sub), "sighting": float(np.mean(gain)),
+                    "top_prior": float(np.mean(top))}
+    return out
+
+
+def fact_in_the_other_frame() -> tuple[int, int]:
+    """"Seen" counts the four-word context, not the fact: of the never-seen sector probes, how many have the same fact
+    in training under the sibling frame ("<company> operates in the <sector>" for "<company> is classified under", and
+    the reverse), and how many there are. An n-gram cannot carry a fact across frames."""
+    text = " " + " | ".join(" ".join(s) for s in ng.corpus()["train"]) + " "
+    frames = [f for r, f in FRAMES if r == "IN_SECTOR"]
+    sub = [p for p in probes() if p.regime == "unseen" and p.relation == "IN_SECTOR"]
+    hits = 0
+    for p in sub:
+        other = frames[1] if p.frame == frames[0] else frames[0]
+        hits += f" {' '.join((*fc._tokens(p.entity), *other, p.answer))} " in text
+    return hits, len(sub)
+
+
+@lru_cache(maxsize=1)
+def decoder_on_facts() -> dict:
+    """#14's decoder on the same probes, wherever the frame and the answer are in its 509 words (company words outside
+    them become <unk>): how often the answer it ranks first among those the relation allows is the KB's, against the
+    chance of a uniform pick."""
+    lm, vec = bs.decoder(), fact_model()
+    out = {}
+    for rel in ("IN_SECTOR", "HQ_IN"):
+        right, chance = [], []
+        for p in probes():
+            if p.relation != rel or p.answer not in lm.index or not all(w in lm.index for w in p.frame):
+                continue
+            prompt = [w if w in lm.index else UNK for w in (*fc._tokens(p.entity), *p.frame)]
+            q = lm.next_logp([lm.root(prompt)])[0]
+            ans = [lm.index[vec.alphabet[j]] for j in p.answers if vec.alphabet[j] in lm.index]
+            right.append(ans[int(np.argmax(q[ans]))] == lm.index[p.answer])
+            chance.append(1 / len(ans))
+        out[rel] = {"n": len(right), "right": float(np.mean(right)), "chance": float(np.mean(chance))}
+    return out
+
+
 def fact_examples() -> list[dict]:
     """One probe per regime for the lab, chosen by rule: "operates in the" probes only; in "seen", the most-seen
     context; in "once", the first (alphabetical) whose argmax answer is wrong; in "unseen", the first alphabetical."""
     ps = [p for p in probes() if p.frame == FRAMES[0][1]]
     vec = fact_model()
-
-    def wrong(p):
-        return p.answers[p.row[p.answers].argmax()] != p.correct
-
     pick = [max((p for p in ps if p.regime == "seen"), key=lambda p: (p.count, p.entity)),
-            min((p for p in ps if p.regime == "once" and wrong(p)), key=lambda p: p.entity),
+            min((p for p in ps if p.regime == "once" and _argmax_wrong(p)), key=lambda p: p.entity),
             min((p for p in ps if p.regime == "unseen"), key=lambda p: p.entity)]
     out = []
     for p in pick:
@@ -881,12 +1117,24 @@ def summary() -> dict:
             m = metrics(name, setting)
             for k in ("nll", "oracle_nll", "distinct2", "copied", "length", "finished", "kl", "loops", "tail"):
                 out[f"{name}_{setting[0]}{setting[1]:g}_{k}"] = m[k]
+    for k, v in head_is_typical().items():
+        out[f"head_typical_{k}"] = v
+    for k, v in {**text_distance(), **rare_words()}.items():
+        out[f"text_{k}"] = v
+    out["text_margin"] = text_margin()
+    for k, v in pools()["samples"].items():
+        out[f"pool_samples_{k}"] = v
+    for k, v in pools()["text"].items():
+        out[f"pool_text_{k}"] = v
+    for rel, v in decoder_on_facts().items():
+        out[f"decoder_{rel}_right"], out[f"decoder_{rel}_chance"] = v["right"], v["chance"]
     c = fabrication_curves()
     for g in REGIMES:
         out[f"fact_{g}_n"] = c["n"][g]
         out[f"fact_{g}_argmax_right"] = c[g]["argmax_right"]
         out[f"fact_{g}_correct_tau1"] = c[g]["temperature"]["correct"][FIN_TAUS.index(1.0)]
         out[f"fact_{g}_correct_tau_min"] = c[g]["temperature"]["correct"][0]
+        out[f"fact_{g}_wrong_tau1"] = c[g]["temperature"]["wrong"][FIN_TAUS.index(1.0)]
         out[f"fact_{g}_wrong_tau_min"] = c[g]["temperature"]["wrong"][0]
     return out
 
@@ -902,11 +1150,13 @@ def _random_trees(n: int, m: int = 3, depth: int = 4, stream: int = 1800) -> lis
 
 
 def test_ancestral_sampling_is_exact():
-    """Thm 1(i): on the lab tree and 30 random trees, 20,000 ancestral draws match p(y) leaf by leaf (χ² goodness of
-    fit, and every leaf within 4.5 standard errors)."""
+    """Thm 1(i): on the lab tree and 30 random trees, 20,000 ancestral draws match p(y): χ² goodness of fit, and every
+    leaf with an expected count of at least 5 within 4.5 standard errors. The other leaves are pooled into one χ² cell,
+    and on the random trees they are 1,849 of 3,630."""
     rng = np.random.default_rng([SEED, 1801])
     n = 20_000
-    for lm in [bs.lab_tree()] + _random_trees(30):
+    pooled = leaves = 0
+    for k, lm in enumerate([bs.lab_tree()] + _random_trees(30)):
         p = tree_dist(lm)
         assert abs(sum(p.values()) - 1) < 1e-12
         got = sample_tree(lm, rng, n)
@@ -918,10 +1168,13 @@ def test_ancestral_sampling_is_exact():
         o, e = o[e > 0], e[e > 0]
         assert stats.chisquare(o, e).pvalue > 1e-3
         assert np.all(np.abs(obs - exp_)[big] <= 4.5 * np.sqrt(exp_ * (1 - exp_ / n))[big])
+        if k:
+            pooled, leaves = pooled + int((~big).sum()), leaves + len(ys)
+    assert (pooled, leaves) == (1849, 3630)
 
 
 def test_halting_is_consistency():
-    """Thm 1(ii) on Welleck's stationary model (k = 3, ε = 0.05): every draw halts and |Y| is Geometric(ε), with mean
+    """Thm 1(ii) on #14's stationary model (k = 3, ε = 0.05): every draw halts and |Y| is Geometric(ε), with mean
     (1 − ε)/ε = 19 — the model is consistent, so ancestral sampling halts almost surely."""
     lm = bs.welleck_model(3)
     L = stationary_lengths(lm, np.random.default_rng([SEED, 1802]), 50_000)
@@ -993,10 +1246,22 @@ def test_temperature_divides_the_zipf_slope():
     assert abs(zipf_slope(np.log(zh.zipf_pmf(s, n))) + s) < 1e-9
 
 
+def test_tempering_moves_the_intercept():
+    """Prop 2's prose: tempering is no rotation about the intercept. On Zipf(1.1) over 60 ranks at τ = 0.5, log p at
+    rank 1 goes from −1.374 to −0.395, and the two lines cross near rank 2.4."""
+    s, n = ZIPF_TOY
+    c = zipf_crossing(s, n, 0.5)
+    assert abs(c["before"] + 1.374) < 5e-4 and abs(c["after"] + 0.395) < 5e-4 and abs(c["cross"] - 2.4) < 0.05
+    lp, q = np.log(zh.zipf_pmf(s, n)), temper(np.log(zh.zipf_pmf(s, n)), 0.5)
+    r = np.arange(1, n + 1)
+    assert np.all((q > lp) == (r < c["cross"]))
+
+
 def test_local_temperature_is_not_global():
     """Thm 3: q_τ(y) = p(y)^{1/τ}/Π_t Z_τ(h_t), so log(q_τ/π_τ) = log 𝒵_τ + (1/τ − 1)·Σ_t H_{1/τ}(h_t) (30 random
     trees, τ ∈ {0.5, 0.8, 2}); on permutation trees q_τ = π_τ; on the lab tree they differ, and as τ → 0 the local
-    sampler collapses on greedy's "rose sharply" while the global one collapses on the mode "was flat"."""
+    sampler collapses on greedy's "rose sharply" while the global one collapses on the mode "was flat". The lab tree
+    has ties at "rose on" and "rose in", off greedy's path, so (c) must ask only for unique argmaxes along that path."""
     for lm in _random_trees(30, stream=1806):
         base = tree_dist(lm)
         for tau in (0.5, 0.8, 2.0):
@@ -1015,10 +1280,14 @@ def test_local_temperature_is_not_global():
     g, m = bs.greedy(lab, (), max_len=10).tokens, bs.brute_force_mode(lab)[1]
     assert lab.words(g[:-1]) == ["rose", "sharply"] and lab.words(m[:-1]) == ["was", "flat"]
     assert local_tempered(lab, 0.02)[g] > 0.99 and global_tempered(lab, 0.02)[m] > 0.99
+    ix = lab.alphabet.index
+    assert argmax_ties(lab, (ix("rose"), ix("on"))) == 2 and argmax_ties(lab, (ix("rose"), ix("in"))) == 2
+    assert all(argmax_ties(lab, g[:t]) == 1 for t in range(len(g)))
+    assert sorted(tree_dist(lab).values())[-1] > sorted(tree_dist(lab).values())[-2]
 
 
 def test_tempered_sequence_distribution_can_diverge():
-    """Thm 3's remark: on Welleck's stationary model (k = 5, ε = 0.05) Σ_y p(y)^{1/τ} is finite iff τ < 1.0319; above it
+    """Thm 3's remark: on #14's stationary model (k = 5, ε = 0.05) Σ_y p(y)^{1/τ} is finite iff τ < 1.0319; above it
     the partial sums grow without bound, while the per-step sampler is a distribution at every τ."""
     tc = welleck_critical_tau(5)
     assert abs(welleck_ratio(5, tc) - 1) < 1e-12 and 1.03 < tc < 1.04
@@ -1078,6 +1347,32 @@ def test_pure_sampling_leaves_the_nucleus():
     assert abs(a["identity"] - a["direct"]) < 4 * a["se"] and a["direct"] < 0.85
 
 
+def test_the_tail_bound_counts_strings_that_reach_step_n():
+    """Thm 4(d): with kept masses at most 1 − ε along the way, P(the first n draws happen and are all kept) ≤ (1 − ε)^n
+    (exactly, on 30 random trees under the nucleus). "Stays inside for n steps" is false if a string may halt early:
+    with </s> at 0.9 at the root and only </s> kept, a draw never leaves the kept sets with probability 0.9 > 0.9²."""
+
+    def reach(lm: bs.TableLM, n: int, keep_rule: tuple[str, float]) -> tuple[float, float]:
+        total, worst, stack = 0.0, 0.0, [(lm.root, 1.0)]
+        while stack:
+            h, P = stack.pop()
+            if len(h) == n:
+                total += P
+                continue
+            keep = truncation_set(_log(lm.rows[h]), *keep_rule)[0]
+            worst = max(worst, float(lm.rows[h][keep].sum()))
+            stack += [(h + (j,), P * lm.rows[h][j]) for j in np.flatnonzero(keep) if j != lm.eos]
+        return total, worst
+
+    for lm in _random_trees(30, m=4, stream=1812):
+        for n in (1, 2, 3):
+            total, worst = reach(lm, n, ("nucleus", 0.7))
+            assert total <= worst**n + 1e-12
+    halt = bs.table_lm({"": {EOS: 0.9, "w": 0.1}, "w": {EOS: 1.0}})
+    assert reach(halt, 2, ("nucleus", 0.9))[0] == 0.0
+    assert sequence_cost(halt, "nucleus", 0.9).avoid == 0.9 > 0.9**2
+
+
 def test_uniform_desmoothing():
     """Prop 3: for p = (1 − λ)p* + λ/|V|, the threshold λ/|V| recovers supp p* exactly (50 random mixtures)."""
     rng = np.random.default_rng([SEED, 1811])
@@ -1101,8 +1396,8 @@ def test_kn_seen_set_is_recoverable_but_no_rule_finds_it():
 
 
 def test_samples_are_typical_of_the_model():
-    """Prop 5: E[NLL − Σ_t H(h_t)] = 0 within 4 standard errors on both engines; on the trigram the per-word NLL of
-    pure samples lies between the mode's and the held-out text's (pooled, </s> included)."""
+    """Prop 5: E[NLL − Σ_t H(h_t)] = 0 within 4 standard errors on both engines. As measured, not as predicted: on the
+    trigram the pooled per-word NLL of pure samples lies between the mode's and the held-out text's."""
     for name in ("trigram", "decoder"):
         t = typicality(name)
         assert abs(t["gap"]) < 4 * t["se"]
@@ -1110,11 +1405,55 @@ def test_samples_are_typical_of_the_model():
     assert mode < pure < held
 
 
+def test_the_three_averages_are_three_pools():
+    """Prop 5 places the samples; the text's place is a measurement, and the order depends on the statistic. Modes
+    cover 188 prompts; the text 417 of 443 scorable sentences on 182 prompts, 1 to 16 per prompt; samples 8 per prompt.
+    On the text's weights, over five streams, samples sit below the text per word (2.26–2.39 against 2.576), level
+    with it in mean per string (20.1–22.7 against 22.17), and far below it in median (12.2–14.2 against 20.0) and at
+    6–12 tokens (1.93–2.07 against 2.54)."""
+    assert len(bs.prompts()) == 188 == len(bs.exact_modes("trigram"))
+    assert held_text()["n_open"] == 443 and len(held_text()["rows"]) == 417
+    P = [pools(s) for s in STREAMS]
+    assert all(p["n_text_prompts"] == 182 and p["per_prompt"] == (1, 16) for p in P)
+    t = P[0]["text"]
+    assert abs(t["per_word"] - heldout_reference("trigram")["nll"]) < 1e-9
+    assert (round(t["per_word"], 3), round(t["mean"], 2)) == (2.576, 22.17)
+    assert (round(t["median"], 1), round(t["band"], 2)) == (20.0, 2.54)
+    S = {k: [p["samples"][k] for p in P] for k in t}
+    assert (round(min(S["per_word"]), 2), round(max(S["per_word"]), 2)) == (2.26, 2.39)
+    assert max(S["per_word"]) < t["per_word"]
+    assert (round(min(S["mean"]), 1), round(max(S["mean"]), 1)) == (20.1, 22.7)
+    assert min(S["mean"]) < t["mean"] < max(S["mean"])
+    assert (round(min(S["median"]), 1), round(max(S["median"]), 1)) == (12.2, 14.2)
+    assert (round(min(S["band"]), 2), round(max(S["band"]), 2)) == (1.93, 2.07)
+
+
+def test_the_head_is_often_typical():
+    """Def 4's prose: the likeliest token is also the most typical one on 0.617 of the prompt rows and on about 0.48 of
+    the steps along pure samples. The rest of the time a small typical mass can drop the head."""
+    h = [head_is_typical(s) for s in STREAMS]
+    assert all(round(x["rows"], 3) == 0.617 for x in h)
+    assert all(0.47 < x["steps"] < 0.50 for x in h) and round(h[0]["steps"], 2) == 0.48
+
+
+def test_typical_cost_depends_on_the_engine():
+    """Tightening typical sampling does not steadily change its cost. On the trigram, on every stream, cost is U-shaped
+    in the typical mass (five-stream means 1.65, 1.50, 1.74 at 0.2, 0.5, 0.9). On the decoder 0.2 and 0.5 tie on seed
+    0, and 0.2 is cheaper on seeds 1–3."""
+    tri = [typical_nll("trigram", s) for s in STREAMS]
+    assert all(t[0.5] < t[0.2] and t[0.5] < t[0.9] for t in tri)
+    means = [round(float(np.mean([t[m] for t in tri])), 2) for m in (0.2, 0.5, 0.9)]
+    assert means == [1.65, 1.50, 1.74]
+    tied = [typical_nll("decoder", s) for s in STREAMS]
+    assert all(abs(t[0.2] - t[0.5]) < 0.012 for t in tied)
+    assert all(typical_nll(name)[0.2] < typical_nll(name)[0.5] - 0.03 for name in DECODER_SEEDS[1:])
+
+
 def test_temperature_trades_quality_for_diversity():
     """§7: on both engines, as τ rises the model NLL, the oracle NLL, and distinct-2 rise and the copy rate falls. Every
     truncation rule's KL falls as its parameter loosens, and so does its model NLL rise, except typical sampling: at a
-    small typical mass it drops the head of each distribution (the likeliest token is rarely the one whose surprisal is
-    closest to the entropy), so its samples are less predictable than at a larger mass."""
+    small typical mass it can drop the head of a distribution, so its samples are less predictable than at a larger
+    mass."""
     for name in ("trigram", "decoder"):
         temps = [metrics(name, s) for s in SETTINGS if s[0] == "temperature"]
         for k in ("nll", "oracle_nll", "distinct2"):
@@ -1129,6 +1468,26 @@ def test_temperature_trades_quality_for_diversity():
     assert metrics("trigram", ("typical", 0.2))["nll"] > metrics("trigram", ("typical", 0.5))["nll"]
 
 
+def test_copying_falls_on_the_mean():
+    """§7: five-stream means of the copy rate fall at every step from τ = 0.4 on both engines. One stream need not: on
+    stream 0 the trigram rises from 0.4 to 0.5, and the decoder from 0.7 to 0.85."""
+    temps = [s for s in SETTINGS if s[0] == "temperature"]
+    for name in ("trigram", "decoder"):
+        means = np.mean([[metrics(name, t, s)["copied"] for t in temps] for s in STREAMS], axis=0)
+        assert np.all(np.diff(means) < 0), (name, means)
+    assert metrics("trigram", temps[0])["copied"] < metrics("trigram", temps[1])["copied"]
+    assert metrics("decoder", temps[2])["copied"] < metrics("decoder", temps[3])["copied"]
+
+
+def test_hot_nlls_count_finished_strings():
+    """§7: at τ = 1.5 the 40-token cap stops many draws, and the NLLs and copy rates leave them out: 0.76–0.78 of the
+    trigram's draws finish on every stream, and about 0.94 of the decoder's."""
+    hot = ("temperature", 1.5)
+    tri = [metrics("trigram", hot, s)["finished"] for s in STREAMS]
+    assert 0.755 < min(tri) and max(tri) < 0.785
+    assert all(0.93 < metrics("decoder", hot, s)["finished"] < 0.955 for s in STREAMS)
+
+
 def test_rules_share_one_frontier():
     """§7: every truncation setting lies within 0.1 nats of oracle NLL of the temperature curve at its own model NLL,
     on both engines: how much a rule cuts matters more than which rule it is."""
@@ -1138,11 +1497,37 @@ def test_rules_share_one_frontier():
 
 
 def test_the_text_is_off_every_curve():
-    """§7: no sampler reaches the held-out text. On the trigram every setting's oracle NLL exceeds its model NLL by
-    more than the text's does (−0.607), by at least 0.25 nats: the gap is model error, which no decoding rule removes."""
+    """§7: no setting run reaches the held-out text (2.576 under the trigram, 1.968 under the oracle). "Below every
+    curve" holds only at the text's own model NLL, where the curve reads about 2.7. The curve's cold settings sit far
+    below 1.968, and it reaches that oracle cost at model NLL about 1.77. Every setting's oracle NLL exceeds its model
+    NLL by more than the text's does, by at least 0.25 on all five streams, and that margin is a statement about the
+    settings: it reaches zero at about τ = 1.75 and is negative on every stream at τ = 2, where about a third of the
+    trigram's draws finish."""
     held = heldout_reference("trigram")
-    gap = held["oracle_nll"] - held["nll"]
-    assert all(metrics("trigram", s)["oracle_nll"] - metrics("trigram", s)["nll"] > gap + 0.25 for s in SETTINGS)
+    assert round(held["nll"], 3) == 2.576 and round(held["oracle_nll"], 3) == 1.968
+    for s in STREAMS:
+        d = text_distance(s)
+        assert 2.69 < d["curve_at_text"] < 2.74 and 1.74 < d["model_at_text_oracle"] < 1.79
+        assert temperature_curve("trigram", s)[1][0] < held["oracle_nll"] - 0.5
+        assert 0.25 < text_margin(s) < 0.3
+        assert abs(text_margin(s, (("temperature", HOT_TAUS[0]),))) < 0.03
+        assert text_margin(s, (("temperature", HOT_TAUS[1]),)) < -0.05
+        assert 0.3 < metrics("trigram", ("temperature", HOT_TAUS[1]), s)["finished"] < 0.34
+
+
+def test_rare_words_carry_part_of_the_gap():
+    """§7: the text's 0.75 nats from the curve, a five-stream mean, is not all model error. 6.4% of its tokens are
+    outside the oracle's vocabulary, costing 10.31 under the trigram and 3.04 under the oracle, against about 2% of the
+    samples' tokens. On the other tokens the text sits about 0.44 from a curve redrawn on those tokens (0.43–0.45)."""
+    oracle_cost = heldout_reference("trigram")["oracle_nll"]
+    assert round(float(np.mean([text_distance(s)["curve_at_text"] for s in STREAMS])) - oracle_cost, 2) == 0.75
+    assert round(float(np.mean([rare_words(s)["known_gap"] for s in STREAMS])), 2) == 0.44
+    for s in STREAMS:
+        r = rare_words(s)
+        assert round(r["text_share"], 3) == 0.064 and 0.02 < r["sample_share"] < 0.03
+        assert round(r["rare_model"], 2) == 10.31 and round(r["rare_oracle"], 2) == 3.04
+        assert round(r["known_model"], 2) == 2.05 and round(r["known_oracle"], 2) == 1.90
+        assert 0.42 < r["known_gap"] < 0.45
 
 
 def test_fabrication_regimes():
@@ -1150,7 +1535,7 @@ def test_fabrication_regimes():
     Seen ≥ 2 times: the argmax is always right; as τ falls to 0, P(wrong) falls monotonically to 0.
     Seen once: lowering τ from 1 raises P(correct) on average, yet at τ → 0 the probes whose argmax is wrong (0.30 of
     them) fabricate with probability → 1.
-    Never seen: no τ and no rule setting lifts P(correct) above 0.1."""
+    Never seen: no τ and no setting of top-k, nucleus, min-p, or η lifts P(correct) above 0.1."""
     c, i1 = fabrication_curves(), FIN_TAUS.index(1.0)
     seen = c["seen"]["temperature"]
     assert c["seen"]["argmax_right"] == 1.0 and seen["wrong"][0] < 1e-6
@@ -1162,7 +1547,72 @@ def test_fabrication_regimes():
         if p.regime == "once" and p.answers[p.row[p.answers].argmax()] != p.correct:
             assert answer_split(temper(p.row, 1e-6), p)[1] > 0.99 and answer_split(temper(p.row, FIN_TAUS[0]), p)[1] > 0.98
     un = c["unseen"]
-    assert max(max(v["correct"]) for v in un.values() if isinstance(v, dict)) < 0.1
+    assert max(max(v["correct"]) for k, v in un.items() if isinstance(v, dict) and k != "typical") < 0.1
+
+
+def test_a_little_cooling_raises_once_seen_fabrication():
+    """§8: on once-seen contexts P(wrong answer) is not monotone in τ. It rises from 0.544 at τ = 1 to a peak of 0.607
+    near τ = 0.75, as the mass on non-answers moves onto answers, is back to 0.551 at τ = 0.5, and falls to 0.302 at
+    τ = 0.04. Copperleaf's right answer peaks at 0.178 near τ = 0.79 before it collapses to 0."""
+    c, T = fabrication_curves()["once"]["temperature"], np.array(FIN_TAUS)
+    w, r = np.array(c["wrong"]), np.array(c["correct"])
+    i1, i5, top = FIN_TAUS.index(1.0), int(np.argmin(np.abs(T - 0.5))), int(w.argmax())
+    assert [round(float(w[i]), 3) for i in (i1, top, i5, 0)] == [0.544, 0.607, 0.551, 0.302]
+    assert 0.7 < T[top] < 0.8 and abs(w[top - 1] - w[top]) < 1e-3
+    assert 1 - w[top] - r[top] < 1 - w[i1] - r[i1]
+    e = next(x for x in fact_examples() if x["regime"] == "once")
+    assert e["entity"] == "Copperleaf Markets" and round(max(e["correct"]), 3) == 0.178
+    assert 0.75 < T[int(np.argmax(e["correct"]))] < 0.8 and e["correct"][0] < 1e-3
+
+
+def test_typical_lifts_the_unseen_by_dropping_the_favorite():
+    """§8: the fifth rule is the exception. Typical at mass 0.2 takes never-seen contexts to right 0.191, wrong 0.692,
+    by dropping the likeliest answer on every such probe, and the same move cuts once-seen contexts from right 0.240 to
+    0.064. On finer grids than FIN_GRID the other rules stay under 0.1 too."""
+    right, wrong = _fabrication_at("typical", 0.2, "unseen")
+    assert round(right, 3) == 0.191 and round(wrong, 3) == 0.692
+    assert favorite_dropped("typical", 0.2, "unseen") == 1.0 == favorite_dropped("typical", 0.2, "once")
+    i1 = FIN_TAUS.index(1.0)
+    assert round(fabrication_curves()["once"]["temperature"]["correct"][i1], 3) == 0.240
+    assert round(_fabrication_at("typical", 0.2, "once")[0], 3) == 0.064
+    fine = {"top-k": range(1, 60), "nucleus": np.arange(0.05, 1.0, 0.05), "min-p": np.arange(0.01, 1, 0.03),
+            "eta": 10 ** np.linspace(-4, -0.5, 36)}
+    for rule, grid in fine.items():
+        assert max(_fabrication_at(rule, x, "unseen")[0] for x in grid) < 0.1, rule
+
+
+def test_cooling_raises_fabrication_on_unseen_contexts():
+    """§8: sharpening does something where nothing was learned. On never-seen contexts P(wrong answer) rises from 0.699
+    at τ = 1 to 0.951 at τ = 0.04, because the 0.238 on words that are no answer at all moves onto answers."""
+    c, i1 = fabrication_curves()["unseen"]["temperature"], FIN_TAUS.index(1.0)
+    assert round(c["wrong"][i1], 3) == 0.699 and round(c["wrong"][0], 3) == 0.951
+    other = [1 - a - b for a, b in zip(c["correct"], c["wrong"])]
+    assert round(other[i1], 3) == 0.238 and other[0] < 1e-3
+
+
+def test_seen_counts_the_context():
+    """§8: the regimes count a four-word context, not a fact. 14 of the 34 never-seen sector probes have the same fact
+    in training under the sibling frame. All 10 once-seen failures are sectors (10 of 21; cities 0 of 12), and one
+    sighting adds about 0.124, enough to beat the cities' flat prior but not the sectors' lopsided one."""
+    assert fact_in_the_other_frame() == (14, 34)
+    a = seen_context_anatomy()
+    assert (a["IN_SECTOR"]["n"], a["IN_SECTOR"]["wrong"]) == (21, 10)
+    assert (a["HQ_IN"]["n"], a["HQ_IN"]["wrong"]) == (12, 0)
+    assert all(round(v["sighting"], 3) == 0.124 for v in a.values())
+    assert a["HQ_IN"]["top_prior"] < 0.124 < a["IN_SECTOR"]["top_prior"]
+    assert sum(_argmax_wrong(p) for p in probes() if p.regime == "once") == 10
+
+
+def test_the_decoder_answers_near_chance():
+    """§8: on the probes it can score, #14's decoder ranks the right answer first on 0.189 of 74 sector probes against
+    chance 0.167, and 0.115 of 26 headquarters probes against chance 0.125. Both sit within two standard errors of
+    chance."""
+    d = decoder_on_facts()
+    s, h = d["IN_SECTOR"], d["HQ_IN"]
+    assert (s["n"], round(s["right"], 3), round(s["chance"], 3)) == (74, 0.189, 0.167)
+    assert (h["n"], round(h["right"], 3), round(h["chance"], 3)) == (26, 0.115, 0.125)
+    for v in d.values():
+        assert abs(v["right"] - v["chance"]) < 2 * math.sqrt(v["chance"] * (1 - v["chance"]) / v["n"])
 
 
 def test_draw_scores_match_the_model():
@@ -1189,6 +1639,7 @@ def test_viz_payload():
     assert p["tree"]["strings"][p["tree"]["greedy"]] == "rose sharply"
     assert p["tree"]["strings"][p["tree"]["mode"]] == "was flat"
     assert [e["regime"] for e in p["fabrication"]["examples"]] == list(REGIMES)
+    assert set(p["fabrication"]["grids"]) == set(RULES)
     assert set(p["frontier"]["trigram"]) >= {"temperature", *RULES, "mode", "heldout"}
     for row in p["rows"][:5]:
         assert row["dial"][LAB_TAUS.index(1.0)]["slope"] == row["slope"]

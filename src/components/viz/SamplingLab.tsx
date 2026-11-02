@@ -3,9 +3,11 @@ import * as d3 from 'd3';
 // Every number below comes from viz_payload() in notebooks/sampling-temperature-nucleus/sampling_temperature_nucleus.py;
 // test_viz_mirror_matches_payload asserts this file equals it exactly, and the harness's tests assert the claims the
 // views make (test_entropy_rises_with_temperature, test_temperature_divides_the_zipf_slope,
-// test_local_temperature_is_not_global, test_kn_seen_set_is_recoverable_but_no_rule_finds_it,
-// test_rules_share_one_frontier, test_the_text_is_off_every_curve, test_fabrication_regimes). Change the .py,
-// regenerate, never the reverse.
+// test_tempering_moves_the_intercept, test_local_temperature_is_not_global,
+// test_kn_seen_set_is_recoverable_but_no_rule_finds_it, test_rules_share_one_frontier, test_the_text_is_off_every_curve,
+// test_rare_words_carry_part_of_the_gap, test_fabrication_regimes, test_a_little_cooling_raises_once_seen_fabrication,
+// test_cooling_raises_fabrication_on_unseen_contexts).
+// Change the .py, regenerate, never the reverse.
 import payload from './data/sampling-temperature-nucleus-lab.json';
 
 /**
@@ -19,8 +21,8 @@ import payload from './data/sampling-temperature-nucleus-lab.json';
  *      (Theorem 3).
  *   D. "One frontier": every setting on both engines, model NLL against oracle NLL, with the mode and the held-out
  *      text marked.
- *   E. "Boilerplate against fabrication": the order-5 fact model's exact P(correct) and P(wrong) against τ for facts seen
- *      twice or more, once, and never.
+ *   E. "Boilerplate against fabrication": the order-5 fact model's exact P(correct) and P(wrong) against τ for contexts
+ *      seen twice or more, once, and never.
  */
 
 type Dial = { p: number[]; H: number; slope: number; Ez: number };
@@ -371,7 +373,7 @@ export default function SamplingLab() {
         </Readouts>
         <Note>
           Entropy only rises as τ rises (Theorem 2), and the log–log slope is always the τ = 1 slope divided by τ
-          (Proposition 2): temperature rotates Topic 1’s rank–frequency line. Near τ = 0 the mass sits on the likeliest
+          (Proposition 2): temperature tilts Topic 1’s rank–frequency line, and its intercept moves too. Near τ = 0 the mass sits on the likeliest
           token; at large τ it spreads over all {R.support} tokens.
         </Note>
       </figure>
@@ -448,7 +450,7 @@ export default function SamplingLab() {
         <Note>
           {family === 'temperature' && P.x > 1.15 && 'This setting lies off the chart, up and to the right. '}
           {engine === 'trigram'
-            ? `Every rule lands on nearly the same curve: how much it cuts matters more than how. The held-out text (${f3(F.heldout.nll)} under the model, ${f3(F.heldout.oracle_nll)} under the oracle) sits below all of them — the gap is the model’s error, which no decoding rule removes.`
+            ? `Every rule lands on nearly the same curve: how much it cuts matters more than how. The held-out text (${f3(F.heldout.nll)} under the model, ${f3(F.heldout.oracle_nll)} under the oracle) is out of reach of these settings. At its own model NLL the curve runs well above it, partly because of rare words the oracle lumps together, and partly through the model’s error.`
             : 'The transformer’s settings also share one curve. Its held-out reference is omitted: the sentences it can score at all are a templated subset of the text.'}
         </Note>
       </figure>
@@ -484,10 +486,11 @@ export default function SamplingLab() {
           ))}
         </div>
         <Note>
-          Lowering τ sharpens whatever the model believes. For facts it saw twice or more, that removes the smoothing mass
-          and with it every fabrication. For a fact it saw once, the discounted count competes with the sector prior, and
-          where the prior wins, a cold sampler states the wrong sector with certainty. For facts it never saw, no setting
-          helps.
+          Lowering τ sharpens whatever the model believes. For contexts it saw twice or more, that removes the smoothing
+          mass and with it every fabrication. For a context it saw once, the discounted count competes with the prior, and
+          where the prior wins, a cold sampler states the wrong answer with certainty; on the way there, a little cooling
+          raises fabrication before a lot of it lowers it. For contexts it never saw, cooling moves the mass on non-answers
+          onto answers, and fabrication rises.
         </Note>
       </figure>
     </div>

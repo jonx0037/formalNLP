@@ -18,13 +18,13 @@ tags:
   - "hallucination"
 domain: "decoding-generation"
 financeCaseStudy: true
-rigorFlag: "Theorems 1–4 and Propositions 1–5 are proved on this page. Three things are cited instead: Kool, van Hoof, and Welling's stochastic beam search, the asymptotic equipartition property and the Shannon–McMillan–Breiman theorem, and the motivations Hewitt, Manning, and Liang and Meister and colleagues give for η and typical sampling. Every truncation threshold (k, p, ρ, η, the typical mass) is a heuristic: none is derived from the model's actual error, and the desmoothing reading assumes a mixture form a neural model need not have. Per-step temperature is not the tempered sequence distribution (Theorem 3), and for τ > 1 that distribution may not exist. The corpus engines are tiny, a Kneser–Ney trigram over 3,427 words and a two-block decoder of width 32 over 509 words, both renormalized at each step to never emit the unknown-word token. The quality axis is per-word NLL under an oracle, a Kneser–Ney model fit to five times more text from the same synthetic generator, so it is a proxy with smoothing of its own, and it rewards blandness. Fabrication is scored only for three relation frames against a synthetic knowledge base, on an order-5 Kneser–Ney fact model."
+rigorFlag: "Theorems 1–4 and Propositions 1–5 are proved on this page. Three things are cited instead: Kool, van Hoof, and Welling's stochastic beam search, the asymptotic equipartition property and the Shannon–McMillan–Breiman theorem, and the motivations Hewitt, Manning, and Liang and Meister and colleagues give for η and typical sampling. Every truncation threshold (k, p, ρ, η, the typical mass) is a heuristic: none is derived from the model's actual error, and the desmoothing reading assumes a mixture form a neural model need not have. Per-step temperature is not the tempered sequence distribution (Theorem 3), and for τ > 1 that distribution may not exist. The corpus engines are tiny, a Kneser–Ney trigram over 3,427 words and a two-block decoder of width 32 over 509 words, both renormalized at each step to never emit the unknown-word token. The quality axis is per-word NLL under an oracle, a Kneser–Ney model fit to five times more text from the same synthetic generator, so it is a proxy with smoothing of its own, and it rewards blandness. Fabrication is scored only for three relation frames against a synthetic knowledge base, on an order-5 Kneser–Ney fact model. Sampled figures come from one random stream unless given as a range over five."
 videoId: null
 notebookPath: "notebooks/sampling-temperature-nucleus/01_sampling_temperature_nucleus.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/sampling-temperature-nucleus.mdx"
 datePublished: 2026-10-25
 estimatedReadTime: 40
-abstract: "Searching for the most probable string returns text that is short, bland, and nothing like what the model learned from. Sampling asks for a string drawn from the model instead, and ancestral sampling, one token at a time, is exact: every string comes up exactly as often as the model says, and the sampler halts precisely when the model is consistent. The Gumbel-max trick makes the link to search literal, since a draw is the argmax of noisy log-probabilities. In practice the draw is reshaped. Temperature divides the logits by τ, which picks the Gibbs distribution that trades expected score against entropy, raises the entropy monotonically, and divides the slope of the log–log rank–frequency line by τ. Applied at every step, though, temperature is not the tempered model: it reweights strings by the accumulated Rényi entropy of their prefixes, its cold limit is greedy decoding rather than the mode, and above τ = 1 the tempered sequence distribution need not exist. Truncation rules (top-k, nucleus, min-p, η, and locally typical sampling) keep part of each distribution, and the cost is exact: a cut that keeps mass m costs total variation 1 − m and KL −log m per step, and over a sentence the KL is the expected sum of −log m. A Kneser–Ney model knows exactly which words it saw after each context, yet no setting of any rule recovers that set on every prompt. On a trigram and a small transformer trained on the shared filings, every rule lands on one frontier between predictability and quality, and the held-out text lies below all of it. On an order-5 Kneser–Ney fact model, lowering the temperature removes fabrication for facts seen twice or more, makes it certain for a third of the facts seen once, and does nothing for facts never seen."
+abstract: "Searching for the most probable string returns text that is short, bland, and nothing like what the model learned from. Sampling asks for a string drawn from the model instead, and ancestral sampling, one token at a time, is exact: every string comes up exactly as often as the model says, and the sampler halts precisely when the model is consistent. The Gumbel-max trick makes the link to greedy decoding literal, since a draw is the argmax of noisy log-probabilities. In practice the draw is reshaped. Temperature divides the logits by τ, which picks the Gibbs distribution that trades expected score against entropy, raises the entropy monotonically, and divides the slope of the log–log rank–frequency line by τ. Applied at every step, though, temperature is not the tempered model: it reweights strings by the accumulated Rényi entropy of their prefixes, its cold limit is greedy decoding rather than the mode, and above τ = 1 the tempered sequence distribution need not exist. Truncation rules (top-k, nucleus, min-p, η, and locally typical sampling) keep part of each distribution, and the cost is exact: a cut that keeps mass m costs total variation 1 − m and KL −log m per step, and over a sentence the KL is the expected sum of −log m. A Kneser–Ney model knows exactly which words it saw after each context, yet no setting of any rule recovers that set on every prompt. On a trigram and a small transformer trained on the shared filings, every rule lands on one frontier between predictability and quality, and none of the settings run reaches the held-out text. On an order-5 Kneser–Ney fact model, lowering the temperature removes fabrication on contexts seen twice or more, makes it certain on a third of the contexts seen once, and raises it on contexts never seen."
 connections: []
 references:
   - type: "paper"
@@ -32,7 +32,7 @@ references:
     authors: "Ari Holtzman, Jan Buys, Li Du, Maxwell Forbes, and Yejin Choi"
     year: 2020
     url: "https://openreview.net/forum?id=rygGQyrFvH"
-    note: "ICLR 2020. Nucleus sampling: the top-p vocabulary (their Eq. 2) and its rescaled distribution (Eq. 3), and the unreliable tail of Theorem 4(d)"
+    note: "ICLR 2020. Nucleus sampling: the top-p vocabulary (their Eq. 2) and its rescaled distribution (Eq. 3), and the unreliable tail of Theorem 4(c)"
   - type: "paper"
     title: "Hierarchical Neural Story Generation"
     authors: "Angela Fan, Mike Lewis, and Yann Dauphin"
@@ -110,13 +110,13 @@ references:
     authors: "Andy Shih, Dorsa Sadigh, and Stefano Ermon"
     year: 2023
     url: "https://proceedings.mlr.press/v202/shih23a.html"
-    note: "ICML 2023, PMLR 202: 31422–34. Myopic temperature scaling is not the tempered joint distribution (their §2.1, Eq. 3)"
+    note: "ICML 2023, PMLR 202: 31422–34. Myopic temperature scaling is not the tempered joint distribution (their §2.1), with its per-step normalizer written out (their Eqs. 2–3)"
   - type: "paper"
     title: "Globally Normalized Transition-Based Neural Networks"
     authors: "Daniel Andor, Chris Alberti, David Weiss, Aliaksei Severyn, Alessandro Presta, Kuzman Ganchev, Slav Petrov, and Michael Collins"
     year: 2016
     url: "https://doi.org/10.18653/v1/P16-1231"
-    note: "ACL 2016, 2442–52. Locally normalized models are strictly less expressive than globally normalized ones (their Theorem 3.1), the label-bias background to Theorem 3"
+    note: "ACL 2016, 2442–52. Locally normalized models are strictly less expressive than globally normalized ones (their Theorem 3.1), the label-bias relative of Theorem 3"
   - type: "book"
     title: "Elements of Information Theory"
     authors: "Thomas M. Cover and Joy A. Thomas"
@@ -148,7 +148,7 @@ formalmlConnections:
     relationship: "The tempered distributions form an exponential family with natural parameter 1/τ and sufficient statistic log p, so annealing walks a curve in the dually flat geometry its Theorem 5 establishes for exponential families."
   - topic: "sequential-monte-carlo"
     site: "formalml"
-    relationship: "Ancestral sampling is sequential importance sampling with the model as its own proposal, and the identity E_q Π m(h_t) of Theorem 4(c) is an importance weight; tempering sequences are the standard bridge between distributions in SMC."
+    relationship: "This page reads ancestral sampling as sequential importance sampling with the model as its own proposal, which makes the identity E_q Π m(h_t) of Theorem 4(c) an importance weight. That page develops such weights, and uses tempering sequences as a bridge between distributions."
 formalstatisticsPrereqs:
   - topic: "exponential-families"
     site: "formalstatistics"
@@ -168,13 +168,13 @@ import SamplingLab from '../../components/viz/SamplingLab.tsx';
 
 Go back to the [beam-search topic](/topics/beam-search-decoding)'s small example. After "revenue" the model says "rose" with probability $0.45$, "was" with $0.35$, and "fell" with $0.20$. The most probable sentence, the mode, is "revenue was flat" at $0.238$; greedy decoding finds "revenue rose sharply" at $0.0864$. Neither is what the model *says* about revenue. The model says that thirteen different sentences are possible, and how often each should turn up. To hear that, we draw from it.
 
-That topic ended with a number that motivates this one. On the shared filings, the trigram's exact modes cost $0.835$ nats per word, the held-out sentences cost $2.576$, and the model's own samples cost $2.348$ (all pooled per word, the end mark included). The mode is far more predictable than any text the model would write. Sampling closes that gap, and we develop it in order:
+That topic left a gap that motivates this one. On the shared filings, the trigram's exact modes cost $0.835$ nats per word and the held-out sentences cost $2.576$. This page adds a third number: the model's own samples cost $2.348$ (all pooled per word, the end mark included). The mode is far more predictable than what the model usually writes. Sampling closes most of that gap, and we develop it in order:
 
-1. **Sampling is exact.** Drawing one token at a time returns every string with exactly its probability, and a draw is the argmax of noisy log-probabilities, so search is sampling with the noise turned off.
+1. **Sampling is exact.** Drawing one token at a time returns every string with exactly its probability, and a draw is the argmax of noisy log-probabilities, so greedy decoding is sampling with the noise turned off.
 2. **Temperature is a Gibbs distribution.** Dividing logits by $\tau$ trades expected score against entropy. The entropy only rises with $\tau$, and the log–log slope of the distribution divides by $\tau$.
 3. **Per-step temperature is not a tempered model.** Its cold limit is greedy decoding, not the mode, and above $\tau = 1$ the tempered model may not exist.
 4. **Truncation has an exact price.** A cut that keeps mass $m$ costs $1 - m$ in total variation and $-\log m$ in KL, and over a sentence the KL adds up exactly.
-5. **Truncation is desmoothing, imperfectly.** A Kneser–Ney model knows which words it saw, but no truncation rule recovers them.
+5. **Truncation is desmoothing, imperfectly.** A Kneser–Ney model knows which words it saw, but no setting of any truncation rule recovers them on every prompt.
 
 Then we measure every rule on two models trained on the shared filings, and ask what temperature does to a model's facts.
 
@@ -200,15 +200,15 @@ Given a prompt $x$, draw $Y_1 \sim p(\cdot \mid x)$, then $Y_t \sim p(\cdot \mid
 
 <TheoremBlock type="proof">
 
-**(i)** The draws are conditionally independent given the prefix, so the probability of drawing $y_1, \dots, y_n$ in order is $\prod_t p(y_t \mid x, y_{\lt t}) = p(y \mid x)$, by the chain rule.
+**(i)** Given the prefix $y_{\lt t}$, the draw $Y_t$ has law $p(\cdot \mid x, y_{\lt t})$. So the probability of drawing $y_1, \dots, y_n$ in order is the product of these conditional probabilities, $\prod_t p(y_t \mid x, y_{\lt t}) = p(y \mid x)$, by the chain rule.
 
 **(ii)** The events "the sampler returns $y$" are disjoint for different finite $y$, and their union is the event that it halts. By (i), $\Pr(\text{halt}) = \sum_y p(y \mid x)$.
 
 </TheoremBlock>
 
-The [neural-language-models topic](/topics/neural-language-models) proves that a softmax recurrent model with bounded state is consistent (its Theorem 4), so for such models (ii) is never an issue. The harness draws $20{,}000$ samples from the lab tree and from $30$ random trees and checks every leaf frequency against $p(y)$, and checks on Welleck's stationary model that lengths are geometric.
+The [neural-language-models topic](/topics/neural-language-models) proves that a softmax recurrent model with bounded state is consistent (its Theorem 4), so for such models (ii) is never an issue. The harness draws $20{,}000$ samples from the lab tree and from $30$ random trees, and tests each tree's fit by $\chi^2$. It also checks every leaf with an expected count of at least $5$ against $p(y)$; on the random trees the other $1{,}849$ of $3{,}630$ leaves are pooled into one $\chi^2$ cell. On the beam-search topic's stationary model it checks that lengths are geometric.
 
-Search and sampling look like different algorithms. One fact about extreme-value noise shows that they differ only in what is added to the scores before taking a maximum.
+Greedy decoding and sampling look like different algorithms. One fact about extreme-value noise shows that they differ only in what is added to the scores before taking a maximum.
 
 <TheoremBlock type="proposition" number={1} title="Gumbel-max">
 
@@ -228,7 +228,7 @@ which factors into $\operatorname{softmax}(z)_i$ times the Gumbel CDF with locat
 
 </TheoremBlock>
 
-So a draw from $p(\cdot \mid h)$ is the argmax of $\log p(\cdot \mid h)$ plus noise, and greedy decoding is the same argmax with the noise set to zero. The argmax half goes back to Yellott (1977); Maddison, Tarlow, and Minka (2014) state both halves. Kool, van Hoof, and Welling (2019) push the idea to whole sequences: perturb every prefix consistently, run beam search on the perturbed scores, and the top $k$ strings are an exact sample without replacement (their Theorem 1, Gumbel-top-$k$). Sampling and search are one algorithm with a dial for noise.
+So a draw from $p(\cdot \mid h)$ is the argmax of $\log p(\cdot \mid h)$ plus noise, and greedy decoding is the same argmax with the noise set to zero. The argmax half goes back to Yellott (1977); Maddison, Tarlow, and Minka (2014) state both halves. Kool, van Hoof, and Welling (2019) push the idea to whole sequences: perturb every prefix consistently, run beam search on the perturbed scores, and the top $k$ strings are an exact sample without replacement (their Theorem 1, Gumbel-top-$k$). So sampling and greedy decoding are one loop with a dial for per-step noise. That dial does not reach the mode: noise off gives greedy's string, which is Theorem 3's point.
 
 ---
 
@@ -244,7 +244,7 @@ $$
 
 </TheoremBlock>
 
-Figure A of the laboratory below shows one such distribution as $\tau$ slides. Near $\tau = 0$ the mass sits on the likeliest token; at large $\tau$ it spreads over the whole vocabulary. Everything between is a single curve, and it has three exact properties.
+Figure A of the laboratory below shows one such distribution as $\tau$ slides. Near $\tau = 0$ the mass sits on the likeliest token; at large $\tau$ it spreads evenly over the support. Everything between is a single curve, and it has three exact properties.
 
 <TheoremBlock type="theorem" number={2} title="Temperature is a Gibbs distribution">
 
@@ -268,7 +268,7 @@ For any $z \in \mathbb{R}^V$ and $\tau \gt 0$:
 
 </TheoremBlock>
 
-Part (a) is the maximum-entropy principle of Jaynes (1957) with $z$ as the energy: temperature prices entropy against expected score. Part (b) is formalStatistics' [log-partition theorem](https://www.formalstatistics.com/topics/exponential-families) (its Theorem 7.1) applied to the family $\{p_\tau\}$, an exponential family with sufficient statistic $\log p$ and natural parameter $1/\tau$. Annealing walks along that one curve (Kirkpatrick, Gelatt, and Vecchi 1983), and Ackley, Hinton, and Sejnowski (1985) brought the word "temperature" into neural networks. The harness checks (a) against a numerical optimizer on $50$ random score vectors, and (b) as monotone entropy on a $200$-point grid of $\tau$ for every trigram prompt.
+Part (a) is the maximum-entropy principle of Jaynes (1957) with $-z$ as the energy: temperature prices entropy against expected score. Part (b) is formalStatistics' [log-partition theorem](https://www.formalstatistics.com/topics/exponential-families) (its Theorem 7.1) applied to the family $\{p_\tau\}$, an exponential family with sufficient statistic $\log p$ and natural parameter $1/\tau$. Annealing walks along that one curve (Kirkpatrick, Gelatt, and Vecchi 1983), and Ackley, Hinton, and Sejnowski (1985) brought the word "temperature" into neural networks. The harness checks (a) against a numerical optimizer on $50$ random score vectors, and (b) as monotone entropy on a $200$-point grid of $\tau$ for every trigram prompt.
 
 Temperature also has a picture on the [Zipf topic](/topics/zipf-heaps-vocabulary-statistics)'s log–log plot.
 
@@ -284,7 +284,7 @@ Tempering preserves ranks, and $\log p_\tau = \tfrac{1}{\tau} \log p - \log Z_\t
 
 </TheoremBlock>
 
-Temperature rotates the rank–frequency line about its intercept, exactly, for one distribution. Sampled *text* mixes many contexts, so its own rank–frequency slope only roughly follows $s/\tau$.
+So temperature divides the slope of the rank–frequency line, exactly, for one distribution. It moves the intercept too, because $\log Z_\tau$ shifts the whole line: on a Zipf($1.1$) row over $60$ ranks, $\tau = 0.5$ takes the log-probability at rank $1$ from $-1.374$ to $-0.395$, and the two lines cross near rank $2.4$. Sampled *text* mixes many contexts, so its own rank–frequency slope only roughly follows $s/\tau$.
 
 ---
 
@@ -306,7 +306,7 @@ $$
 
 For $\tau \lt 1$, local tempering upweights the strings whose prefixes carry more accumulated Rényi entropy.
 
-**(c)** If argmaxes are unique, then as $\tau \to 0$, $q_\tau$ concentrates on greedy's string and $\pi_\tau$ on the mode.
+**(c)** On a finite tree, if the mode and the argmaxes along greedy's path are unique, then as $\tau \to 0$, $q_\tau$ concentrates on greedy's string and $\pi_\tau$ on the mode.
 
 </TheoremBlock>
 
@@ -316,11 +316,11 @@ For $\tau \lt 1$, local tempering upweights the strings whose prefixes carry mor
 
 **(b)** By definition $H_\alpha(p) = \frac{1}{1 - \alpha} \log \sum_w p_w^\alpha$, so $\log Z_\tau(h) = (1 - \alpha) H_\alpha(p(\cdot \mid h))$. Divide (a) by $\pi_\tau$ and take logarithms.
 
-**(c)** Each $p_\tau(\cdot \mid h)$ tends to the point mass on the argmax at $h$, so on a finite tree $q_\tau$ tends to the point mass on the string of step-wise argmaxes, which is greedy's. Likewise $\pi_\tau \propto p(y)^{1/\tau}$ tends to the point mass on $\arg\max_y p(y)$.
+**(c)** Along greedy's path, each $p_\tau(\cdot \mid h)$ tends to the point mass on that prefix's unique argmax. The path has finitely many steps, so $q_\tau$ of greedy's string tends to $1$. Likewise $\pi_\tau \propto p(y)^{1/\tau}$ over finitely many strings tends to the point mass on the unique mode.
 
 </TheoremBlock>
 
-The condition in (a) holds when, for instance, every next-token distribution is a permutation of one vector and every string has the same length; the harness checks it on such trees, and checks the identity in (b) on $30$ random trees at three temperatures. On the lab tree, Figure C shows the two samplers parting as the dial cools. At $\tau = 0.1$ they are $0.925$ apart in total variation: the per-step sampler puts $0.705$ on greedy's "rose sharply" while the tempered model puts $0.999$ on the mode "was flat". Caccia and colleagues (2020, §3) and Shih, Sadigh, and Ermon (2023, §2.1) observe that per-token temperature differs from tempering the joint distribution; the normalizer product, the Rényi identity, and the following remark are what this section adds. The gap is the label bias of locally normalized models (Andor and colleagues 2016) in a new guise.
+The condition in (a) holds when, for instance, every string ends in a forced end mark at one fixed depth and every row before that is a permutation of one vector: those rows share one $Z_\tau$, and the forced row contributes $1$. The forced row has to be excepted, because the last row of a same-length string puts all its mass on $\mathrm{eos}$. The harness checks the equality on such trees, and checks the identity in (b) on $30$ random trees at three temperatures. Part (c) asks only about greedy's path because the lab tree has ties elsewhere, at "rose on" and "rose in". On the lab tree, Figure C shows the two samplers parting as the dial cools. At $\tau = 0.1$ they are $0.925$ apart in total variation: the per-step sampler puts $0.705$ on greedy's "rose sharply" while the tempered model puts $0.999$ on the mode "was flat". Caccia and colleagues (2020, §3) and Shih, Sadigh, and Ermon (2023, §2.1) observe that per-token temperature differs from tempering the joint distribution, and Shih and colleagues write out the per-step normalizer (their Eqs. 2–3). What this section adds is the reading of that normalizer as accumulated Rényi entropy, and the remark that follows. The gap is a relative of the label bias of locally normalized models (Andor and colleagues 2016): both come from normalizing step by step, though label bias limits what a model can express, while this gap is in how a sampler reshapes a fixed one.
 
 **The tempered model need not exist.** For $\tau \gt 1$, $\mathcal{Z}_\tau$ can be infinite. Take the beam-search topic's stationary model: $k$ words of probability $(1 - \varepsilon)/k$ each and $\mathrm{eos}$ of probability $\varepsilon$, after every prefix. Then
 
@@ -364,7 +364,7 @@ $$
 
 and the probability that pure sampling never leaves the kept sets is $\mathbb{E}_q\big[\prod_t m(h_t)\big]$.
 
-**(d)** If every kept mass is at most $1 - \varepsilon$, pure sampling stays inside the kept sets for $n$ steps with probability at most $(1 - \varepsilon)^n$.
+**(d)** If every kept mass is at most $1 - \varepsilon$, pure sampling reaches step $n$ inside the kept sets with probability at most $(1 - \varepsilon)^n$. That is, the first $n$ draws happen and are all kept.
 
 </TheoremBlock>
 
@@ -376,11 +376,11 @@ and the probability that pure sampling never leaves the kept sets is $\mathbb{E}
 
 **(c)** The KL identity is the chain rule for KL: step $t$ contributes $-\log m(h_t)$, averaged over the prefixes $q$ visits. For TV, couple the two samplers step by step with a maximal coupling; they agree until the first decoupling, which happens at step $t$ with probability $1 - m(h_t)$ given agreement so far, and a union bound finishes. For the last identity, $\sum_{y \in \operatorname{supp} q} p(y) = \sum_y q(y)\, p(y)/q(y)$ with $p(y)/q(y) = \prod_t m(h_t)$.
 
-**(d)** Every factor in the product of (c) is at most $1 - \varepsilon$.
+**(d)** Let $A_n$ be the event in the statement. Given $A_{n-1}$ and its prefix $h_n$, the $n$-th draw is kept with probability $m(h_n) \le 1 - \varepsilon$, so $\Pr(A_n) \le (1 - \varepsilon) \Pr(A_{n-1})$. A string that halts before step $n$ is not in $A_n$, and it has to be left out: if the root gives $\mathrm{eos}$ probability $0.9$ and only $\mathrm{eos}$ is kept, $0.9$ of draws never leave the kept sets.
 
 </TheoremBlock>
 
-The harness checks (a) against every subset of $200$ random eight-token distributions, and (c) by exact enumeration on $30$ random trees under every rule. Part (d) is Holtzman and colleagues' "unreliable tail" made exact, and over a whole sentence it is not rare. On the trigram, a pure sample stays inside the $0.95$-nucleus at every step with probability $0.783$, measured directly, or $0.775$ through the identity in (c) under nucleus sampling. So about one continuation in five draws at least one tail token.
+The harness checks (a) against every subset of $200$ random eight-token distributions, and (c) by exact enumeration on $30$ random trees under every rule. Parts (c) and (d) make Holtzman and colleagues' "unreliable tail" exact, and over a whole sentence it is not rare. On the trigram, a pure sample stays inside the $0.95$-nucleus at every step with probability $0.783$, measured directly, or $0.775$ through the identity in (c) under nucleus sampling. So about one continuation in five draws at least one tail token. That figure comes from (c): a row's nucleus can keep nearly all of its mass, so (d) gives no useful bound here.
 
 <SamplingLab client:visible />
 
@@ -392,7 +392,7 @@ Hewitt, Manning, and Liang (2022) read truncation as undoing smoothing. They mod
 
 <TheoremBlock type="proposition" number={3} title="Uniform desmoothing">
 
-If $p = (1 - \lambda)p^\star + \lambda/|V|$, then $\{w : p_w \gt \lambda/|V|\} = \operatorname{supp} p^\star$.
+If $p = (1 - \lambda)p^\star + \lambda/|V|$ with $\lambda \lt 1$, then $\{w : p_w \gt \lambda/|V|\} = \operatorname{supp} p^\star$.
 
 </TheoremBlock>
 
@@ -406,7 +406,7 @@ A Kneser–Ney model wears its smoothing openly, which lets us test the reading 
 
 <TheoremBlock type="proposition" number={4} title="Kneser–Ney desmoothing">
 
-For interpolated Kneser–Ney with discount $D \lt 1$,
+For interpolated Kneser–Ney with discount $D \lt 1$ and a context $h$ with $c(h) \gt 0$,
 
 $$
 p(w \mid h) \;=\; \frac{\max(c(hw) - D, 0)}{c(h)} + \gamma(h)\, p_{\mathrm{lower}}(w \mid h^-),
@@ -440,7 +440,9 @@ Given $h_t$, the surprisal $-\log p(Y_t \mid h_t)$ has conditional mean $H(h_t)$
 
 </TheoremBlock>
 
-A sample's NLL tracks its own path's entropy, and on a finite vocabulary with a probability floor the increments are bounded, so formalStatistics' [Azuma–Hoeffding inequality](https://www.formalstatistics.com/topics/large-deviations) (its Theorem 7) makes the concentration exponential. For i.i.d. and stationary ergodic sources this is the asymptotic equipartition property (Cover and Thomas 2006, §3.1 and §16.8). The harness confirms $\mathbb{E}[M] = 0$ within four standard errors on both engines. On the trigram the three per-word NLLs line up as the proposition predicts: $0.835$ for the exact mode, $2.348$ for pure samples, and $2.576$ for the held-out text, a cross-entropy that also pays for the model's error. The mode is nothing like a typical sample.
+A sample's NLL tracks its own path's entropy, and on a finite vocabulary with a probability floor the increments are bounded, so formalStatistics' [Azuma–Hoeffding inequality](https://www.formalstatistics.com/topics/large-deviations) (its Theorem 7) makes the concentration exponential. For i.i.d. and stationary ergodic sources this is the asymptotic equipartition property (Cover and Thomas 2006, §3.1 and §16.8). The harness confirms $\mathbb{E}[M] = 0$ within four standard errors on both engines.
+
+Proposition 5 places the samples. It says nothing about the text, which is a cross-entropy: the text's own entropy plus a penalty for the model's error. On the trigram the three per-word NLLs are $0.835$ for the exact mode, $2.348$ for pure samples, and $2.576$ for the held-out text, and they come from three different pools. The modes cover all $188$ prompts, the samples are $8$ draws on each, and the text is the $417$ of $443$ sentences the trigram can score, on $182$ prompts at $1$ to $16$ sentences each. Give the samples the text's weights and, over five random streams, they cost $2.26$–$2.39$ nats per word against the text's $2.576$, and $20.1$–$22.7$ nats per string on average against its $22.17$. That mean hides the shape. The median string costs $12.2$–$14.2$ nats against the text's $20.0$, and strings of $6$ to $12$ tokens cost $1.93$–$2.07$ per word against its $2.54$. At matched length the model finds the real text more surprising than its own output. The mode is nothing like a typical sample.
 
 <TheoremBlock type="definition" number={4} title="Locally typical sampling">
 
@@ -448,7 +450,7 @@ Sort tokens by $|{-\log p_w} - H(h)|$ and keep them until their mass reaches the
 
 </TheoremBlock>
 
-Unlike the other rules, typical sampling can drop the head of a distribution: the likeliest token is rarely the one whose surprisal is closest to the entropy. At typical mass $0.2$ the trigram's typical samples cost $1.617$ nats per word, more than the $1.464$ they cost at mass $0.5$, so tightening this rule does not make text more predictable.
+Unlike the other rules, typical sampling can drop the head of a distribution: the likeliest token is also the most typical one on only $0.617$ of prompt rows, and on about $0.48$ of the steps along pure samples. So tightening this rule need not make text more predictable. On the trigram, on all five streams, cost is U-shaped in the typical mass, with means of $1.65$, $1.50$, and $1.74$ nats per word at masses $0.2$, $0.5$, and $0.9$. On the decoder, masses $0.2$ and $0.5$ tie on the page's training seed, and on three other seeds $0.2$ is a little cheaper, so the U is the trigram's and not a law of the rule.
 
 ---
 
@@ -459,9 +461,11 @@ We now sample both of the beam-search topic's engines, the Kneser–Ney trigram 
 - the samples' per-word NLL under the model that generated them, which measures how far into its own tail the sampler goes;
 - their per-word NLL under an **oracle**, a Kneser–Ney model fit to five times more text from the generator that wrote the training corpus (the device Caccia and colleagues 2020 use on synthetic data).
 
-Lower oracle NLL means more like the generator's text, though it also rewards blandness: the trigram's exact modes score $1.073$. As $\tau$ rises from $0.4$ to $1.5$, both NLLs and the share of distinct bigrams rise on both engines, and from $\tau = 0.5$ on, copying falls. The trigram copies a training sentence verbatim in $0.148$ of its samples at $\tau = 0.5$ and $0.024$ at $\tau = 1.5$; the decoder in $0.226$ and $0.059$. Every truncation rule behaves the same way: as it loosens, its KL to the model falls.
+Lower oracle NLL means more like the generator's text, though it also rewards blandness: the trigram's exact modes score $1.073$. As $\tau$ rises from $0.4$ to $1.5$, both NLLs and the share of distinct bigrams rise on both engines, and copying falls: over five random streams the mean copy rate falls at every step, though a single stream can tick up. On the lab's stream the trigram copies a training sentence verbatim in $0.148$ of its finished samples at $\tau = 0.5$ and $0.024$ at $\tau = 1.5$; the decoder in $0.226$ and $0.059$. "Finished" matters at the hot end: at $\tau = 1.5$ only $0.76$–$0.78$ of the trigram's draws finish within its $40$-token cap, and about $0.94$ of the decoder's, and the NLLs and copy rates count those alone. As any truncation rule loosens, its KL to the model falls.
 
-The rules do not differ much. Every truncation setting lies within $0.1$ nats of the temperature curve at its own model NLL, on both engines. How much a rule cuts matters more than which rule cuts, which is Zhang and colleagues' (2021) finding on large models seen in a small one. The held-out text, at $2.576$ under the trigram but only $1.968$ under the oracle, lies below every curve: each setting's oracle NLL exceeds its model NLL by at least $0.25$ nats more than the text's does. That gap is the model's error, and no decoding rule removes it.
+The rules do not differ much. Every truncation setting lies within $0.1$ nats of the temperature curve at its own model NLL, on both engines. How much a rule cuts matters more than which rule cuts, which is Zhang and colleagues' (2021) finding on large models seen in a small one. None of the settings reaches the held-out text, at $2.576$ under the trigram but only $1.968$ under the oracle. At that model NLL the temperature curve reads about $2.7$, so there the text lies about three-quarters of a nat below it. Cold settings do go below $1.968$ on the oracle axis, but the curve reaches that cost at a model NLL of about $1.77$. On each of the $25$ settings, oracle NLL minus model NLL is larger than the text's $-0.607$, and the smallest margin on a stream is $0.25$–$0.29$ nats across five streams. That is a fact about the settings run, not about decoding in general: past the grid the margin reaches zero near $\tau = 1.75$, and at $\tau = 2$, where only about a third of draws finish, it is negative on every stream.
+
+Not all of that distance is the model's error. $6.4$ percent of the text's tokens are outside the oracle's vocabulary, against about $2$ percent of the samples'. The oracle scores them all as one unknown word, at $3.04$ nats each, and the trigram charges them $10.31$. On the other tokens the text costs $2.05$ under the trigram and $1.90$ under the oracle, and it lies about $0.44$ nats below the temperature curve redrawn on those tokens, a mean over five streams against $0.75$ on all tokens. That part is the model's error, and none of these settings removes it.
 
 ---
 
@@ -471,13 +475,13 @@ An analyst who asks a model to continue a filing wants two things at once: langu
 
 **Boilerplate.** Cooling the sampler makes it copy: at $\tau = 0.5$ the trigram reproduces a training sentence word for word in $0.148$ of its samples and the decoder in $0.226$. That is the mild end of the beam-search topic's finding that the mode is boilerplate.
 
-**Fabrication.** We probe what a model knows with the corpus's own fact templates: "Halvorsen Industrial operates in the …", "… is classified under …", and "… is headquartered in …", scored against the synthetic knowledge base. The beam-search topic's decoder answers these at chance, and the trigram cannot even see the company. An order-5 Kneser–Ney model, the n-gram topic's model with a longer memory, can. We sort its $111$ probes by how often the probe's four-word context occurred in training. Every number here is an exact sum over one next-token distribution; nothing is sampled.
+**Fabrication.** We probe what a model knows with the corpus's own fact templates: "Halvorsen Industrial operates in the …", "… is classified under …", and "… is headquartered in …", scored against the synthetic knowledge base. The beam-search topic's decoder does little better than chance: among the answers a relation allows, it ranks the right one first on $0.189$ of $74$ sector probes, against chance $0.167$, and on $0.115$ of $26$ headquarters probes, against chance $0.125$. The trigram cannot even see the company. An order-5 Kneser–Ney model, the n-gram topic's model with a longer memory, can. We sort its $111$ probes by how often the probe's four-word context occurred in training. So "seen" counts the context, not the fact: on $14$ of the $34$ never-seen sector probes, the same fact is in training under the sibling frame, and an n-gram cannot carry it across. Every number here is an exact sum over one next-token distribution; nothing is sampled.
 
 - **Seen twice or more ($30$ probes).** The argmax is the right answer every time. At $\tau = 1$ the model still puts $0.198$ on wrong answers: that is its smoothing mass. Ashcombe Controls, seen five times, gets "industrials" with $0.881$. As $\tau$ falls, or the nucleus narrows, fabrication falls to zero.
-- **Seen once ($33$ probes).** One discounted count competes with the backoff's prior over sectors, and the prior wins on $0.303$ of these probes. Copperleaf Markets is a retailer, but after one sighting the model gives "retail" $0.161$ against $0.283$ for "industrials". At $\tau = 1$ the regime's answers are right with probability $0.240$ and wrong with $0.544$. Cooling to $\tau = 0.040$ raises the right answers to $0.698$, but on the probes the prior won, fabrication goes to certainty: the wrong sector, stated every time.
-- **Never seen ($48$ probes).** Right with probability $0.064$ at $\tau = 1$, and no temperature or truncation setting lifts that above $0.1$.
+- **Seen once ($33$ probes).** One sighting adds about $0.124$ to the backoff's prior, and the prior wins on $0.303$ of these probes. All ten failures are sectors, $10$ of $21$, because the sectors' prior has a favorite near $0.26$; the cities' prior is flat, with a favorite near $0.08$, and they fail on $0$ of $12$. Copperleaf Markets is a retailer, but after one sighting the model gives "retail" $0.161$ against $0.283$ for "industrials". At $\tau = 1$ the regime's answers are right with probability $0.240$ and wrong with $0.544$. Cooling to $\tau = 0.040$ raises the right answers to $0.698$, but on the probes the prior won, fabrication goes to certainty: the wrong sector, stated every time. The way there is not monotone. Wrong answers rise from $0.544$ at $\tau = 1$ to a peak of $0.607$ near $\tau = 0.75$, as mass on words that are no answer moves onto answers, are back to $0.551$ at $\tau = 0.5$, and fall to $0.302$ at $\tau = 0.040$. Copperleaf's right answer peaks at $0.178$ near $\tau = 0.79$ before it collapses. So a little cooling raises fabrication here before a lot of it lowers it.
+- **Never seen ($48$ probes).** Right with probability $0.064$ at $\tau = 1$. No temperature, and no setting of top-$k$, nucleus, min-$p$, or $\eta$, lifts that above $0.1$. Typical sampling at mass $0.2$ reaches $0.191$, with wrong answers at $0.692$, only by dropping the favorite on every probe, and on contexts seen once the same setting cuts the right answers from $0.240$ to $0.064$. Cooling is not neutral here either. Wrong answers rise from $0.699$ at $\tau = 1$ to $0.951$ at $\tau = 0.040$, as the $0.238$ on words that are no answer at all moves onto answers.
 
-Figure E traces all three regimes as the dial turns. Temperature and truncation sharpen what the model believes. Where it learned a fact well, that removes the noise around it; where it learned the fact once, sharpening can turn a hedge into a confident error; where it never learned it, there is nothing to sharpen. Fluent, cold output is not evidence of knowledge.
+Figure E traces all three regimes as the dial turns. Temperature and truncation sharpen what the model believes. Where it saw a context often, that removes the noise around the fact; where it saw the context once, sharpening can turn a hedge into a confident error; where it never saw the context, sharpening turns a hedge into a guess. Fluent, cold output is not evidence of knowledge.
 
 </FinanceCaseStudy>
 
@@ -508,13 +512,14 @@ Several decoding methods are outside our scope. Minimum Bayes risk decoding pick
 
 ## Implementation
 
-The companion notebook (`notebookPath`) imports `sampling_temperature_nucleus.py`, which owns every number on this page. That module imports the beam-search topic's module for the lab tree, the trigram, the trained decoder, and the prompts; the Zipf topic's module for the log–log slope; and the n-gram and perplexity topics' Kneser–Ney code for the oracle and the order-5 fact model. It implements temperature, the five truncation rules, exact enumeration on finite trees, and a sampler that draws $1{,}504$ strings per setting from either engine with one random stream per engine. A harness of $23$ assertion-based tests runs in about thirty-four seconds on a laptop CPU. The tests cover:
+The companion notebook (`notebookPath`) imports `sampling_temperature_nucleus.py`, which owns every number on this page. That module imports the beam-search topic's module for the lab tree, the trigram, the trained decoder, and the prompts; the Zipf topic's module for the log–log slope; and the n-gram and perplexity topics' Kneser–Ney code for the oracle and the order-5 fact model. It implements temperature, the five truncation rules, exact enumeration on finite trees, and a sampler that draws $1{,}504$ strings per setting from either engine, on five random streams and, for the decoder, four training seeds. The lab shows stream $0$ on seed $0$. A harness of $36$ assertion-based tests runs in about two and a half minutes on a laptop CPU. The tests cover:
 
-- Theorem 1 by goodness of fit on $31$ trees, and Proposition 1's three claims on $200{,}000$ draws.
-- Theorem 2 against a numerical optimizer, its entropy derivative against a finite difference, and its limits on every trigram prompt; Proposition 2 exactly on every trigram prompt.
-- Theorem 3's identity on $30$ random trees, its equality case on permutation trees, its limits on the lab tree, and the divergence threshold.
-- Theorem 4 by brute force and exact enumeration under every rule, and its tail identity on the trigram's samples.
-- Propositions 3 and 4, including that no rule recovers the seen set; Proposition 5 on both engines.
-- The frontier's orderings, the text's distance from every curve, every sampled string's score against the engine, and the three fabrication regimes.
+- Theorem 1 by goodness of fit on $31$ trees, with the pooled leaves counted, and Proposition 1's three claims on $200{,}000$ draws.
+- Theorem 2 against a numerical optimizer, its entropy derivative against a finite difference, and its limits on every trigram prompt; Proposition 2 exactly on every trigram prompt, and the moving intercept.
+- Theorem 3's identity on $30$ random trees, its equality case on permutation trees, its limits and ties on the lab tree, and the divergence threshold.
+- Theorem 4 by brute force and exact enumeration under every rule, its tail identity on the trigram's samples, and part (d) with its counterexample.
+- Propositions 3 and 4, including that no rule recovers the seen set; Proposition 5 on both engines, and the three pools on the text's weights.
+- The frontier's orderings, how often the head is typical, typical sampling's cost on both engines, the copy rate and finished share over five streams, the text's distance from the curve and its rare-word split, and every sampled string's score against the engine.
+- The three fabrication regimes, the typical-sampling exception, the once-seen peak, cooling on never-seen contexts, what "seen" counts, and the decoder on the same probes.
 
 The laboratory reads its data from a JSON file that one of those tests requires to equal the module's `viz_payload()` exactly, so the figure cannot drift from the code.
