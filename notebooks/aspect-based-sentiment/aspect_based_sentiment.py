@@ -16,8 +16,8 @@ sections follow the page:
    vote's sign is the same for every aspect, so valence × direction is fitted only if "rose" and "fell" vote the SAME
    way and the query amplifies one of them against the aspect's context: the direction words cannot vote their
    meaning. Aspect-conditioned values lift that. (c) Swapping one word for another moves the vote by an amount whose
-   sign no context can change, and negation is exactly a context that reverses an adjective's effect: no such layer,
-   with any values, reads all four of {T was ADJ₊, T was ADJ₋, T was not ADJ₊, T was not ADJ₋}. (d) Bigram items
+   sign no context can change, and negation is exactly a context that reverses an adjective's effect: no such layer
+   with single-token items, with any values, reads all four of {T was ADJ₊, T was ADJ₋, T was not ADJ₊, T was not ADJ₋}. (d) Bigram items
    restore it.
 3. Attention is not identified by decisions (Thm 2). Adding log r_t to every score of item type t and mapping its
    value z ↦ (z + b)/r_t − b multiplies every logit vector by one positive number, so every decision is unchanged while
@@ -27,8 +27,8 @@ sections follow the page:
    reaches the ceiling that no document-level method on this site came near.
 5. Finance case study: contrast sets, the aggregation, and readings of the EDGAR excerpts' aspect mentions (no gold).
 
-Cross-checks: the layer against Topic 9's ``attention`` (a one-row query); every gradient against complex-step
-derivatives (Topic 5's checker); Thm 1(b)/(c) by linear-programming feasibility over every sign pattern; Thm 2 on the
+Cross-checks: the layer against Topic 9's ``attention`` (a one-row query); the gradient code against complex-step
+derivatives (Topic 5's checker), at random parameters on a small batch; Thm 1(b)/(c) by linear-programming feasibility over every sign pattern; Thm 2 on the
 trained model, on the whole test split.
 
 Run (executes the verification harness):
@@ -452,10 +452,48 @@ def quadruple_scores(quads, name: str) -> np.ndarray:
 
 
 def shared_direction_votes() -> dict[str, float]:
-    """The shared rung's ± vote u(w) = (z₊ − z₋)(w) of each direction word (aspect-independent, Thm 1(b))."""
+    """The shared rung's ± vote u(w) = (z + b)₊ − (z + b)₋ of each direction word (Def 2's vote, bias included;
+    aspect-independent, Thm 1(b))."""
     th, voc = train_rung(RUNGS["shared"]), vocab(False)
-    return {w: float(th["Z"][voc[w], 2] - th["Z"][voc[w], 0]) for w in UP + DOWN + ("exceeded", "missed")
+    db = th["b"][0, 2] - th["b"][0, 0]
+    return {w: float(th["Z"][voc[w], 2] - th["Z"][voc[w], 0] + db) for w in UP + DOWN + ("exceeded", "missed")
             if w in voc}
+
+
+def valence_breakdown() -> dict:
+    """The shared rung on the valence quadruples, split by Thm 1(b)'s cap: the (up, down) pairs whose Def 2 votes share
+    a sign, the quadruples read inside and outside them, and which member of a quadruple each miss inside them is."""
+    u = shared_direction_votes()
+    pairs = list(itertools.product(UP, DOWN))
+    same = [k for k, (a, b) in enumerate(pairs) if u[a] * u[b] > 0]
+    quads = valence_quadruples()
+    flat_ = [r for q in quads for r in q]
+    ok = (predict("shared", flat_) == labels(flat_)).reshape(-1, len(pairs), 4)  # base × pair × member
+    inside, outside = ok[:, same], np.delete(ok, same, 1)
+    return {"same_sign": [pairs[k] for k in same], "read_inside": int(inside.all(2).sum()),
+            "n_inside": inside.shape[0] * inside.shape[1], "read_outside": int(outside.all(2).sum()),
+            "n_outside": outside.shape[0] * outside.shape[1],
+            "misses_by_member": dict(zip(("revenue up", "revenue down", "costs up", "costs down"),
+                                         (~inside).sum((0, 1)).tolist()))}
+
+
+def negation_reading() -> dict:
+    """The aspect rung on negated adjectives: its predictions on the negated test aspects, and on the single-aspect
+    ones ("T was not ADJ this period") its mean attention on "not", the adjective, and "this"."""
+    rs, con = rows("test"), constructions("test")
+    pred = np.array(split_predictions("aspect"))
+    neg = np.array([c == "negated adjective" for c in con])
+    sel = [r for r, c in zip(rs, con) if c == "negated adjective" and not r.contrast]
+    B, (_, a, _, _) = rung_forward("aspect", sel)
+    att = {"not": [], "adjective": [], "this": []}
+    for n, r in enumerate(sel):
+        j = r.toks.index("not")
+        st = B["starts"][n]
+        att["not"].append(a[st + j])
+        att["adjective"].append(a[st + j + 1])
+        att["this"].append(a[st + j + 2])
+    return {"n": int(neg.sum()), "called_positive": int((pred[neg] == 2).sum()), "n_single": len(sel),
+            "att": {k: float(np.mean(v)) for k, v in att.items()}}
 
 
 # --------------------------------------------------------------------------------------------
@@ -507,11 +545,23 @@ def identifiability() -> dict:
     mass = np.add.reduceat(np.where(is_term, a, 0), B["starts"])
     mass2 = np.add.reduceat(np.where(is_term, a2, 0), B["starts"])
     v1, v2 = votes(th, B, a, z), votes(th2, B, a2, z2)
+    # the asked-about aspect's own span, and in a contrast sentence the other aspect's (unigram items come first)
+    own, other = np.zeros(len(B["tok"]), bool), np.zeros(len(B["tok"]), bool)
+    te = rows("test")
+    for n, r in enumerate(te):
+        st = B["starts"][n]
+        own[st + r.span[0]:st + r.span[1] + 1] = True
+        if r.contrast:
+            o = te[n + 1] if r.first else te[n - 1]
+            other[st + o.span[0]:st + o.span[1] + 1] = True
+    own2, other2 = np.add.reduceat(np.where(own, a2, 0), B["starts"]), np.add.reduceat(np.where(other, a2, 0), B["starts"])
+    con = np.array([r.contrast for r in te])
     return {"same_argmax": bool((lg.argmax(1) == lg2.argmax(1)).all()),
             "ratio_spread": float(np.abs(ratio - lam[:, None]).max() / lam.min()), "lam_min": float(lam.min()),
             "lam_max": float(lam.max()), "vote_dev": float(np.abs(v2 - lam[B["row"], None] * v1).max()),
             "mass_before": float(mass.mean()), "mass_after_mean": float(mass2.mean()),
-            "mass_after_min": float(mass2.min())}
+            "mass_after_min": float(mass2.min()), "own_after_mean": float(own2.mean()),
+            "own_after_contrast": float(own2[con].mean()), "other_after_contrast": float(other2[con].mean())}
 
 
 # --------------------------------------------------------------------------------------------
@@ -529,6 +579,16 @@ def tone_sentences(d) -> list[int]:
         named = any(s0 <= e.start < s1 and e.type in ("MONEY", "PRODUCT", "ORG") for e in d.entities)
         if asp and not named and (asp[0].start == s0 or d.text[s0:s1].startswith("Management pointed to")):
             out.append(si)
+    return out
+
+
+def tone_openers(split: str = "test") -> dict[str, int]:
+    """How the tone-bearing sentences of a split open: on an aspect, or on "Management pointed to"."""
+    out = {"aspect": 0, "Management pointed to": 0}
+    for d in docs(split):
+        for si in tone_sentences(d):
+            s0, s1 = d.sentences[si]
+            out["Management pointed to" if d.text[s0:s1].startswith("Management pointed to") else "aspect"] += 1
     return out
 
 
@@ -732,7 +792,13 @@ def summary() -> dict:
         f"{sorted(valence_patterns(True))} / {sorted(valence_patterns(False))}")
     out["Thm 1(c): negation feasible, unigram / bigram items"] = (
         f"{negation_feasible(False)} / {negation_feasible(True)}")
-    out["shared rung ± votes"] = " ".join(f"{w}={v:+.6f}" for w, v in shared_direction_votes().items())
+    out["shared rung ± votes (Def 2, bias included)"] = " ".join(f"{w}={v:+.6f}" for w, v in shared_direction_votes().items())
+    vb = valence_breakdown()
+    out["Thm 1(b): shared rung reads, same-sign pairs / others"] = (
+        f"{vb['read_inside']} of {vb['n_inside']} / {vb['read_outside']} of {vb['n_outside']}; misses {vb['misses_by_member']}")
+    nr = negation_reading()
+    out["aspect rung on negated aspects: called positive / attention not, adj, this"] = (
+        f"{nr['called_positive']} of {nr['n']} / " + ", ".join(f"{v:.6f}" for v in nr["att"].values()))
     vq, nq = valence_quadruples(), negation_quadruples()
     out["contrast sets: valence / negation quadruples"] = f"{len(vq)} / {len(nq)}"
     for name in RUNG_NAMES:
@@ -744,6 +810,9 @@ def summary() -> dict:
     out["Thm 2: logit scale range"] = f"{idf['lam_min']:.6f} / {idf['lam_max']:.6f}"
     out["Thm 2: attention on term words before / after (mean, min)"] = (
         f"{idf['mass_before']:.6f} / {idf['mass_after_mean']:.6f}, {idf['mass_after_min']:.6f}")
+    out["Thm 2: own-span attention after (all; contrast own / other aspect)"] = (
+        f"{idf['own_after_mean']:.6f}; {idf['own_after_contrast']:.6f} / {idf['other_after_contrast']:.6f}")
+    out["Prop 2: tone-sentence openers"] = tone_openers()
     ag = aggregation()
     out["Prop 2: tone sentences / mean k / k counts 5..8"] = (
         f"{ag['sentences']} / {ag['mean_k']:.6f} / {[ag['ks'].count(k) for k in range(5, 9)]}")
@@ -791,6 +860,13 @@ def test_prop1_aspect_blind_ceiling():
         assert t[name]["all"] <= bound + 1e-12
     assert t["blind"]["contrast"] == 0.5
     assert t["blind"]["by"]["verb, cost-like"] < 0.5  # term and verb are not adjacent: no bigram carries the trap
+    # the page's example of it is a test sentence (not a training one), and the blind LR misreads it
+    i = next(k for k, r in enumerate(te) if r.text == COST_LIKE_EXAMPLE)
+    assert constructions("test")[i] == "verb, cost-like" and te[i].y == 0 and split_predictions("blind")[i] != 0
+    assert not any(r.text == COST_LIKE_EXAMPLE for r in rows("train"))
+
+
+COST_LIKE_EXAMPLE = "Costs in intertariffs transcargos exceeded expectations."
 
 
 def test_layer_matches_topic9_attention():
@@ -806,7 +882,8 @@ def test_layer_matches_topic9_attention():
 
 
 def test_gradients_complex_step():
-    """Every rung's analytic gradient matches the complex-step derivative (Topic 5's checker) on a small batch."""
+    """The gradient code of each rung's configuration matches the complex-step derivative (Topic 5's checker) at random
+    parameters on a small batch (it is not rechecked along the training run)."""
     rs = rows("test")[:8]
     for bigrams, aspect_values in ((False, False), (False, True), (True, True)):
         its = sorted({t for r in rs for t, _ in items(r, bigrams)})
@@ -849,10 +926,30 @@ def test_thm1b_direction_words_cannot_vote_their_meaning():
     """Thm 1(b): with votes shared across aspects, the valence quadruple is fitted exactly when u(up) and u(down) are
     nonzero with the SAME sign; with aspect-conditioned votes the meaning pattern (+, −) also works. On the contrast
     sets, every quadruple the shared rung gets fully right uses a same-sign pair of direction words."""
-    assert valence_patterns(True) == {(1, 1), (-1, -1)}
+    assert valence_patterns(True) == {(1, 1), (-1, -1)}  # (+, +) is feasible: rose may vote positive
     assert (1, -1) in valence_patterns(False)
     u = shared_direction_votes()
+    # Def 2's votes include the shared bias (b₊ − b₋ ≈ +0.522); the page prints them to 3 decimals
+    th, voc = train_rung(RUNGS["shared"]), vocab(False)
+    B = batch([rows("test")[0]], voc, False)
+    zb = th["Z"][[voc[w] for w in u]] + _bias(th, B["cat"])[0]
+    assert np.allclose(list(u.values()), zb[:, 2] - zb[:, 0], atol=1e-12)
+    assert {w: round(v, 3) for w, v in u.items()} == {
+        "rose": -6.701, "increased": 6.406, "climbed": 6.318, "fell": -7.133, "declined": -7.192, "decreased": -7.099,
+        "exceeded": -1.958, "missed": 8.03}
     quads = valence_quadruples()
+    # the base sentences: single-aspect, bare direction, one-word term, every direction word
+    base = [r for r, c in zip(rows("test"), constructions("test"))
+            if c == "direction only" and not r.contrast and r.span[0] == r.span[1]]
+    assert len(base) == 245 and len(quads) == 245 * 9
+    assert {next(t for t in r.toks if t in UP + DOWN) for r in base} == set(UP + DOWN)
+    assert any(r.text == "Taxes increased 5 percent in cargopoint." for r in base)  # the page's example
+    # 0.309 is 681 of the 735 quadruples the cap allows (3 same-sign pairs of 9) and none of the other 1,470
+    vb = valence_breakdown()
+    assert vb["same_sign"] == [("rose", "fell"), ("rose", "declined"), ("rose", "decreased")]
+    assert (vb["read_inside"], vb["n_inside"], vb["read_outside"], vb["n_outside"]) == (681, 735, 0, 1470)
+    assert vb["misses_by_member"] == {"revenue up": 0, "revenue down": 0, "costs up": 0, "costs down": 54}
+    assert round(681 / 2205, 3) == 0.309 == round(float(quadruple_scores(quads, "shared").mean()), 3)
     ok = quadruple_scores(quads, "shared")
     for q, good in zip(quads, ok):
         if good:
@@ -860,6 +957,66 @@ def test_thm1b_direction_words_cannot_vote_their_meaning():
                 [i for i, t in enumerate(q[1].toks) if t in DOWN][0]]
             assert u[up] * u[dn] > 0, (up, dn)
     assert quadruple_scores(quads, "aspect").mean() > 0.99
+
+
+def _three_class(u: float) -> np.ndarray:
+    """A value vector (negative, neutral, positive) = (−u/2, 0, u/2): its positive-over-negative vote is u, and
+    neutral loses whenever the vote sum is nonzero."""
+    return np.array([-u / 2, 0.0, u / 2])
+
+
+def test_thm1b_exact_condition():
+    """Thm 1(b), statement as corrected: the four positive-over-negative comparisons hold exactly when
+    −ω_A(w↑)u(w↑) < F_A < −ω_A(w↓)u(w↓) and −ω_B(w↓)u(w↓) < F_B < −ω_B(w↑)u(w↑); same-sign votes, an opposite-voting
+    context, and the weight order are necessary but not enough (the counterexample); and every configuration meeting
+    the condition is read by three-class values with neutral entry 0."""
+    def reads(uu, ud, wa, wb, fa, fb):
+        return fa + wa[0] * uu > 0 > fa + wa[1] * ud and fb + wb[0] * uu < 0 < fb + wb[1] * ud
+
+    def exact(uu, ud, wa, wb, fa, fb):
+        return -wa[0] * uu < fa < -wa[1] * ud and -wb[1] * ud < fb < -wb[0] * uu
+
+    # the counterexample to the old converse: u↑ = u↓ = 1, ω_A = (2, 1), F_A = −10 ("A rose" sums to −8)
+    uu, ud, wa, wb, fa, fb = 1.0, 1.0, (2.0, 1.0), (1.0, 2.0), -10.0, -1.5
+    assert uu * ud > 0 and fa < 0 and fb < 0 and wa[0] * uu > wa[1] * ud and wb[0] * uu < wb[1] * ud
+    assert not reads(uu, ud, wa, wb, fa, fb) and not exact(uu, ud, wa, wb, fa, fb)
+    rng = _rng(3226)
+    hits = 0
+    for _ in range(20000):  # random configurations: the comparisons hold exactly under the condition
+        uu, ud = rng.normal(0, 3, 2)
+        wa, wb = tuple(rng.uniform(0.1, 5, 2)), tuple(rng.uniform(0.1, 5, 2))
+        fa, fb = rng.normal(0, 8, 2)
+        ok = reads(uu, ud, wa, wb, fa, fb)
+        assert ok == exact(uu, ud, wa, wb, fa, fb)
+        hits += ok
+        assert not ok or uu * ud > 0  # (b)'s necessary sign condition
+    assert hits > 0
+    built = 0
+    for _ in range(2000):  # configurations meeting the condition, built directly: three-class values read all four
+        s = rng.choice((-1.0, 1.0))
+        uu, ud = s * rng.uniform(0.1, 5, 2)
+        wa, wb = tuple(rng.uniform(0.1, 5, 2)), tuple(rng.uniform(0.1, 5, 2))
+        (la, ha), (lb, hb) = (-wa[0] * uu, -wa[1] * ud), (-wb[1] * ud, -wb[0] * uu)
+        if not (la < ha and lb < hb):
+            continue
+        fa, fb = rng.uniform(la, ha), rng.uniform(lb, hb)
+        assert reads(uu, ud, wa, wb, fa, fb)
+        # each sentence's logits are F·(−½, 0, ½) plus the direction word's ω·value (a positive rescaling of ℓ)
+        for f, w, uw, y in ((fa, wa[0], uu, 2), (fa, wa[1], ud, 0), (fb, wb[0], uu, 0), (fb, wb[1], ud, 2)):
+            assert int(np.argmax(_three_class(f) + w * _three_class(uw))) == y
+        built += 1
+    assert built > 100
+
+
+def test_thm1d_three_class_witness():
+    """Thm 1(d)'s witness as a three-class layer: every score 0, values (−u/2, 0, u/2) with u = ±1 on the adjectives,
+    ∓2 on the bigrams "not ADJ₊" / "not ADJ₋", 0 elsewhere, bias 0. All four sentences are read, neutral included."""
+    u = {"ADJ+": 1.0, "ADJ-": -1.0, "not ADJ+": -2.0, "not ADJ-": 2.0}
+    for toks, y in ((("T", "was", "ADJ+"), 2), (("T", "was", "ADJ-"), 0), (("T", "was", "not", "ADJ+"), 0),
+                    (("T", "was", "not", "ADJ-"), 2)):
+        its = list(toks) + [f"{a} {b}" for a, b in zip(toks, toks[1:])]
+        lg = sum(_three_class(u.get(t, 0.0)) for t in its) / len(its)
+        assert int(np.argmax(lg)) == y and np.isclose(abs(lg[2] - lg[0]), 1 / len(its))
 
 
 def test_thm1c_negation_is_not_representable():
@@ -875,6 +1032,10 @@ def test_thm1c_negation_is_not_representable():
     assert quadruple_scores(quads, "shared").sum() == 0
     assert quadruple_scores(quads, "aspect").sum() == 0
     assert quadruple_scores(quads, "bigram").mean() > 0.9
+    # the aspect rung's 0.507 on negated aspects: it calls 451 of 452 positive, attending to "this", not "not"
+    nr = negation_reading()
+    assert (nr["called_positive"], nr["n"], nr["n_single"]) == (451, 452, 302)
+    assert round(nr["att"]["this"], 3) == 0.986 and round(nr["att"]["not"], 3) == 0.006
 
 
 def test_the_ladder():
@@ -917,11 +1078,20 @@ def test_thm2_on_the_trained_model():
     assert idf["same_argmax"]
     assert idf["ratio_spread"] < 1e-6 and idf["vote_dev"] < 1e-10
     assert idf["mass_before"] < 0.5 < 0.99 < idf["mass_after_mean"]
+    # the page's figures: 0.005 before, 0.998 after, at least 0.989 in every sentence (the minimum is 0.98987)
+    assert round(idf["mass_before"], 3) == 0.005 and round(idf["mass_after_mean"], 3) == 0.998
+    assert 0.989 <= idf["mass_after_min"] < 0.990
+    # the 0.998 sits on ALL aspect-term words: on the asked-about aspect's own span it is 0.798, and in contrast
+    # sentences most of it goes to the other aspect's term
+    assert round(idf["own_after_mean"], 3) == 0.798
+    assert (round(idf["own_after_contrast"], 3), round(idf["other_after_contrast"], 3)) == (0.225, 0.774)
 
 
 def test_tone_sentences_are_the_generators():
-    """Prop 2's input: every document has 5–8 tone-bearing sentences (the generator's k), each opening on an aspect,
-    and their polarities follow the tone's mixture (a χ² test per tone)."""
+    """Prop 2's input: every document has 5–8 tone-bearing sentences (the generator's k), each opening on an aspect or
+    on "Management pointed to" (525 of the test split's 9,695), and their polarities follow the tone's mixture (a χ²
+    test per tone)."""
+    assert tone_openers("test") == {"aspect": 9170, "Management pointed to": 525}
     for split in ("train", "test"):
         for d in docs(split):
             assert 5 <= len(tone_sentences(d)) <= 8, d.doc_id
