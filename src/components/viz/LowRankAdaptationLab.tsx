@@ -178,8 +178,8 @@ function ScalarView() {
       </Readouts>
       <Note>
         Theorem 2: gradient flow keeps a² − b² fixed, so the path rides its hyperbola to the one minimizer on it, and b can
-        grow only as fast as a. GD's drift is O(η) over the run, so it grows with the step; Adam rescales each coordinate
-        and leaves the hyperbola at once. Both paths run {SC.steps} steps.
+        grow only as fast as a. GD's drift is O(η) over the run, so it grows with the step; Adam rescales each coordinate,
+        and its paths drift much further. Both paths run {SC.steps} steps.
       </Note>
     </figure>
   );
@@ -356,8 +356,8 @@ function SpectrumView() {
       </Readouts>
       <Note>
         Proposition 2 (Eckart–Young–Mirsky): the truncated SVD is the best rank-r stand-in for each update. Rank 0 keeps
-        only the fine-tuned embeddings and head; rank 4 already reads within 0.02 of the full update, though LoRA trained
-        at rank 4 does not get there.
+        only the fine-tuned biases, embeddings, and head; rank 4 already reads within 0.02 of the full update (seed 0).
+        That update spans all twelve matrices, which LoRA, on the query and value maps alone, cannot express.
       </Note>
     </figure>
   );
@@ -443,8 +443,8 @@ function FrontierView() {
       </div>
       <Note>
         Up is learning, left is remembering. LP-FT sits up and left of every LoRA run (Kumar and colleagues&apos; probe-first
-        start); L2-SP buys retention with accuracy; LoRA, confined to two matrix types at a high rate, forgets most among
-        the pretrained runs.
+        start); L2-SP buys retention with accuracy; LoRA, confined to two matrix types at ten times full fine-tuning&apos;s rate,
+        forgets most among the pretrained runs; at a shared rate it forgets less than full fine-tuning.
       </Note>
     </figure>
   );
@@ -513,8 +513,8 @@ function NegationView() {
         </g>
       </svg>
       <Note>
-        Without the counterfactual rows the encoder reads both negated forms and calls the deleted-&quot;not&quot; frame
-        neutral: training shows that frame only with &quot;not&quot;. With them every seed reads all four. Aggregated by
+        Without the counterfactual rows the encoder reads both negated forms and misreads the deleted-&quot;not&quot; frame,
+        about half the time as if &quot;not&quot; were still there: training shows that frame only with &quot;not&quot;. With them every seed reads all four. Aggregated by
         Topic 19&apos;s Bayes rule, the aspect reader recovers the filings&apos; tone; fine-tuned on document labels, it does not.
       </Note>
     </figure>

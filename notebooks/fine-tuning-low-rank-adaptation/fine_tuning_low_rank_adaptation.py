@@ -21,8 +21,8 @@ matrix by a rank-r product (LoRA). The sections follow the page:
 8. Finance case study: reading negation (a shortcut, then counterfactual augmentation), aspect reading aggregated to
    document tone, and document-level fine-tuning as the honest negative.
 
-Runtime: ≈ 2¼ min (the topic's experiment grid; the README's "well under 60 s" is waived for this topic only — the
-pretrain alone is ~21 s, each of the 31 fine-tunes ~2.4 s with its evaluation, and the headline methods need three
+Runtime: ≈ 3½ min (the topic's experiment grid; the README's "well under 60 s" is waived for this topic only — the
+pretrain alone is ~21 s, each of the 42 fine-tunes ~2.4 s with its evaluation, and the headline methods need three
 seeds).
 
 Run (executes the verification harness):
@@ -395,7 +395,11 @@ def base(init: str) -> tuple[dict, list]:
 @lru_cache(maxsize=None)
 def probe(init: str, augment: bool) -> dict:
     """Def 1's probe: Topic 17's lr_fit on the frozen span features, λ chosen on the dev rows."""
-    P, blocks = base(init)
+    return _fit_probe(*base(init), augment)
+
+
+def _fit_probe(P: dict, blocks: list, augment: bool) -> dict:
+    """A probe head on the frozen span features of the given weights (PROBE_LAMBDAS, chosen on the dev rows)."""
     enc, y = train_set(augment)
     X = span_features(P, blocks, enc)
     Xd = span_features(P, blocks, eval_set("dev")[0])
@@ -668,7 +672,18 @@ def first_step_table() -> dict:
     out["expected_sgd"] = {sc: [FIRST_ETA * lora_scale(r, sc) ** 2 * r * gnorm / D_MODEL  # σ² = 1/k, k = d
                                 for r in FIRST_R] for sc in ("lin", "sqrt")}
     out["gnorm"] = gnorm
+    out["rms_sgd"] = [math.sqrt(float(np.mean([sum(float(np.sum(first_step(G, A0, lora_scale(r, "sqrt"), FIRST_ETA,
+                                                                           "sgd") ** 2))
+                                                     for G, A0 in zip(Gs.values(), d)) for d in draws[r]])))
+                      for r in FIRST_R]  # √E‖ΔW₁‖² over the draws, under α/√r
     return out
+
+
+def draw_size_law(k: int, r: int) -> float:
+    """Thm 1(c)'s moments, exactly: E‖A₀A₀ᵀG‖_F² = (1 + (k + 1)/r)·‖rσ²G‖_F² for every G, because
+    E[(aaᵀ − σ²I)²] = (k + 1)σ⁴I for a Gaussian column a (E[‖a‖²aaᵀ] = (k + 2)σ⁴I). The ratio of a draw's
+    root-mean-square size to the mean step is the square root of this."""
+    return 1 + (k + 1) / r
 
 
 def trained_lora_norm(cfg: FTConfig) -> float:
@@ -758,19 +773,61 @@ def spectra() -> list[dict]:
 def truncations() -> dict:
     """Test accuracy of full fine-tuning (seed 0) with every block ΔW replaced by its best rank-r approximation (the
     fine-tuned embeddings and head kept); r = 0 keeps only those."""
-    model, (_, B0) = fine_tune(HEADLINE["full"][0]), base("pretrained")
-    y = eval_set("test")[1]
-    acc = []
-    for r in TRUNC_R:
-        blocks = copy.deepcopy(model["blocks"])
-        for b, b0 in zip(blocks, B0):
-            for sec, k in MATRICES:
+    acc = [_truncated_acc(fine_tune(HEADLINE["full"][0]), r) for r in TRUNC_R]
+    return {"r": list(TRUNC_R), "acc": acc, "full": evaluate(HEADLINE["full"][0])["acc"]}
+
+
+def _truncated(blocks: list, B0: list, r: int, keys) -> list:
+    """Copy of `blocks` with each listed matrix's update from B0 replaced by its best rank-r approximation."""
+    blocks = copy.deepcopy(blocks)
+    for b, b0 in zip(blocks, B0):
+        for sec, k in MATRICES:
+            if k in keys:
                 W0 = flat(k, b0[sec][k]).astype(np.float64)
                 U, sv, Vt = np.linalg.svd(flat(k, b[sec][k]).astype(np.float64) - W0, full_matrices=False)
                 b[sec][k] = unflat(k, (W0 + (U[:, :r] * sv[:r]) @ Vt[:r]).astype(np.float32), b[sec][k].shape)
-        m = {"P": model["P"], "blocks": blocks, "head": model["head"]}
-        acc.append(float((predict(m, "test").argmax(1) == y).mean()))
-    return {"r": list(TRUNC_R), "acc": acc, "full": evaluate(HEADLINE["full"][0])["acc"]}
+    return blocks
+
+
+def _truncated_acc(model: dict, r: int) -> float:
+    """Test accuracy with every block matrix's update truncated to rank r; the fine-tuned biases, embeddings, and head
+    are kept (r = 0 removes only the block-matrix updates)."""
+    blocks = _truncated(model["blocks"], base("pretrained")[1], r, [k for _, k in MATRICES])
+    m = {"P": model["P"], "blocks": blocks, "head": model["head"]}
+    return float((predict(m, "test").argmax(1) == eval_set("test")[1]).mean())
+
+
+@lru_cache(maxsize=1)
+def truncations_by_seed() -> dict:
+    """Prop 2's truncation at ranks 4 and 8 for every headline seed, with the full update's accuracy."""
+    return {c.seed: {"r4": _truncated_acc(fine_tune(c), 4), "r8": _truncated_acc(fine_tune(c), 8),
+                     "full": evaluate(c)["acc"]} for c in HEADLINE["full"]}
+
+
+CLASS_R = (0, 4, 64)
+
+
+@lru_cache(maxsize=1)
+def class_truncations() -> dict:
+    """LoRA's class: full fine-tuning's update kept on Wq and Wv only (truncated to rank r), every other weight, the
+    biases, and the embeddings at their pretrained values, and a fresh probe head refit on top; per headline seed.
+    r = 0 is the probe itself."""
+    P0, B0 = base("pretrained")
+    y = eval_set("test")[1]
+    out = {}
+    for c in HEADLINE["full"]:
+        fb = fine_tune(c)["blocks"]
+        acc = {}
+        for r in CLASS_R:
+            blocks = copy.deepcopy(B0)
+            for b, bf in zip(blocks, fb):
+                for k in ("Wq", "Wv"):
+                    b["attn"][k] = bf["attn"][k].copy()
+            blocks = _truncated(blocks, B0, r, ("Wq", "Wv"))
+            m = {"P": P0, "blocks": blocks, "head": _fit_probe(P0, blocks, False)}
+            acc[r] = float((predict(m, "test").argmax(1) == y).mean())
+        out[c.seed] = acc
+    return out
 
 
 # --------------------------------------------------------------------------------------------
@@ -1092,6 +1149,61 @@ def document_readers() -> dict:
 
 
 # --------------------------------------------------------------------------------------------
+# Matched rates, the deleted-"not" readings, and what pretraining buys, by construction.
+# --------------------------------------------------------------------------------------------
+
+SHARED_RATES = (1e-3, 3e-3, 1e-2)
+RATE_RUNS = {(m, lr, s): FTConfig(m, seed=s, lr=lr) for m in ("full", "lora") for lr in SHARED_RATES
+             if lr != LR[m] for s in SEEDS}  # LoRA at 3·10⁻³, seed 0, is SLOW_RUNS[1]
+
+
+def at_rate(method: str, lr: float) -> tuple:
+    """The three seeds of a method at an Adam rate: the headline runs at the method's own rate, else RATE_RUNS."""
+    return HEADLINE[method] if LR[method] == lr else tuple(RATE_RUNS[(method, lr, s)] for s in SEEDS)
+
+
+def matched_rates() -> dict:
+    """Full fine-tuning and LoRA at each shared rate (10⁻³, full's; 3·10⁻³; 10⁻², LoRA's), seed by seed: (accuracy,
+    masked-LM loss). Batch order, A₀, epochs, schedule, and the head's rate are the same at every rate."""
+    return {(m, lr): [(evaluate(c)["acc"], evaluate(c)["mlm"]) for c in at_rate(m, lr)]
+            for lr in SHARED_RATES for m in ("full", "lora")}
+
+
+@lru_cache(maxsize=1)
+def deleted_not_readings() -> dict:
+    """What full fine-tuning calls the deleted-"not" copies of the negation quadruples, per seed: the share of each
+    copy read −, 0, + (ADJ₊'s gold is +, ADJ₋'s is −), and over both copies the share read as their negated twin is
+    labeled (ADJ₊ as −, ADJ₋ as +: as if "not" were still there) and the share read neutral."""
+    out = {}
+    for c in HEADLINE["full"]:
+        pred = predict(fine_tune(c), "negation").argmax(1).reshape(-1, 4)
+        out[c.seed] = {"ADJ+": [float(np.mean(pred[:, 2] == k)) for k in range(3)],
+                       "ADJ-": [float(np.mean(pred[:, 3] == k)) for k in range(3)],
+                       "as_if_kept": float((np.mean(pred[:, 2] == 0) + np.mean(pred[:, 3] == 2)) / 2),
+                       "neutral": float((np.mean(pred[:, 2] == 1) + np.mean(pred[:, 3] == 1)) / 2)}
+    return out
+
+
+def pretraining_gain() -> dict:
+    """Per headline seed: test rows full fine-tuning reads right beyond the never-pretrained run, in total and by
+    construction, and each construction's accuracy gap."""
+    y, con = eval_set("test")[1], np.array(ab.constructions("test"))
+    rnd = np.array(evaluate(RANDOM_RUN)["pred"]) == y
+    out = {}
+    for c in HEADLINE["full"]:
+        ok = np.array(evaluate(c)["pred"]) == y
+        out[c.seed] = {"total": int(ok.sum() - rnd.sum()),
+                       "rows": {k: int(ok[con == k].sum() - rnd[con == k].sum()) for k in ab.CONSTRUCTIONS},
+                       "gap": {k: float(ok[con == k].mean() - rnd[con == k].mean()) for k in ab.CONSTRUCTIONS}}
+    return out
+
+
+def tone_by_seed() -> list[float]:
+    """Document tone from each headline full fine-tuning seed's aspect readings (Topic 19's Bayes rule)."""
+    return [tone_from(evaluate(c)["pred"]) for c in HEADLINE["full"]]
+
+
+# --------------------------------------------------------------------------------------------
 # The lab's payload and the summary.
 # --------------------------------------------------------------------------------------------
 
@@ -1169,8 +1281,8 @@ def _negation_payload() -> dict:
     tone = [{"label": k, "acc": _r(v)} for k, v in rd.items() if "ceiling" not in k]
     tone += [{"label": "document fine-tune", "acc": _r(doc_fine_tune("pretrained")["acc"])},
              {"label": "document fine-tune, random init", "acc": _r(doc_fine_tune("random")["acc"])},
-             {"label": "aspect fine-tune, aggregated", "acc": _r(tone_from(evaluate(HEADLINE["full"][0])["pred"]))},
-             {"label": "augmented, aggregated", "acc": _r(tone_from(evaluate(AUG_RUNS[0])["pred"]))}]
+             {"label": "aspect fine-tune, aggregated (seed 0)", "acc": _r(tone_from(evaluate(HEADLINE["full"][0])["pred"]))},
+             {"label": "augmented, aggregated (seed 0)", "acc": _r(tone_from(evaluate(AUG_RUNS[0])["pred"]))}]
     quads = {}
     for name, cs in (("full", HEADLINE["full"]), ("augmented", AUG_RUNS[:3])):
         quads[name] = [_r(evaluate(c)["negation"]["pos"]) for c in cs]
@@ -1284,7 +1396,9 @@ def test_prop1_factorization():
     S = rng.normal(size=(r, r)) + 3 * np.eye(r)
     assert np.allclose((A @ S) @ (np.linalg.inv(S) @ B), A @ B)
     A2, B2 = rng.normal(size=(k, r)), rng.normal(size=(r, m))
-    assert np.linalg.matrix_rank(A @ B + A2 @ B2) == 2 * r
+    assert np.linalg.matrix_rank(A @ B + A2 @ B2) == 2 * r  # [A A₂] full column rank and [B; B₂] full row rank
+    u, v, e1 = rng.normal(size=k), rng.normal(size=k), np.eye(m)[0]
+    assert np.linalg.matrix_rank(np.outer(u, e1) + np.outer(v, e1)) == 1  # column spaces meeting at 0 is not enough
 
 
 def test_thm1a_factored_gradient():
@@ -1442,6 +1556,29 @@ def test_thm3a_span_lemma():
     assert span_toy("sgd") < 1e-12 and span_toy("adam") > 0.1
 
 
+def test_thm3c_needs_full_rank_features():
+    """Thm 3(c)'s hypothesis that the training features have full column rank is needed: with B* = U = I₂ and
+    inputs spanning e₁ only, the minimum-norm least-squares head fits the training inputs and misreads e₂."""
+    X = np.array([[1.0, 0.0], [2.0, 0.0], [-1.0, 0.0]])
+    vstar = np.array([1.0, 1.0])
+    v = np.linalg.lstsq(X, X @ vstar, rcond=None)[0]
+    assert np.allclose(X @ v, X @ vstar) and abs(v[1] - vstar[1]) > 0.5
+
+
+def test_prop4_column_scale_is_a_rate():
+    """Under Adam a sketch column's scale acts as its learning rate: scaling S by c leaves the first Adam step in z
+    unchanged (a sign step) and so moves θ = θ₀ + Sz c times as far."""
+    rng = _rng(3404)
+    S, g = sketch_matrix(rng, 50, 8), rng.normal(size=50)
+
+    def theta_step(Sc):
+        gz = Sc.T @ g
+        m_hat, v_hat = gz, gz * gz  # first step, after bias correction
+        return Sc @ (-0.1 * m_hat / (np.sqrt(v_hat) + 1e-12))
+
+    assert np.allclose(theta_step(3.0 * S), 3.0 * theta_step(S))
+
+
 def test_thm3c_kumar():
     """Thm 3(c) (Kumar et al.'s Lemma A.3 and Prop 3.7): fine-tuning never moves B on S⊥; from the probe's head on
     perfect features the OOD loss stays 0, from a random head it does not."""
@@ -1462,16 +1599,32 @@ def test_thm1c_sketch_fluctuation():
         assert abs(v.mean() - sketch_fluctuation(k, r, 1 / k)) < 4 * v.std() / math.sqrt(len(v))
 
 
+def test_thm1c_draw_size_law():
+    """draw_size_law: E‖A₀A₀ᵀG‖_F² / ‖rσ²G‖_F² = 1 + (k + 1)/r for any G (Monte Carlo, 4 SE, at two ranks)."""
+    rng = _rng(3403)
+    for k, m, r in ((6, 3, 2), (10, 4, 7)):
+        G = rng.normal(size=(k, m))
+        v = np.array([float(np.sum((A @ (A.T @ G)) ** 2))
+                      for A in (lora_init(rng, k, 1, r, np.float64)[0] for _ in range(20000))])
+        target = draw_size_law(k, r) * float(np.sum((r / k * G) ** 2))
+        assert abs(v.mean() - target) < 4 * v.std() / math.sqrt(len(v))
+
+
 def test_thm1_rank_scaling_at_the_encoder():
     """Thm 1 at the encoder (four adapted matrices, the LP-FT start, 16 draws of A₀ per rank): Adam's first step is
     rank-stable under α/√r (within a factor 1.5 over r = 1…64) and shrinks as 1/√r under α/r; SGD's mean step under
-    α/√r is r-independent while a single draw sits √((k + 1)/r) away, so its norm falls toward the mean."""
+    α/√r is r-independent while a single draw's root-mean-square size is √(1 + (k + 1)/r) times it (draw_size_law;
+    on 16 draws within 8%, and within 2.5% from r = 8), so its norm falls toward the mean and stays about √2 above it at r = k."""
     fs = first_step_table()
     a_sqrt, a_lin = np.array(fs[("adam", "sqrt")]), np.array(fs[("adam", "lin")])
     assert a_sqrt.max() / a_sqrt.min() < 1.5
     assert np.allclose(a_lin / a_sqrt, 1 / np.sqrt(FIRST_R), rtol=1e-12)  # s_lin/s_sqrt = 1/√r, same draws
     e = np.array(fs["expected_sgd"]["sqrt"])
     assert np.allclose(e, e[0]) and np.all(np.diff(fs[("sgd", "sqrt")]) < 0) and fs[("sgd", "sqrt")][-1] > e[0]
+    ratio = np.array(fs["rms_sgd"]) / e
+    law = np.sqrt([draw_size_law(D_MODEL, r) for r in FIRST_R])
+    dev = np.abs(ratio / law - 1)
+    assert np.all(dev < 0.08) and np.all(dev[np.array(FIRST_R) >= 8] < 0.025)
 
 
 def test_thm2_adam_breaks_balance():
@@ -1564,14 +1717,55 @@ def test_negation_shortcut_and_augmentation():
 
 def test_tone_by_aggregation():
     """Finance: the fine-tuned aspect reader, aggregated by Topic 19's Bayes rule, lands within 2 SE of the 0.890
-    ceiling and above every document-level reader; document-level fine-tuning lands below unigram LR, and the
+    ceiling on seed 0 and above every document-level reader on all three seeds; document-level fine-tuning lands below unigram LR, and the
     never-pretrained encoder does as well within 0.05."""
     rd = document_readers()
-    agg = tone_from(evaluate(HEADLINE["full"][0])["pred"])
+    agg = tone_by_seed()
     se = math.sqrt(ltc.bayes_ceiling() * (1 - ltc.bayes_ceiling()) / len(ab.docs("test")))
-    assert abs(agg - ltc.bayes_ceiling()) < 2 * se and agg > max(v for k, v in rd.items() if "ceiling" not in k)
+    assert abs(agg[0] - ltc.bayes_ceiling()) < 2 * se  # seed 0 only: seed 1 sits 3.5 SE under
+    assert min(agg) > max(v for k, v in rd.items() if "ceiling" not in k)
     dp, dr = doc_fine_tune("pretrained"), doc_fine_tune("random")
     assert dp["acc"] < rd["unigram LR (Topic 17)"] and abs(dp["acc"] - dr["acc"]) < 0.05
+
+
+def test_matched_rates():
+    """At each shared Adam rate (10⁻³, 3·10⁻³, 10⁻²), LoRA learns less and forgets less than full fine-tuning on
+    every seed (Biderman et al.'s direction); LP-FT at its own rate still forgets less than every LoRA run."""
+    mr = matched_rates()
+    for lr in SHARED_RATES:
+        for (fa, fm), (la, lm) in zip(mr[("full", lr)], mr[("lora", lr)]):
+            assert la < fa and lm < fm
+    lora = [mlm for (m, _), v in mr.items() if m == "lora" for _, mlm in v]
+    assert max(evaluate(c)["mlm"] for c in HEADLINE["lpft"]) < min(lora)
+
+
+def test_truncation_seeds_and_lora_class():
+    """Prop 2 at every seed: rank 4 keeps 0.93–0.98 and rank 8 is within 0.01 of the full update. Inside LoRA's class
+    (Wq and Wv only, the rest pretrained, a refit probe head), full fine-tuning's update reads below 0.86 at every rank
+    tried, under LoRA trained at rank 4; at r = 0 it is the probe."""
+    for t in truncations_by_seed().values():
+        assert 0.93 < t["r4"] < 0.98 and t["full"] - t["r8"] < 0.01
+    ct = class_truncations()
+    assert all(abs(a[0] - evaluate(None)["acc"]) < 1e-12 for a in ct.values())
+    assert max(max(a.values()) for a in ct.values()) < 0.86
+    assert max(max(a.values()) for a in ct.values()) < min(evaluate(_canon(RANK_RUNS[(4, sc)]))["acc"]
+                                                          for sc in ("lin", "sqrt"))
+
+
+def test_deleted_not_frame_reads_as_negated():
+    """The deleted-"not" copies are not mostly neutral: on every seed about half (0.45–0.6) are read as if "not" were
+    still there, the ADJ₊ copy is read negative at least 0.45 of the time, and neutral is a minority on two seeds."""
+    d = deleted_not_readings()
+    assert all(0.45 < x["as_if_kept"] < 0.6 and x["ADJ+"][0] >= 0.45 for x in d.values())
+    assert sum(x["neutral"] < 0.5 for x in d.values()) >= 2
+
+
+def test_pretraining_gain_by_construction():
+    """What pretraining buys, by construction: negated adjectives have the largest accuracy gap on every seed, but
+    plain adjectives (four times as many rows) gain more rows."""
+    for g in pretraining_gain().values():
+        assert max(g["gap"], key=g["gap"].get) == "negated adjective"
+        assert g["rows"]["adjective"] > g["rows"]["negated adjective"]
 
 
 def test_viz_mirror_matches_payload():
@@ -1627,6 +1821,19 @@ def summary() -> dict:
     for i in ("pretrained", "random"):
         d = doc_fine_tune(i)
         out[f"document fine-tune ({i}): test / train / probe"] = f"{d['acc']:.6f} / {d['train']:.6f} / {d['probe']:.6f}"
+    out["tone by aggregation, full s0/s1/s2"] = " / ".join(f"{v:.6f}" for v in tone_by_seed())
+    for key, v in matched_rates().items():
+        out[f"matched rate {key[0]} at {key[1]:g}: (acc, mlm) by seed"] = str([tuple(round(x, 6) for x in p) for p in v])
+    out["SGD first step: RMS / mean by r"] = " ".join(f"{a / e:.4f}" for a, e in zip(first_step_table()["rms_sgd"],
+                                                                                    first_step_table()["expected_sgd"]["sqrt"]))
+    out["Prop 2 by seed: r4 / r8 / full"] = "; ".join(f"{t['r4']:.6f} / {t['r8']:.6f} / {t['full']:.6f}"
+                                                       for t in truncations_by_seed().values())
+    out["LoRA's class (Wq, Wv only, probe refit), by seed"] = str({s_: {r: round(a, 6) for r, a in v.items()}
+                                                                  for s_, v in class_truncations().items()})
+    out["deleted-not copies: as if kept / neutral, by seed"] = " ; ".join(
+        f"{x['as_if_kept']:.6f} / {x['neutral']:.6f}" for x in deleted_not_readings().values())
+    out["pretraining gain rows: total / negated adj / adj, by seed"] = " ; ".join(
+        f"{g['total']} / {g['rows']['negated adjective']} / {g['rows']['adjective']}" for g in pretraining_gain().values())
     out["tone by aggregation: full s0 / augmented s0"] = (f"{tone_from(evaluate(HEADLINE['full'][0])['pred']):.6f} / "
                                                          f"{tone_from(evaluate(AUG_RUNS[0])['pred']):.6f}")
     return out
