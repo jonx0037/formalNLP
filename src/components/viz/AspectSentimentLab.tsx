@@ -214,7 +214,7 @@ function LadderView() {
   const LW = 150, IW = W - LW - 20, RH = 24;
   const x = d3.scaleLinear().domain([0, 1]).range([0, IW]);
   const words = Object.entries(CON.direction_votes);
-  const vx = d3.scaleLinear().domain([-8, 8]).range([0, 300]);
+  const vx = d3.scaleLinear().domain([-9, 9]).range([0, 300]);
   return (
     <figure style={{ margin: 0 }} data-view="ladder">
       <Caption>Accuracy by construction, for each reader</Caption>
