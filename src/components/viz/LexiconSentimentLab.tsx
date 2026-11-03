@@ -4,8 +4,9 @@ import * as d3 from 'd3';
 // notebooks/lexicon-sentiment-loughran-mcdonald/lexicon_sentiment_loughran_mcdonald.py; test_viz_mirror_matches_payload
 // asserts this file equals it exactly, and the harness's tests assert the claims the views make
 // (test_net_tone_discards_a_coordinate, test_thm1_bound_holds, test_length_on_the_corpus,
-// test_general_lexicon_misreads_finance, test_constructions_a_lexicon_cannot_read, test_negation_scope,
-// test_thm2_prior_limit, test_dictionary_versus_labels, test_induction_on_the_corpus). Change the .py, regenerate,
+// test_independence_overpredicts_on_average, test_general_lexicon_misreads_finance, test_retuned_cut_absorbs_the_shift,
+// test_constructions_a_lexicon_cannot_read, test_negation_scope, test_thm2_prior_limit, test_dictionary_versus_labels,
+// test_prior_is_not_plain_lr, slowcheck_fine_learning_curves, test_induction_on_the_corpus). Change the .py, regenerate,
 // never the reverse. No number here comes from the real Loughran–McDonald dictionary.
 import payload from './data/lexicon-sentiment-lab.json';
 
@@ -30,10 +31,11 @@ const SIM = payload.simplex as unknown as {
 };
 type Preset = { id: string; label: string; a: number; b: number; rho: number; exact: number[]; bound: number[] | null };
 const LEN = payload.length as unknown as {
-  L: number[]; presets: Preset[]; doc: { L: number; err: number; iid: number; bound: number };
+  L: number[]; presets: Preset[];
+  doc: { L: number; err: number; iid: number; bound: number; six: { measured: number; iid: number } };
 };
 type Contam = {
-  hist: Record<string, number[]>; lo: number; hi: number; acc: number; sign_acc: number; snr: number;
+  hist: Record<string, number[]>; lo: number; hi: number; acc: number; sign_acc: number; sign_acc_cut: number; snr: number;
   mean: Record<string, number>;
 };
 const CON = payload.contamination as unknown as { edges: number[]; finance: Contam; general: Contam; c: Record<string, number> };
@@ -295,7 +297,9 @@ function LengthView() {
       </Readouts>
       <Note>
         On the corpus, positive filings average {LEN.doc.L} tokens. Their measured error is {f3(LEN.doc.err)}, the i.i.d.
-        model gives {f3(LEN.doc.iid)}, and the bound gives {f3(LEN.doc.bound)}: loose, with the right exponent. With the
+        model gives {f3(LEN.doc.iid)}, and the bound gives {f3(LEN.doc.bound)}: loose, with the right exponent. The
+        i.i.d. model's match is this split's: over six splits the measured error averages {f3(LEN.doc.six.measured)}
+        against its {f3(LEN.doc.six.iid)}, because the corpus's scores are under-dispersed. With the
         general list, negative hits outnumber positive ones even in positive filings, so the error climbs toward 1 with
         length.
       </Note>
@@ -352,7 +356,8 @@ function ContaminationView() {
       ]} />
       <Readouts>
         <Readout label="three-class accuracy" value={f3(d.acc)} id="contam-acc" emphasis />
-        <Readout label="polar sign accuracy" value={f3(d.sign_acc)} id="contam-sign" />
+        <Readout label="polar sign accuracy, cut at 0" value={f3(d.sign_acc)} id="contam-sign" />
+        <Readout label="polar sign accuracy, re-tuned cut" value={f3(d.sign_acc_cut)} id="contam-sign-cut" />
         <Readout label="Fisher ratio, + vs −" value={f3(d.snr)} id="contam-snr" />
         <Readout label="mean net tone (−, 0, +)" value={['-1', '0', '1'].map((t) => d.mean[t]).join(', ')} id="contam-mean" />
       </Readouts>
@@ -480,7 +485,7 @@ function PriorView() {
         aria-label={mode === 'curves'
           ? `at n = ${PRI.n[ni]}: ${METHODS.map((m) => `${m.label} ${f3((PRI[m.key] as number[])[ni])}`).join(', ')}`
           : `prior toward ${kind === 'net' ? 'net tone' : 'two counts'} at λ = ${path.lam[pi]}: ${f3(path.acc[pi])}`}>
-        <text x={8} y={14} style={titleText}>{mode === 'curves' ? 'test accuracy against n (log axis); every λ chosen on 600 dev filings' : 'test accuracy against λ, from the dictionary end (left) to ridge LR (right)'}</text>
+        <text x={8} y={14} style={titleText}>{mode === 'curves' ? 'test accuracy against n (log axis); every λ chosen on 600 dev filings' : 'test accuracy against λ, from the dictionary end (left) toward ridge LR (right)'}</text>
         <g transform={`translate(${M.left},${M.top})`}>
           <YGrid y={y} ticks={[0.4, 0.5, 0.6, 0.7, 0.8, 0.9]} iw={PIW} fmt={(t) => t.toFixed(1)} />
           <line x1={0} x2={PIW} y1={y(PRI.ceiling)} y2={y(PRI.ceiling)} style={{ stroke: 'var(--color-text)', strokeWidth: 1, strokeDasharray: '1 3' }} />
@@ -512,7 +517,7 @@ function PriorView() {
             <Readout label={`dictionary, two counts (n = ${PRI.n[ni]})`} value={f3(PRI.categories[ni])} id="prior-cat" />
             <Readout label="unigram LR" value={f3(PRI.lr[ni])} id="prior-lr" />
             <Readout label="prior toward net tone" value={f3(PRI.prior_net[ni])} id="prior-pn" emphasis />
-            <Readout label="LR first matches the dictionary at n =" value={String(PRI.crossover.categories)} id="prior-cross" />
+            <Readout label="first column where LR ≥ two counts (one sample)" value={String(PRI.crossover.categories)} id="prior-cross" />
           </>
         ) : (
           <>
@@ -526,8 +531,8 @@ function PriorView() {
       </Readouts>
       <Note>
         {mode === 'curves'
-          ? 'Dotted lines are the dictionary with fitted cutpoints (λ = ∞). Solid thick lines shrink logistic regression toward it instead of toward zero; they never fall more than 0.01 below the better end.'
-          : 'Theorem 2: the deviation from the dictionary is at most G/λ, and the probabilities converge to the dictionary’s at rate 1/λ (the gap column). Small λ is ordinary ridge logistic regression.'}
+          ? 'Dotted lines are the dictionary with fitted cutpoints (λ = ∞). Solid thick lines shrink logistic regression toward it instead of toward zero; they never fall more than 0.01 below the better end. The 1,000 and 1,500 columns are one sample each.'
+          : 'Theorem 2: the deviation from the dictionary is at most G/λ, and the probabilities converge to the dictionary’s at rate 1/λ (the gap column). Small λ approaches ridge logistic regression without reaching it: the dictionary directions are never penalized.'}
       </Note>
     </figure>
   );
