@@ -37,6 +37,8 @@ multinomial likelihood for Prop 1; iterative label propagation and a Monte Carlo
 
 Run (executes the verification harness):
     uv run --with numpy==2.5.4 --with scipy==1.18.1 --with scikit-learn==1.9.1 python notebooks/lexicon-sentiment-loughran-mcdonald/lexicon_sentiment_loughran_mcdonald.py
+Add --slow for the checks that refit on all six of Topic 17's splits, on a finer learning-curve grid, or on 60,000
+fresh filings.
 """
 
 from __future__ import annotations
@@ -305,10 +307,139 @@ def length_terciles() -> dict:
             "sign_acc": [float((np.sign(s[bins == k]) == y[bins == k]).mean()) for k in range(3)]}
 
 
+NSPLIT = len(ltc.FIN_SPLITS)  # Topic 17's six train/dev/test splits; split 0 is the page's
+
+
+@lru_cache(maxsize=None)
+def split_counts_i(i: int, lexicon_name: str = "finance") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """split_counts for split i of ltc.FIN_SPLITS (split 0 is split_counts itself)."""
+    if i == 0:
+        return split_counts(lexicon_name)
+    lexicon = {"finance": LEX, "general": GEN}[lexicon_name]
+    Ttr, _, Tdv, _, Tte, _ = ltc.fin_corpora(i)
+    return tuple(np.array([category_counts(t, lexicon) for t in T]) for T in (Ttr, Tdv, Tte))  # type: ignore[return-value]
+
+
+def _labels_i(i: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    c = ltc.fin_corpora(i)
+    return c[1], c[3], c[5]
+
+
+@lru_cache(maxsize=None)
+def _sign_parts(a: float, b: float, L: int) -> tuple[float, float]:
+    """Under independent tokens at rates (a, b): P(S_L < 0) and P(S_L = 0)."""
+    pmf = score_pmf(a, b, L)
+    return float(pmf[:L].sum()), float(pmf[L])
+
+
+@lru_cache(maxsize=None)
+def independence_check() -> dict:
+    """Thm 1's independent-token model against the corpus, on each of the six splits' positive test filings: the
+    measured share with raw score ≤ 0; the independent model's share at each filing's own length (rates pooled over
+    the split's positive training filings); and the variance of the raw score s = n₊ − n₋ against the independent
+    model's at each filing's length (rates pooled over the positive test filings themselves, so the means agree
+    exactly), split into the two counts' variances and their covariance."""
+    keys = ("measured", "iid", "var_ratio", "var_pos", "iid_var_pos", "var_neg", "iid_var_neg", "cov", "iid_cov")
+    out = {k: [] for k in keys}
+    for i in range(NSPLIT):
+        ytr, _, yte = _labels_i(i)
+        Ctr, _, Cte = split_counts_i(i)
+        P = Ctr[ytr == 2]
+        a, b = P[:, 0].sum() / P[:, 4].sum(), P[:, 1].sum() / P[:, 4].sum()
+        C = Cte[yte == 2]
+        s, L = C[:, 0] - C[:, 1], C[:, 4].astype(int)
+        out["measured"].append(float((s <= 0).mean()))
+        out["iid"].append(float(np.mean([sum(_sign_parts(float(a), float(b), int(l))) for l in L])))
+        at, bt = C[:, 0].sum() / C[:, 4].sum(), C[:, 1].sum() / C[:, 4].sum()
+        out["var_ratio"].append(float(s.var() / np.mean(L * (at + bt - (at - bt) ** 2))))
+        out["var_pos"].append(float(C[:, 0].var()))
+        out["iid_var_pos"].append(float(np.mean(L * at * (1 - at)) + np.var(L * at)))
+        out["var_neg"].append(float(C[:, 1].var()))
+        out["iid_var_neg"].append(float(np.mean(L * bt * (1 - bt)) + np.var(L * bt)))
+        out["cov"].append(float(np.cov(C[:, 0], C[:, 1])[0, 1]))
+        out["iid_cov"].append(float(-np.mean(L * at * bt) + np.cov(L * at, L * bt)[0, 1]))
+    return {k: np.array(v) for k, v in out.items()}
+
+
+DENSE_L = 210  # the corpus's mean positive length, 210.5 tokens, rounded as Thm 1's exact error needs a whole L
+
+
+def dense_lexicon_error() -> dict:
+    """The 'ten times denser' preset at the corpus's length: the exact error and bound at L = 210 with rates (10a, 10b);
+    the same at the lab grid's 193; and the stand-in's own rates at ten times the length, which for small rates moves
+    the exponent the same way (L(√a − √b)² is unchanged)."""
+    rf = tone_rates("finance")[1]
+    a, b = float(rf[0]), float(rf[1])
+    return {"dense": sign_error(10 * a, 10 * b, DENSE_L), "dense_bound": chernoff_rho(10 * a, 10 * b) ** DENSE_L,
+            "dense_193": sign_error(10 * a, 10 * b, 193), "long": sign_error(a, b, 10 * DENSE_L)}
+
+
+def best_cut(s: np.ndarray, y: np.ndarray) -> float:
+    """One threshold for the polar tones (y ∈ {0, 2}): positive iff s > cut, chosen to maximize accuracy over the
+    midpoints of the sorted distinct scores (the first maximizer)."""
+    u = np.unique(s)
+    cuts = np.r_[u[0] - 1, (u[1:] + u[:-1]) / 2, u[-1] + 1]
+    return float(cuts[int(np.argmax([np.mean((s > c) == (y == 2)) for c in cuts]))])
+
+
+@lru_cache(maxsize=None)
+def contamination_six_splits() -> dict:
+    """Prop 2 on each of the six splits, for the finance stand-in and the general list: the polar test filings' sign
+    accuracy at a cut of zero and with one cut re-tuned on the training split's polar filings (which absorbs the mean
+    shift), Fisher's ratio between the polar tones, and Prop 2's independent-token prediction of the ratio general ÷
+    finance, (2v)/(2v + 2c(1 − c)) with v the clean per-token variance at the training rates averaged over the polar
+    tones and c the mean polyseme rate."""
+    out = {k: [] for k in ("fin_sign0", "gen_sign0", "fin_signcut", "gen_signcut", "fin_F", "gen_F", "F_pred")}
+    for i in range(NSPLIT):
+        ytr, _, yte = _labels_i(i)
+        for tag, name in (("fin", "finance"), ("gen", "general")):
+            Ctr, _, Cte = split_counts_i(i, name)
+            ptr, pte = ytr != 1, yte != 1
+            s_tr, s_te = net_tone(Ctr[ptr]), net_tone(Cte[pte])
+            out[f"{tag}_sign0"].append(float(np.mean(np.sign(s_te) == yte[pte] - 1)))
+            out[f"{tag}_signcut"].append(float(np.mean((s_te > best_cut(s_tr, ytr[ptr])) == (yte[pte] == 2))))
+            s = net_tone(Cte)
+            m = {t: s[yte == t].mean() for t in (0, 2)}
+            v = {t: s[yte == t].var() for t in (0, 2)}
+            out[f"{tag}_F"].append(float((m[2] - m[0]) ** 2 / ((v[2] + v[0]) / 2)))
+        F, G = split_counts_i(i, "finance")[0], split_counts_i(i, "general")[0]
+        c = float(np.mean([(G[ytr == t, 1] - F[ytr == t, 1]).sum() / F[ytr == t, 4].sum() for t in range(3)]))
+        P, N = F[ytr == 2], F[ytr == 0]
+        a = (P[:, 0].sum() / P[:, 4].sum() + N[:, 1].sum() / N[:, 4].sum()) / 2
+        b = (P[:, 1].sum() / P[:, 4].sum() + N[:, 0].sum() / N[:, 4].sum()) / 2
+        v2 = 2 * (a + b - (a - b) ** 2)
+        out["F_pred"].append(float(v2 / (v2 + 2 * c * (1 - c))))
+    out = {k: np.array(v) for k, v in out.items()}
+    out["F_ratio"] = out["gen_F"] / out["fin_F"]
+    return out
+
+
 @lru_cache(maxsize=None)
 def fin_test_docs() -> tuple:
     """The test split as FinanceDoc objects (gold sentences, aspects, document types); same seed as ltc.FIN_TEST."""
     return tuple(fc.generate_corpus(*ltc.FIN_TEST))
+
+
+EXAMPLE_DOC = 595  # a positive MD&A filing of the test split, quoted in "A dictionary reads a filing"
+EXAMPLE_QUOTES = (
+    "Operating margin in networkpoint was resilient. Liquidity in efficiency operations and multistores surpassed "
+    "expectations.",
+    "Management pointed to loss in free cash flow.",
+    "Estimates of fluctuations could change, and the claimbase outlook remains uncertain given variability in "
+    "overpipe.",
+)
+
+
+def example_filing() -> dict:
+    """The page's example: the filing's tone, and for each quoted passage whether it occurs in the filing, its hits per
+    category, and the gold polarities of the aspects it evaluates."""
+    d = fin_test_docs()[EXAMPLE_DOC]
+    rows = []
+    for q in EXAMPLE_QUOTES:
+        s0 = d.text.find(q)
+        rows.append({"found": s0 >= 0, "hits": category_counts(fc._tokens(q))[:4],
+                     "aspects": [a.polarity for a in d.aspects if s0 <= a.start < s0 + len(q)] if s0 >= 0 else []})
+    return {"tone": d.tone, "doc_type": d.doc_type, "quotes": rows}
 
 
 # --------------------------------------------------------------------------------------------
@@ -426,16 +557,19 @@ def category_profile() -> dict:
 
 @lru_cache(maxsize=None)
 def category_features_accuracy() -> dict:
-    """Three-class LR on category rates: polarity categories only vs all four (λ = 10⁻³ on rates per 100 tokens), and
-    the corpus's 'any uncertainty word → neutral' rule."""
+    """Three-class LR on category rates: polarity categories only vs all four (λ = 10⁻³ on rates per 100 tokens), the
+    share of test filings on which the two models' predictions agree, and the corpus's 'any uncertainty word →
+    neutral' rule."""
     ytr, yte = ltc.fin_split()[1], ltc.fin_split()[5]
     Ctr, _, Cte = split_counts("finance")
-    out = {}
+    out, pred = {}, {}
     for tag, cols in (("polarity", [0, 1]), ("all four", [0, 1, 2, 3])):
         Xtr = sp.csr_matrix(100 * Ctr[:, cols] / Ctr[:, 4:5])
         Xte = sp.csr_matrix(100 * Cte[:, cols] / Cte[:, 4:5])
         W, b, _ = ltc.lr_fit(Xtr, ytr, 3, 1e-3)
-        out[tag] = float((ltc.log_posterior(Xte, W, b).argmax(1) == yte).mean())
+        pred[tag] = ltc.log_posterior(Xte, W, b).argmax(1)
+        out[tag] = float((pred[tag] == yte).mean())
+    out["agreement"] = float((pred["polarity"] == pred["all four"]).mean())
     out["uncertainty rule"] = float(np.mean([fc.lexicon_rule(d.text) == d.tone for d in fin_test_docs()]))
     return out
 
@@ -502,7 +636,9 @@ THM2_LAMBDAS = (1.0, 10.0, 100.0, 1000.0)
 @lru_cache(maxsize=None)
 def thm2_limit(kind: str = "net") -> dict:
     """Thm 2 on the full training split: AᵀΔ_k = 0, λ‖Δ_k‖ against G, and the gap to the limit's test probabilities as
-    λ grows."""
+    λ grows. Each row also splits G's slack for the class k with the largest ‖Δ_k‖: λ‖Δ_k‖ = ‖(1/n)Σ (p_ik − y_ik) x_i‖
+    ≤ (1/n)Σ |p_ik − y_ik| ‖x_i‖ ('resid') ≤ G, so G/resid is the slack from residuals below 1 and
+    resid/(λ‖Δ_k‖) the slack from cancellation across documents."""
     Xa, _, Xta, A = prior_design(kind)
     r = A.shape[1]
     ytr = ltc.fin_split()[1]
@@ -510,15 +646,22 @@ def thm2_limit(kind: str = "net") -> dict:
     Ct = np.asarray(Xta[:, -r:].todense())
     z_inf = Ct @ B_inf.T + b_inf
     p_inf = np.exp(z_inf - logsumexp(z_inf, axis=1, keepdims=True))
+    X, Ca = Xa[:, :-r], np.asarray(Xa[:, -r:].todense())
+    nx = np.sqrt(np.asarray(X.multiply(X).sum(1))).ravel()
+    Y = np.eye(3)[ytr]
     rows, x0 = [], None
     for lam in THM2_LAMBDAS:
         D, B, b, x0 = prior_fit(Xa, ytr, r, lam, 0.0, x0)
         z = np.asarray(Xta[:, :-r] @ D.T) + Ct @ B.T + b
         p = np.exp(z - logsumexp(z, axis=1, keepdims=True))
         nD = np.linalg.norm(D, axis=1).max()
+        k = int(np.argmax(np.linalg.norm(D, axis=1)))
+        ztr = np.asarray(X @ D.T) + Ca @ B.T + b
+        ptr = np.exp(ztr - logsumexp(ztr, axis=1, keepdims=True))
         rows.append({"lam": lam, "lam_norm": float(lam * nD),
                      "orth": float(np.abs(D @ A).max() / (nD * np.linalg.norm(A, axis=0).max())),
-                     "gap": float(np.abs(p - p_inf).max()), "beta": B.tolist()})
+                     "gap": float(np.abs(p - p_inf).max()), "beta": B.tolist(),
+                     "resid": float(np.mean(np.abs(ptr[:, k] - Y[:, k]) * nx))})
     return {"G": thm2_constant(Xa, r), "rows": rows, "beta_inf": B_inf.tolist()}
 
 
@@ -616,6 +759,163 @@ def lambda_path(kind: str = "net") -> dict:
         W, b, x0 = ltc.lr_fit(Xa, ytr, 3, np.r_[np.full(V, lam), np.full(r, ETA)], x0)
         accs.append(float((ltc.log_posterior(Xta, W, b).argmax(1) == yte).mean()))
     return {"lam": list(LAMBDA_PATH), "acc": accs}
+
+
+SAME_LAMBDAS = (0.1, 0.01, 1e-3)
+
+
+@lru_cache(maxsize=None)
+def plain_lr_path() -> dict:
+    """Plain unigram LR (ridge toward zero on every weight) on the full training split at the λ where the page reads
+    the prior's path. The prior leaves its dictionary directions unpenalized at every λ, so even at small λ it is not
+    this fit."""
+    Xa, _, Xta, _ = prior_design("net")
+    X, Xt = Xa[:, :-1], Xta[:, :-1]
+    ytr, yte = ltc.fin_split()[1], ltc.fin_split()[5]
+    accs, x0 = [], None
+    for lam in SAME_LAMBDAS:
+        W, b, x0 = ltc.lr_fit(X, ytr, 3, lam, x0)
+        accs.append(float((ltc.log_posterior(Xt, W, b).argmax(1) == yte).mean()))
+    return {"lam": list(SAME_LAMBDAS), "acc": accs}
+
+
+def _acc(M, W, b, y) -> float:
+    return float((ltc.log_posterior(M, W, b).argmax(1) == y).mean())
+
+
+def _tuned(fit, lams, Md, ydv, Mt, yte) -> tuple[float, float]:
+    """Fit along ``lams`` with warm starts; return (test accuracy, λ) at the first λ with the best dev accuracy."""
+    best, x0 = None, None
+    for lam in lams:
+        W, b, x0 = fit(lam, x0)
+        d = _acc(Md, W, b, ydv)
+        if best is None or d > best[0]:
+            best = (d, _acc(Mt, W, b, yte), lam)
+    return best[1], best[2]
+
+
+def _split_design(i: int, kind: str):
+    """prior_design for split i of ltc.FIN_SPLITS."""
+    X, Xd, Xt, voc = ltc.fin_split_features(i, False)
+    wL = lexicon_weights(voc)
+    A = wL[:, None] if kind == "net" else np.c_[wL > 0, wL < 0].astype(float)
+    return tuple(sp.hstack([M, sp.csr_matrix(M @ A)]).tocsr() for M in (X, Xd, Xt)) + (A,)
+
+
+@lru_cache(maxsize=None)
+def six_split_readers() -> dict:
+    """--slow. Test accuracy on each of the six splits (fit on train, every λ chosen on dev): net tone with tuned cutpoints;
+    Prop 1's plug-in category Bayes rule; the dictionary's two counts as a softmax (Thm 2's λ = ∞ end); unigram LR on
+    Topic 17's grid ltc.FIN_LAMBDAS, with the λ it chose; and the two priors on PRIOR_LAMBDAS."""
+    out = {k: [] for k in ("net", "catbayes", "two_counts", "lr", "lr_lam", "prior_net", "prior_categories")}
+    for i in range(NSPLIT):
+        ytr, ydv, yte = _labels_i(i)
+        Ctr, _, Cte = split_counts_i(i)
+        lo, hi = tune_thresholds(net_tone(Ctr), ytr)
+        out["net"].append(float((apply_thresholds(net_tone(Cte), lo, hi) == yte).mean()))
+        out["catbayes"].append(float((category_bayes(Cte, category_rates(Ctr, ytr)) == yte).mean()))
+        X, Xd, Xt, _ = ltc.fin_split_features(i, False)
+        a, lam = _tuned(lambda l, x0: ltc.lr_fit(X, ytr, 3, l, x0), ltc.FIN_LAMBDAS, Xd, ydv, Xt, yte)
+        out["lr"].append(a)
+        out["lr_lam"].append(lam)
+        V = X.shape[1]
+        for kind, key in (("net", "prior_net"), ("categories", "prior_categories")):
+            Xa, Xda, Xta, A = _split_design(i, kind)
+            r = A.shape[1]
+            if kind == "categories":
+                B, b = lexicon_softmax(Xa, ytr, r, ETA)
+                out["two_counts"].append(_acc(Xta[:, -r:], B, b, yte))
+            a, _ = _tuned(lambda l, x0, Xa=Xa, r=r: ltc.lr_fit(Xa, ytr, 3, np.r_[np.full(V, l), np.full(r, ETA)], x0),
+                          PRIOR_LAMBDAS, Xda, ydv, Xta, yte)
+            out[key].append(a)
+    return {k: np.array(v) for k, v in out.items()}
+
+
+LR_WIDE = (1.0, 0.3, 0.1, 0.05, 0.03, 0.02, 0.01, 0.003, 0.001)  # past ltc.FIN_LAMBDAS's top, where LR always stops
+PRIOR_WIDE = (3.0, 1.0, 0.3, 0.1, 0.03, 0.01, 0.003)
+
+
+@lru_cache(maxsize=None)
+def wide_grid_six_splits() -> dict:
+    """--slow. six_split_readers' unigram LR and two priors re-tuned on wide grids (six splits)."""
+    out = {k: [] for k in ("lr", "lr_lam", "prior_net", "prior_categories")}
+    for i in range(NSPLIT):
+        ytr, ydv, yte = _labels_i(i)
+        X, Xd, Xt, _ = ltc.fin_split_features(i, False)
+        a, lam = _tuned(lambda l, x0: ltc.lr_fit(X, ytr, 3, l, x0), LR_WIDE, Xd, ydv, Xt, yte)
+        out["lr"].append(a)
+        out["lr_lam"].append(lam)
+        V = X.shape[1]
+        for kind, key in (("net", "prior_net"), ("categories", "prior_categories")):
+            Xa, Xda, Xta, A = _split_design(i, kind)
+            r = A.shape[1]
+            out[key].append(_tuned(lambda l, x0, Xa=Xa, r=r: ltc.lr_fit(Xa, ytr, 3, np.r_[np.full(V, l), np.full(r, ETA)],
+                                                                         x0), PRIOR_WIDE, Xda, ydv, Xta, yte)[0])
+    return {k: np.array(v) for k, v in out.items()}
+
+
+FINE_N = (300, 400, 500, 600, 700, 800, 1000, 1200)
+FINE_REPS = 10
+FINE_STREAM = 9000  # sample n draws its subsets from _rng(9000 + n): the video gate's streams, so the page's counts
+#                     match the companion scripts to the digit. No other module uses 9300–10200.
+
+
+@lru_cache(maxsize=None)
+def fine_curves() -> dict:
+    """--slow. The learning curves between the table's 300 and 1,500 on split 0: FINE_REPS random training subsets per n. For
+    each subset, test accuracy of the dictionary's two ends (net tone and the two counts, as softmaxes) and of unigram
+    LR on ltc.FIN_LAMBDAS (chosen on dev); and at n = 300 the prior toward net tone. 'wins' counts the subsets on which
+    LR matches or beats each end."""
+    _, ytr, _, ydv, _, yte = ltc.fin_split()
+    design = {k: prior_design(k) for k in KINDS}
+    Xa, Xda, Xta, _ = design["net"]
+    X, Xd, Xt = Xa[:, :-1], Xda[:, :-1], Xta[:, :-1]
+    V = X.shape[1]
+    out = {"n": list(FINE_N)}
+    for n in FINE_N:
+        rng = _rng(FINE_STREAM + n)
+        res = {k: [] for k in ("net", "categories", "lr", "prior_net")}
+        for _ in range(FINE_REPS):
+            idx = rng.choice(len(ytr), n, replace=False)
+            y = ytr[idx]
+            for k in KINDS:
+                Ma, _, Mta, Ak = design[k]
+                r = Ak.shape[1]
+                B, b = lexicon_softmax(Ma[idx], y, r, ETA)
+                res[k].append(_acc(Mta[:, -r:], B, b, yte))
+            res["lr"].append(_tuned(lambda l, x0: ltc.lr_fit(X[idx], y, 3, l, x0), ltc.FIN_LAMBDAS, Xd, ydv, Xt, yte)[0])
+            if n == FINE_N[0]:
+                res["prior_net"].append(_tuned(
+                    lambda l, x0: ltc.lr_fit(Xa[idx], y, 3, np.r_[np.full(V, l), np.full(1, ETA)], x0),
+                    PRIOR_LAMBDAS, Xda, ydv, Xta, yte)[0])
+        out[n] = {k: np.array(v) for k, v in res.items()}
+        out[n]["wins"] = {k: int(np.sum(out[n]["lr"] >= out[n][k])) for k in KINDS}
+    return out
+
+
+CEILING_N, CEILING_CHUNK = 60000, 5000  # one generate_corpus call runs out of pseudo-words well before 60,000
+CEILING_SEEDS = (7_700_000, 7_800_000)  # fit sample, scoring sample: corpus seeds base + chunk index
+
+
+@lru_cache(maxsize=None)
+def count_ceilings() -> dict:
+    """--slow. What a reader of (n₊, n₋) can get, without split noise: fit on CEILING_N fresh filings and score on
+    CEILING_N more. Net tone with cutpoints, Prop 1's plug-in rule, and the best rule on (n₊, n₋) at all, a lookup table
+    of the majority tone for each pair (falling back to the plug-in rule for a pair the fit sample never saw)."""
+    samples = []
+    for base in CEILING_SEEDS:
+        docs = [d for k in range(CEILING_N // CEILING_CHUNK) for d in fc.generate_corpus(CEILING_CHUNK, base + k)]
+        samples.append((np.array([category_counts(fc._tokens(d.text)) for d in docs]),
+                        np.array([d.tone + 1 for d in docs])))
+    (CA, yA), (CB, yB) = samples
+    lo, hi = tune_thresholds(net_tone(CA), yA)
+    cb = category_bayes(CB, category_rates(CA, yA))
+    table: dict[tuple, np.ndarray] = {}
+    for key, y in zip(map(tuple, CA[:, :2]), yA):
+        table.setdefault(key, np.zeros(3))[y] += 1
+    pred = np.array([table[k].argmax() if k in table else f for k, f in zip(map(tuple, CB[:, :2]), cb)])
+    return {"net": float((apply_thresholds(net_tone(CB), lo, hi) == yB).mean()), "catbayes": float((cb == yB).mean()),
+            "table": float((pred == yB).mean())}
 
 
 # --------------------------------------------------------------------------------------------
@@ -826,7 +1126,9 @@ def _length_payload() -> dict:
     return {"L": list(L_GRID), "presets": presets,
             "doc": {"L": _r(Lbar, 1), "err": _r(float((net_tone(C[pos_docs]) <= 0).mean())),
                     "iid": _r(sign_error(rf[0], rf[1], int(round(Lbar)))),
-                    "bound": _r(chernoff_rho(rf[0], rf[1]) ** Lbar)}}
+                    "bound": _r(chernoff_rho(rf[0], rf[1]) ** Lbar),
+                    "six": {"measured": _r(independence_check()["measured"].mean()),
+                            "iid": _r(independence_check()["iid"].mean())}}}
 
 
 HIST_EDGES = np.linspace(-0.06, 0.06, 25)
@@ -835,13 +1137,15 @@ HIST_EDGES = np.linspace(-0.06, 0.06, 25)
 def _contamination_payload() -> dict:
     yte = ltc.fin_split()[5]
     out = {"edges": _r(100 * HIST_EDGES, 2)}
+    six = contamination_six_splits()
     for name in ("finance", "general"):
         s = np.clip(net_tone(split_counts(name)[2]), HIST_EDGES[0], HIST_EDGES[-1] - 1e-12)
         lc = lexicon_classifier(name)
         mo = score_moments(name)
         out[name] = {"hist": {str(t): np.histogram(s[yte == t + 1], HIST_EDGES)[0].tolist() for t in TONES},
                      "lo": _r(100 * lc["lo"], 3), "hi": _r(100 * lc["hi"], 3), "acc": _r(lc["acc"]),
-                     "sign_acc": _r(lc["sign_acc"]), "snr": _r(mo["snr"]),
+                     "sign_acc": _r(lc["sign_acc"]), "sign_acc_cut": _r(six[f"{name[:3]}_signcut"][0]),
+                     "snr": _r(mo["snr"]),
                      "mean": {str(t): _r(100 * mo["mean"][t], 3) for t in TONES}}
     rf, rg = tone_rates("finance"), tone_rates("general")
     out["c"] = {str(t): _r(100 * (rg[t][1] - rf[t][1]), 3) for t in TONES}
@@ -976,6 +1280,18 @@ def summary() -> dict:
     rob = np.array(seed_robustness())
     out["Thm 3: random seeds sign acc median / p10 / min"] = (
         f"{np.median(rob):.6f} / {np.quantile(rob, 0.1):.6f} / {rob.min():.6f}")
+    out["category LR: polarity vs all four, prediction agreement"] = category_features_accuracy()["agreement"]
+    for k, v in independence_check().items():
+        out[f"Thm 1, six splits, positive test docs: {k}"] = " / ".join(f"{x:.4f}" for x in v)
+    for k, v in dense_lexicon_error().items():
+        out[f"Thm 1: dense / long presets at L = {DENSE_L}: {k}"] = v
+    for k, v in contamination_six_splits().items():
+        out[f"Prop 2, six splits: {k}"] = " / ".join(f"{x:.4f}" for x in v)
+    out[f"plain LR on the full split at lambda {SAME_LAMBDAS}"] = " / ".join(f"{v:.6f}" for v in plain_lr_path()["acc"])
+    for kind in KINDS:
+        th = thm2_limit(kind)
+        out[f"Thm 2 ({kind}) slack G/(lam*|D|), G/resid, resid/(lam*|D|) by lambda"] = "; ".join(
+            f"{th['G'] / r['lam_norm']:.1f}, {th['G'] / r['resid']:.2f}, {r['resid'] / r['lam_norm']:.1f}" for r in th["rows"])
     return out
 
 
@@ -1095,6 +1411,33 @@ def test_length_on_the_corpus():
     assert abs(sign_error(r[0], r[1], int(round(Lbar))) - measured) < 0.02
 
 
+def test_independence_overpredicts_on_average():
+    """§Length: the independent model matches the measured sign error on split 0 only. Over six splits it overpredicts
+    (0.252 against 0.217), and split 0 is the six's maximum. The scores are under-dispersed, almost all through the
+    positive count; the two counts' negative covariance widens the score rather than narrowing it."""
+    r = independence_check()
+    m, iid = r["measured"], r["iid"]
+    assert m[0] == m.max() and abs(m[0] - 0.252) < 5e-4, m
+    assert abs(m.mean() - 0.217) < 5e-4 and abs(iid.mean() - 0.252) < 5e-4, (m.mean(), iid.mean())
+    assert np.all(m < iid), (m, iid)
+    assert np.all(r["var_ratio"] < 0.9) and abs(r["var_ratio"].mean() - 0.76) < 0.005, r["var_ratio"]
+    assert np.all(r["var_pos"] < 0.65 * r["iid_var_pos"]) and np.all(r["var_neg"] < r["iid_var_neg"])
+    assert np.all(r["cov"] < 0) and np.all(r["iid_cov"] > 0)
+    var_s = r["var_pos"] + r["var_neg"] - 2 * r["cov"]
+    iid_s = r["iid_var_pos"] + r["iid_var_neg"] - 2 * r["iid_cov"]
+    short_pos = (r["iid_var_pos"] - r["var_pos"]).mean()
+    assert short_pos > (iid_s - var_s).mean(), (short_pos, (iid_s - var_s).mean())  # the covariance term widens s
+
+
+def test_dense_lexicon_at_corpus_length():
+    """§Length: ten times the stand-in's rates gives exact error 0.003 at the corpus's 210 tokens (0.004 is the lab grid's
+    193), and ten times the length at the stand-in's rates gives nearly the same: for small rates both multiply
+    L(√a − √b)² by ten."""
+    d = dense_lexicon_error()
+    assert round(d["dense"], 3) == 0.003 and round(d["dense_193"], 3) == 0.004, d
+    assert d["dense"] <= d["dense_bound"] and abs(d["long"] - d["dense"]) < 3e-4, d
+
+
 def test_prop2_contamination_moments():
     """Prop 2: the mean gap is unchanged, each variance rises by exactly c(1 − c ± 2(a − b)), the ratio falls."""
     rng = _rng(3104)
@@ -1124,6 +1467,20 @@ def test_general_lexicon_misreads_finance():
     assert mg["snr"] < mf["snr"]
     lf, lg = lexicon_classifier("finance"), lexicon_classifier("general")
     assert lg["acc"] < lf["acc"] - 0.03 and lg["sign_acc"] < lf["sign_acc"] - 0.1
+
+
+def test_retuned_cut_absorbs_the_shift():
+    """§Contamination: the sign at a cut of zero pays the mean shift that re-tuning absorbs. With one cut re-tuned on
+    the training polar filings the general list still loses (the spread), but only about a quarter of the drop at zero.
+    Fisher's ratio falls by about Prop 2's independent-token prediction."""
+    r = contamination_six_splits()
+    assert (round(r["fin_sign0"][0], 3), round(r["gen_sign0"][0], 3)) == (0.759, 0.6)
+    assert (round(r["fin_signcut"][0], 3), round(r["gen_signcut"][0], 3)) == (0.824, 0.799)
+    assert np.all(r["gen_signcut"] < r["fin_signcut"]) and np.all(r["gen_signcut"] > r["gen_sign0"] + 0.15)
+    drop0 = (r["fin_sign0"] - r["gen_sign0"]).mean()
+    dropcut = (r["fin_signcut"] - r["gen_signcut"]).mean()
+    assert 0.2 < dropcut / drop0 < 0.3, (dropcut, drop0)
+    assert abs(r["F_ratio"].mean() - r["F_pred"].mean()) < 0.05, (r["F_ratio"].mean(), r["F_pred"].mean())
 
 
 def test_edgar_has_polysemes():
@@ -1167,6 +1524,39 @@ def test_uncertainty_is_not_neutrality():
     assert abs(acc["all four"] - acc["polarity"]) < 0.01
 
 
+def test_category_models_same_accuracy_not_same_predictions():
+    """§Uncertainty: adding the uncertainty and litigious rates leaves the accuracy at 0.725 exactly, but the two models
+    disagree on 3.8% of the test filings."""
+    acc = category_features_accuracy()
+    assert acc["all four"] == acc["polarity"] and round(acc["polarity"], 3) == 0.725, acc
+    assert round(1 - acc["agreement"], 3) == 0.038, acc
+
+
+def test_example_filing():
+    """§A dictionary reads a filing: the quoted passages occur, in this order of roles, in one positive test filing —
+    two positive hits on good news, one negative hit on bad news, and uncertainty hits with no polar word or aspect."""
+    ex = example_filing()
+    assert ex["tone"] == 1
+    (good, bad, unc) = ex["quotes"]
+    assert all(q["found"] for q in ex["quotes"])
+    assert list(good["hits"][:2]) == [2, 0] and good["aspects"] == [1, 1]
+    assert list(bad["hits"][:2]) == [0, 1] and bad["aspects"] == [-1]
+    assert list(unc["hits"][:2]) == [0, 0] and unc["hits"][2] == 5 and unc["aspects"] == []
+
+
+def test_thm2_slack():
+    """Thm 2(b)'s constant G against λ‖Δ_k‖: loose by about 36 at its tightest (net tone, λ = 1,000) and about 97 at
+    λ = 1; for the two counts, about 95 to 147. At λ = 1,000 (net tone) cancellation across documents accounts for about
+    14× and residuals below 1 for about 2.5×."""
+    th = thm2_limit("net")
+    tot = [th["G"] / r["lam_norm"] for r in th["rows"]]
+    assert round(min(tot)) == 36 and round(tot[0]) == 97 and min(tot) == tot[-1], tot
+    last = th["rows"][-1]
+    assert round(th["G"] / last["resid"], 1) == 2.5 and round(last["resid"] / last["lam_norm"]) == 14, last
+    totc = [thm2_limit("categories")["G"] / r["lam_norm"] for r in thm2_limit("categories")["rows"]]
+    assert 90 < min(totc) and max(totc) < 150, totc
+
+
 def test_thm2_prior_limit():
     """Thm 2, for both subspaces: AᵀΔ = 0 at every λ, λ‖Δ_k‖ ≤ G, and the test probabilities approach the λ = ∞
     softmax at rate ~1/λ."""
@@ -1196,6 +1586,65 @@ def test_dictionary_versus_labels():
     assert c["support"][-1] > net[-1] + 0.05
 
 
+def _mean_sd(v) -> tuple[float, float]:
+    v = np.asarray(v, float)
+    return float(v.mean()), float(v.std(ddof=1))
+
+
+def slowcheck_projection_is_the_whole_gap():
+    """--slow, §Simplex, over six splits: the plug-in category rule on (n₊, n₋) ties logistic regression on every word (0.734
+    against 0.733, plug-in ahead on three of six), so on average the projection is the whole gap between net tone and
+    the learned model."""
+    r = six_split_readers()
+    d = r["catbayes"] - r["lr"]
+    assert np.all(r["catbayes"] - r["net"] > 0.08), r["catbayes"] - r["net"]
+    assert [round(x, 3) for x in _mean_sd(r["catbayes"])] == [0.734, 0.012], _mean_sd(r["catbayes"])
+    assert [round(x, 3) for x in _mean_sd(r["lr"])] == [0.733, 0.012], _mean_sd(r["lr"])
+    assert [round(x, 3) for x in _mean_sd(d)] == [0.001, 0.021] and int((d > 0).sum()) == 3, d
+
+
+def slowcheck_fine_learning_curves():
+    """--slow, §Prior: between the table's 300 and 1,500 (split 0, ten subsets per n), LR matches or beats net tone on 5 of 10
+    subsets at 300, 9 at 400, and all from 500; it matches or beats the two counts on none through 800, 3 at 1,000, and
+    9 at 1,200. Over six splits at 1,500 it ties the two counts. As a prior, net tone at 300 filings scores what LR
+    reaches between 1,200 and 1,500."""
+    c = fine_curves()
+    assert [c[n]["wins"]["net"] for n in FINE_N] == [5, 9, 10, 10, 10, 10, 10, 10]
+    assert [c[n]["wins"]["categories"] for n in FINE_N] == [0, 0, 0, 0, 0, 0, 3, 9]
+    pn = c[300]["prior_net"].mean()
+    assert round(pn, 3) == 0.731 and c[1200]["lr"].mean() < pn < learning_curves()["lr"][-1], pn
+    d = six_split_readers()["lr"] - six_split_readers()["two_counts"]
+    assert round(d.mean(), 4) == 0.0006 and round(d.std(ddof=1), 3) == 0.021, d
+
+
+def test_prior_is_not_plain_lr():
+    """§Prior: at λ = 10⁻³ the prior is not plain ridge LR, which scores 0.721; the prior keeps its dictionary
+    directions unpenalized and leads at every λ of the comparison."""
+    pl, pr = plain_lr_path(), lambda_path("net")
+    prior = [pr["acc"][pr["lam"].index(l)] for l in SAME_LAMBDAS]
+    assert [round(a, 3) for a in pl["acc"]] == [0.73, 0.739, 0.721], pl
+    assert [round(a, 3) for a in prior] == [0.766, 0.753, 0.731], prior
+    assert all(p > q for p, q in zip(prior, pl["acc"]))
+
+
+def slowcheck_wide_grids():
+    """--slow, §Prior: plain LR's grid stops at the λ it picks (0.01, its top) on all six splits. On a wide grid
+    (1 … 0.001) plain LR is unchanged on average and the prior toward net tone still leads on all six."""
+    w, s = wide_grid_six_splits(), six_split_readers()
+    assert np.all(s["lr_lam"] == max(ltc.FIN_LAMBDAS)), s["lr_lam"]
+    assert [round(x, 3) for x in _mean_sd(w["lr"])] == [0.734, 0.009], _mean_sd(w["lr"])
+    assert abs(w["lr"].mean() - s["lr"].mean()) < 0.002
+    d = w["prior_net"] - w["lr"]
+    assert [round(x, 3) for x in _mean_sd(d)] == [0.031, 0.014] and np.all(d > 0), d
+
+
+def slowcheck_count_ceilings():
+    """--slow, §Simplex: on 60,000 fresh filings fit and 60,000 scored, the best rule on (n₊, n₋) scores 0.736, the
+    plug-in rule 0.737, and net tone with its best cutpoints 0.638."""
+    c = count_ceilings()
+    assert (round(c["table"], 3), round(c["catbayes"], 3), round(c["net"], 3)) == (0.736, 0.737, 0.638), c
+
+
 def test_thm3_harmonic_properties():
     """Thm 3 on random weighted graphs: the solve is unique (L_UU positive definite), obeys the maximum principle,
     equals clamped label propagation's limit, and equals 2·P(absorb at +) − 1 by Monte Carlo."""
@@ -1223,7 +1672,8 @@ def test_thm3_harmonic_properties():
 def test_induction_on_the_corpus():
     """Two seeds per pole recover most stand-in polarities' signs, and the result survives random seeds; but the
     polysemes score almost as far from zero as the polar words, and the most extreme words are mostly not lexicon
-    words: induction scores a candidate list, it does not select one."""
+    words (the top ten are mostly sector words, with 'on' and 'headquartered' among them): induction scores a
+    candidate list, it does not select one."""
     sc = induction_scores(induced())
     assert sc["sign_acc"] >= 0.85, sc["sign_acc"]
     rob = np.array(seed_robustness())
@@ -1232,6 +1682,8 @@ def test_induction_on_the_corpus():
     assert ma["polysemes"] > 0.7 * min(ma["positive"], ma["negative"]), ma
     assert ma["uncertainty"] < min(ma["positive"], ma["negative"]), ma
     assert sc["prec_pos"] <= 0.2 and sc["prec_neg"] <= 0.2
+    assert [w for w in sc["top"] if w in LEX["positive"]] == ["strength"]  # the one lexicon word among the top ten
+    assert {"on", "headquartered"} <= set(sc["top"])  # mostly sector words, not all
 
 
 def test_lm_csv_parser():
@@ -1261,6 +1713,10 @@ def test_viz_payload():
     assert len(p["prior"]["n"]) == len(p["prior"]["prior_net"]) == len(CURVE_N)
     assert {w["cat"] for w in p["induction"]["words"]} == set(CATEGORIES) | {"polyseme"}
     assert len(p["simplex"]["points"]) == SIMPLEX_POINTS
+    six = p["length"]["doc"]["six"]
+    assert six["measured"] < six["iid"] and p["length"]["doc"]["err"] >= six["measured"]  # split 0 is the six's maximum
+    for name in ("finance", "general"):
+        assert p["contamination"][name]["sign_acc_cut"] > p["contamination"][name]["sign_acc"]  # the cut absorbs the shift
 
 
 def test_viz_mirror_matches_payload():
@@ -1274,8 +1730,10 @@ def test_corpus_fingerprint():
     assert fc.CORPUS_FINGERPRINT == "b40dd72b3eeba520"
 
 
-def _run_harness() -> int:
+def _run_harness(slow: bool = False) -> int:
     tests = [(name, fn) for name, fn in globals().items() if name.startswith("test_") and callable(fn)]
+    if slow:
+        tests += [(name, fn) for name, fn in globals().items() if name.startswith("slowcheck_") and callable(fn)]
     failed = 0
     for name, fn in tests:
         try:
@@ -1288,6 +1746,20 @@ def _run_harness() -> int:
     print("\nSummary:")
     for k, v in summary().items():
         print(f"  {k:62} {v:.6f}" if isinstance(v, float) else f"  {k:62} {v}")
+    if slow:
+        for k, v in six_split_readers().items():
+            print(f"  {'six splits: ' + k:62} " + " / ".join(f"{x:.4g}" for x in v))
+        fcv = fine_curves()
+        for n in FINE_N:
+            print(f"  fine curves n={n}: LR / net / categories means {fcv[n]['lr'].mean():.4f} / {fcv[n]['net'].mean():.4f}"
+                  f" / {fcv[n]['categories'].mean():.4f}; LR wins vs net, categories {fcv[n]['wins']['net']}, "
+                  f"{fcv[n]['wins']['categories']}")
+        print(f"  fine curves: prior toward net tone at n=300 (same subsets) {fcv[FINE_N[0]]['prior_net'].mean():.6f}")
+        w = wide_grid_six_splits()
+        for k, v in w.items():
+            print(f"  {'wide grids, six splits: ' + k:62} " + " / ".join(f"{x:.6g}" for x in v))
+        for k, v in count_ceilings().items():
+            print(f"  {'ceilings on 60,000 + 60,000 fresh filings: ' + k:62} {v:.6f}")
     return 1 if failed else 0
 
 
@@ -1302,4 +1774,4 @@ elif __name__ == "__main__" and "--dev" in sys.argv:
         print(f"  {k:62} {v:.6f}" if isinstance(v, float) else f"  {k:62} {v}")
     print("time", round(time.time() - t0, 1))
 elif __name__ == "__main__":
-    raise SystemExit(_run_harness())
+    raise SystemExit(_run_harness("--slow" in sys.argv))
