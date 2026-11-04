@@ -195,7 +195,7 @@ function TrellisView() {
         {ring === 'sum'
           ? 'Each cell is the marginal γₜ(k), the probability that the tag at t is k. Posterior decoding takes each column\'s darkest cell (Theorem 4(b)).'
           : 'Each cell is the probability of the best path through it, divided by the best path\'s probability: exactly 1 along the Viterbi path (Theorem 1 in the max semiring).'}
-        {' '}At position 8 the two semirings disagree: the marginal favors s5, the best path runs through s0.
+        {' '}At t = 8 the two semirings disagree: the marginal favors s5, the best path runs through s0.
       </Note>
     </figure>
   );
