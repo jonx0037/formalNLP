@@ -520,7 +520,8 @@ def _random_chain(rng: np.random.Generator, T: int, K: int, varying: bool = Fals
 
 def test_thm1_semirings_match_brute_force():
     """Thm 1: one (+, ×) pass gives log Z and, with the backward pass, every node and pair marginal; the (max, ×)
-    pass gives the mode and its score — on random chains, shared or position-varying, with forbidden cells."""
+    passes give the mode, its score, and every max-marginal — on random chains, shared or position-varying, with
+    forbidden cells."""
     rng = _rng(3400)
     for trial in range(60):
         T, K = int(rng.integers(1, 6)), int(rng.integers(1, 4))
@@ -541,6 +542,11 @@ def test_thm1_semirings_match_brute_force():
         assert abs(chain_forward(U[None], Pb, "max")[1][0] - s.max()) < 1e-12
         path, best = viterbi(U[None], Pb)
         assert abs(best[0] - s.max()) < 1e-12 and abs(path_score(U[None], Pb, path)[0] - s.max()) < 1e-12
+        mm = max_marginals(U[None], Pb)[0]
+        for t in range(T):
+            for k in range(K):
+                on = paths[:, t] == k
+                assert abs(mm[t, k] - (p[on].max() if on.any() else 0.0)) < 1e-12
 
 
 def test_thm1_hmm_case_is_topic12_forward_backward():
@@ -1209,12 +1215,12 @@ def test_well_specified_world_generative_leads_then_ties():
 
 def test_misspecified_world_discriminative_wins():
     """Next-state world: the window CRF leads the HMM at every n, by more than 0.04 at n = 1000. The indicator CRF —
-    the HMM's own conditional family — beats it on conditional log-loss at large n (what conditional MLE optimizes),
+    the conditional family of HMMs with an end state — beats it on conditional log-loss at n = 1000 (what conditional MLE optimizes),
     while its accuracy does not: Cor 1 is a statement about the estimator's criterion."""
     c = world_curves("next")
     assert all(a > b for a, b in zip(c["crf1"], c["hmm"]))
     assert c["crf1"][-1] - c["hmm"][-1] > 0.04
-    assert c["crf0_nll"][-1] < c["hmm_nll"][-1] and c["crf0_nll"][-2] < c["hmm_nll"][-2]
+    assert c["crf0_nll"][-1] < c["hmm_nll"][-1]  # at n = 300 the order depends on the α grid (test_alpha_grid_edge)
     assert c["crf0"][-1] < c["hmm"][-1]
 
 
@@ -1247,8 +1253,8 @@ def test_bio_alignment():
 
 
 def test_finance_claims():
-    """Finance BIO (test documents): the HMM leads the CRF at 3 training documents; by 30 every discriminative tagger
-    passes it, and the unpenalized averaged perceptron leads in accuracy and span F1. Unseen words are the hard
+    """Finance BIO (test documents, this training-corpus run): the HMM leads the CRF at 3 training documents; by 30
+    every discriminative tagger passes it, and the unpenalized averaged perceptron leads in accuracy and span F1. Unseen words are the hard
     tokens. The causal MEMM still tags "the" almost perfectly: in this corpus the left context settles it."""
     r3, r30 = fin_run(3), fin_run(30)
     assert r3["hmm"]["acc"] > r3["crf"]["acc"] and r3["hmm"]["f1"] > r3["crf"]["f1"]
@@ -1265,7 +1271,7 @@ def test_prop2_finance_example():
     """The lab's sentence: every continuation word was seen in training (the prefix is a real test sentence's, whose
     company the 30 training documents never name); the causal MEMM's marginals at "the" are the
     same for every continuation (Prop 2, to 10⁻¹²), while the CRF moves "the" from B-DATE ("first quarter") to O
-    ("prior year"), and the MEMM's Viterbi path still opens a DATE there."""
+    ("prior year"), and the MEMM's Viterbi path opens a DATE there under every continuation."""
     ex = prop2_example()
     seen = fin_models(PROP2_N_DOCS)["vocab_words"]
     t = len(PROP2_PREFIX.split()) - 1
@@ -1275,7 +1281,7 @@ def test_prop2_finance_example():
         assert np.abs(ex[c]["memm_causal"]["node"][:t + 1] - base).max() < 1e-12
     assert TAGS[ex["first quarter"]["crf"]["viterbi"][t]] == "B-DATE"
     assert TAGS[ex["prior year"]["crf"]["viterbi"][t]] == "O" and ex["prior year"]["crf"]["node"][t, 0] > 0.95
-    assert TAGS[ex["prior year"]["memm_causal"]["viterbi"][t]] == "B-DATE"
+    assert all(TAGS[ex[c]["memm_causal"]["viterbi"][t]] == "B-DATE" for c in PROP2_CONTINUATIONS)
 
 
 def test_trellis_example():
@@ -1292,15 +1298,99 @@ def test_trellis_example():
 
 
 def test_perceptron_sweep():
-    """Thm 5 at every margin of the sweep: mistakes ≤ R²/γ², and the bound grows as the margin shrinks."""
+    """Thm 5 at every margin of the sweep: mistakes ≤ R²/γ², and the bound grows as the margin shrinks. The bound
+    exceeds the mistakes by a factor of 121 to 2,414, and the mistakes trend up without rising at every step."""
     sw = perceptron_sweep()
     assert all(r["mistakes"] <= r["bound"] for r in sw)
     assert all(a["bound"] < b["bound"] for a, b in zip(sw, sw[1:]))
+    ratio = [r["bound"] / r["mistakes"] for r in sw]
+    assert round(min(ratio)) == 121 and round(max(ratio)) == 2414
+    assert sw[-1]["mistakes"] > sw[0]["mistakes"] and any(a["mistakes"] > b["mistakes"] for a, b in zip(sw, sw[1:]))
 
 
 def test_corpus_fingerprint():
     """The shared corpus generator is the one every topic pins (numpy 2.5.4)."""
     assert fc.CORPUS_FINGERPRINT == "b40dd72b3eeba520"
+
+
+WIDE_ALPHAS = (0.01, 0.1, 1.0, 3.0, 10.0, 30.0)  # SIM_ALPHAS plus three values past its top edge
+
+
+@lru_cache(maxsize=None)
+def wide_alpha_hmm(world: str) -> dict:
+    """The HMM of world_curves with add-α chosen on the same validation draw from WIDE_ALPHAS: at every n, the α the
+    three-value grid picks, the α the wide grid picks, and the wide-grid HMM's test accuracy and conditional log-loss."""
+    K, V = world_emissions().shape
+    xtr, ztr = world_draw(3420, max(SIM_N), world)
+    xva, zva = world_draw(3421, 500, world)
+    xte, zte = world_draw(3422, 2000, world)
+    out = {"alpha_narrow": [], "alpha": [], "acc": [], "nll": []}
+    narrow = [WIDE_ALPHAS.index(a) for a in SIM_ALPHAS]
+    for n in SIM_N:
+        fits = [hmm_fit(list(xtr[:n]), list(ztr[:n]), K, V, alpha=a, with_end=False) for a in WIDE_ALPHAS]
+        val = [cond_nll(*hmm_potentials_batch(f, xva), zva) for f in fits]
+        out["alpha_narrow"].append(WIDE_ALPHAS[min(narrow, key=lambda i: val[i])])
+        i = int(np.argmin(val))
+        U, P = hmm_potentials_batch(fits[i], xte)
+        out["alpha"].append(WIDE_ALPHAS[i])
+        out["acc"].append(float((viterbi(U, P)[0] == zte).mean()))
+        out["nll"].append(cond_nll(U, P, zte))
+    return out
+
+
+def fin_error_shares(n_docs: int) -> dict:
+    """Each finance tagger's share of its test errors that fall on words never seen in training."""
+    return {k: r["oov_share"] * (1 - r["oov"]) / (1 - r["acc"]) for k, r in fin_run(n_docs).items()}
+
+
+@lru_cache(maxsize=1)
+def product_template() -> dict:
+    """What the training corpus does with the lab's "kestrel platform" continuation: the tags of "the kestrel X",
+    the tags of "platform", and how often "prior year" occurs in any corpus run the page uses."""
+    xs, zs, _ = fin_splits()["train"]
+    kestrel, platform = {}, {}
+    for x, z in zip(xs, zs):
+        for t in range(len(x) - 2):
+            if x[t] == "the" and x[t + 1] == "kestrel":
+                key = (x[t + 2], TAGS[z[t]])
+                kestrel[key] = kestrel.get(key, 0) + 1
+        for w, k in zip(x, z):
+            if w == "platform":
+                platform[TAGS[k]] = platform.get(TAGS[k], 0) + 1
+    prior_year = sum(1 for name in ("train", "dev", "test") for x in fin_splits()[name][0]
+                     for a, b in zip(x, x[1:]) if (a, b) == ("prior", "year"))
+    return {"the_kestrel": kestrel, "platform": platform, "prior_year": prior_year}
+
+
+def test_alpha_grid_edge():
+    """world_curves tunes the HMM's α on {1, 0.1, 0.01}, and it picks the top edge, α = 1, at every n in both worlds.
+    Past the edge, validation picks 3 at n = 100 and 300 and 10 at n = 1000 in the next-state world, and the HMM's
+    log-loss falls below the indicator CRF's at n = 300: the CRF's log-loss win holds from n = 1000 on. Every accuracy
+    ordering, and the well-specified world's log-loss ordering, is unchanged."""
+    for w in WORLDS:
+        assert wide_alpha_hmm(w)["alpha_narrow"] == [1.0] * len(SIM_N)
+    wn, cn = wide_alpha_hmm("next"), world_curves("next")
+    assert wn["alpha"] == [1.0, 1.0, 3.0, 3.0, 10.0]
+    assert wn["nll"][3] < cn["crf0_nll"][3] and cn["crf0_nll"][-1] < wn["nll"][-1]
+    assert all(a < b for a, b in zip(cn["crf0"], wn["acc"])) and all(a > b for a, b in zip(cn["crf1"], wn["acc"]))
+    wh, ch = wide_alpha_hmm("hmm"), world_curves("hmm")
+    assert all(a < b for a, b in zip(wh["nll"], ch["crf0_nll"]))
+
+
+def test_finance_error_shares():
+    """At 30 training documents, 0.54–0.65 of each tagger's test errors fall on words never seen in training: most,
+    not nearly all."""
+    sh = fin_error_shares(30)
+    assert round(min(sh.values()), 2) == 0.54 and round(max(sh.values()), 2) == 0.65
+
+
+def test_product_template():
+    """"the kestrel X" is a PRODUCT whenever it occurs in training ("the kestrel turbine", 61 times), and "platform" is
+    mostly inside a product (16 of 19), so the HMM's B-PRODUCT on "the kestrel platform" follows the corpus's own
+    template; "prior year" never occurs in any corpus run the page uses."""
+    pt = product_template()
+    assert pt["the_kestrel"] == {("turbine", "B-PRODUCT"): 61}
+    assert pt["platform"] == {"O": 3, "I-PRODUCT": 16} and pt["prior_year"] == 0
 
 
 # ============================================================================================
