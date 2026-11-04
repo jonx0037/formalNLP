@@ -334,7 +334,7 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   with a trailing [SEP] (sentences are ≤ 31 tokens). `fc._tokens` lowercases: take case from the raw text with
   `re.findall(r"[A-Za-z]+", text[s:e])`, which aligns with it token for token; one "cap" feature reaches 0.920 on the
   held-out test. On frozen states a softmax head decodes invalid BIO in 10–15% of sentences and trails the CRF by
-  0.09–0.11 even constrained; BIOES gained nothing (features see the neighbors). Overlapping spans are exclusive
+  0.09–0.11 even constrained; BIOES gained nothing on one run (+0.002 on another), but Prop 2's gap survives ±2-word windows ("a b b b" vs "c b b b"), so that is no evidence of equal expressiveness. Overlapping spans are exclusive
   events (q_a + q_b ≤ 1), so a threshold τ ≥ 1/2 needs no interval program; skipping it for disjoint candidates cut
   the threshold sweeps from 19.5 to 6 s. Theorem 3's F*/2 is optimal for the model's beliefs: where the realized F1
   peaks (above 1/2 for the overconfident `<unk>` tagger, 0.38 vs F*/2 = 0.458 for the headline) measures

@@ -371,7 +371,7 @@ function DropoutView() {
       </Readouts>
       <Note>
         Substitution makes &lt;unk&gt; a feature that, in training, appears only on entities, so its weight for O is
-        negative (Proposition 5) and every unseen word at test, name or not, leans toward an entity. Deletion adds no
+        negative (Proposition 5) and about nine in ten unseen words at test, names or not, land inside an entity. Deletion adds no
         feature. At p = 1 even million, percent, and quarter never show their identity in training.
       </Note>
     </figure>

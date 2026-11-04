@@ -5,7 +5,8 @@ Every claim the topic makes has an executable check here, and every number its D
 
 1. Encodings. BIO and BIOES are bijections between span sets and their valid tag sequences, and validity is a
    first-order constraint (Prop 1). Every BIO chain's span law is a BIOES chain's; with token-local features the
-   inclusion is strict, and a one-word left window closes the gap (Prop 2).
+   inclusion is strict, and a one-word left window breaks that counterexample, though a longer one survives the
+   finance taggers' two-word windows (Prop 2).
 2. Constrained decoding. Masking invalid starts, transitions, and ends conditions a chain on validity: Viterbi
    returns the best valid sequence and forward–backward the conditional marginals (Thm 1).
 3. A CRF on a contextual encoder. The gradient of log p(z | x) with respect to the unary potentials is the gold
@@ -370,6 +371,9 @@ def test_prop2_bio_chains_are_bioes_chains():
 
 
 PROP2_DATA = ((("a", "d"), {(0, 1, "ORG")}), (("c", "d"), {(0, 2, "ORG")}))  # one-token vs two-token span
+# The same argument one position further on: given z₃ = I, the law of z₄ depends only on positions ≥ 4, whose ±2-word
+# window cannot see x₁ (a vs c); BIOES decides E vs I at z₃, whose window still does.
+PROP2_WINDOW_DATA = ((("a", "b", "b", "b"), {(0, 3, "ORG")}), (("c", "b", "b", "b"), {(0, 4, "ORG")}))
 
 
 def prop2_counterexample() -> dict:
@@ -394,6 +398,49 @@ def prop2_counterexample() -> dict:
             probs.append(float(sum(pz for z, pz in zip(paths, p) if decode(z, scheme, types) == S)))
         out[name] = probs
     return out
+
+
+def prop2_window_counterexample() -> dict:
+    """Prop 2's gap survives a ±2-word window (the finance word features' window): PROP2_WINDOW_DATA fit at
+    λ = 10⁻³ with ``sl.window_features(x, 2)``; returns the two gold probabilities for BIO and BIOES."""
+    types = ("ORG",)
+    out = {}
+    for scheme in SCHEMES:
+        feats = [sl.window_features(list(x), 2) for x, _ in PROP2_WINDOW_DATA]
+        zs = [encode(S, len(x), scheme, types) for x, S in PROP2_WINDOW_DATA]
+        vocab = sl.index_features(feats)
+        K = len(tagset(scheme, types))
+        th = sl.crf_fit(sl.make_data(feats, zs, vocab, K), 1e-3, gtol=1e-10)
+        probs = []
+        for f, (x, S) in zip(feats, PROP2_WINDOW_DATA):
+            d1 = sl.make_data([f], [np.zeros(len(x), int)], vocab, K)
+            U, P = sl.crf_potentials(th, d1.buckets[0].X, len(x), d1.F, K)
+            paths, _, p = _brute_valid(U[0], P, scheme, types)
+            probs.append(float(sum(pz for z, pz in zip(paths, p) if decode(z, scheme, types) == S)))
+        out[scheme] = probs
+    return out
+
+
+def test_prop2_gap_survives_two_word_windows():
+    """Prop 2's strictness is not only for token-local features: with ±2-word windows, every BIO chain gives
+    PROP2_WINDOW_DATA's two gold span sets total probability ≤ 1 (random draws and the fit), while BIOES exceeds 0.95
+    on each. So the finance taggers' BIO/BIOES difference cannot separate expressiveness from estimation."""
+    rng = _rng(3532)
+    types = ("ORG",)
+    feats = [sl.window_features(list(x), 2) for x, _ in PROP2_WINDOW_DATA]
+    vocab = sl.index_features(feats)
+    K = len(tagset("bio", types))
+    for _ in range(100):
+        th = rng.normal(size=sl.crf_size(len(vocab), K)) * 3
+        tot = 0.0
+        for f, (x, S) in zip(feats, PROP2_WINDOW_DATA):
+            d1 = sl.make_data([f], [np.zeros(len(x), int)], vocab, K)
+            U, P = sl.crf_potentials(th, d1.buckets[0].X, len(x), d1.F, K)
+            paths, _, p = _brute_valid(U[0], P, "bio", types)
+            tot += sum(pz for z, pz in zip(paths, p) if decode(z, "bio", types) == S)
+        assert tot <= 1 + 1e-12
+    ce = prop2_window_counterexample()
+    assert sum(ce["bio"]) <= 1 + 1e-12 and min(ce["bioes"]) > 0.95
 
 
 def test_prop2_strict_for_token_local_features():
@@ -540,7 +587,8 @@ def test_prop4_span_marginals_match_brute_force():
 
 
 def _random_instance(rng: np.random.Generator, n_sent: int):
-    """A few short constrained BIO chains (E = 2) as F1-decoding input: per sentence (candidates, q, T), and m."""
+    """One or two short constrained BIO chains (E = 2, T ≤ 3) as F1-decoding input: per sentence (candidates, q, T),
+    and m."""
     types = TYPES[:2]
     K = len(tagset("bio", types))
     sents, m = [], 0.0
@@ -566,7 +614,7 @@ def _subsets(cands: list) -> list[list[int]]:
 
 
 def test_thm3_dinkelbach_is_the_f1_optimum():
-    """Thm 3: on random multi-sentence instances, f1_decode's F equals the maximum of 2 Σ_Ŝ q / (|Ŝ| + m) over every
+    """Thm 3: on random instances of one or two sentences, f1_decode's F equals the maximum of 2 Σ_Ŝ q / (|Ŝ| + m) over every
     combination of disjoint span subsets (brute force), its chosen sets attain it, and they are exactly the
     interval-program solution at threshold F*/2."""
     rng = _rng(3528)
@@ -1086,11 +1134,46 @@ def test_prop5_a_feature_seen_only_on_entities_argues_against_o():
 
 
 def test_the_word_crf_memorizes_names():
-    """With word features alone, the CRF tags seen ORG mentions at F1 > 0.9 and unseen ones at F1 0 (it predicts no
-    ORG span on the held-out test): word identity explains every training label, so context earns little weight."""
+    """With word features alone, the CRF tags seen ORG mentions at F1 > 0.9 and unseen ones at F1 0 on this training
+    run (it predicts no ORG span on the held-out test; two other runs predict 13 and 9, F1 under 0.02): each word's
+    most common tag gives all but 114 of the 6,190 training labels, so context earns little weight. None of the 132
+    held-out ORG mentions followed by "reported revenue of" is overlapped by any predicted span."""
     seen, unseen = (evaluate(GRID["words"], t, False)["constrained"] for t in TESTS)
     assert seen["types"]["ORG"] > 0.9 and unseen["types"]["ORG"] == 0.0
-    assert not any(p[2] == "ORG" for P_ in predictions(GRID["words"], "unseen", False)["constrained"] for p in P_)
+    words = predictions(GRID["words"], "unseen", False)["constrained"]
+    assert not any(p[2] == "ORG" for P_ in words for p in P_)
+    assert word_majority_misses() == 114 and sum(map(len, split("train").toks)) == 6190
+    s, n = split("unseen"), 0
+    for x, G, P_ in zip(s.toks, s.spans, words):
+        for a, b, ty in G:
+            if ty == "ORG" and x[b:b + 3] == ("reported", "revenue", "of"):
+                n += 1
+                assert not any(p[0] < b and a < p[1] for p in P_)
+    assert n == 132
+
+
+def word_majority_misses() -> int:
+    """Training tokens whose BIO tag is not their word's most common training tag."""
+    by_word: dict[str, dict[int, int]] = {}
+    for x, z in zip(split("train").toks, split("train").z):
+        for w, k in zip(x, z):
+            by_word.setdefault(w, {}).setdefault(int(k), 0)
+            by_word[w][int(k)] += 1
+    return sum(sum(c.values()) - max(c.values()) for c in by_word.values())
+
+
+def unseen_entity_share(model: Model, test: str, unk: bool) -> float:
+    """The share of a test split's tokens unseen in training that a tagger puts inside a predicted span."""
+    s, known = split(test), train_words()
+    tot = ent = 0
+    for x, P_ in zip(s.toks, predictions(model, test, unk)["constrained"]):
+        inside = np.zeros(len(x), bool)
+        for a, b, _ in P_:
+            inside[a:b] = True
+        for t, w in enumerate(x):
+            if w not in known:
+                tot, ent = tot + 1, ent + int(inside[t])
+    return ent / tot
 
 
 def test_dropout_recipes():
@@ -1105,6 +1188,9 @@ def test_dropout_recipes():
     for t in TESTS:
         assert sub[t]["p"] < 0.55 and dele[t]["f1"] > base[t]["f1"]
     assert base["unseen"]["r"] < 0.5 < 0.9 < sub["unseen"]["r"] and dele["unseen"]["f1"] > 0.88
+    # Substitution's shortcut: about nine in ten unseen test words, names or not, land inside a predicted span.
+    shares = [unseen_entity_share(GRID[SUBSTITUTE], t, False) for t in TESTS]
+    assert all(0.85 < v < 0.95 for v in shares), shares
     sw = dropout_sweep()
     assert all(a > b for a, b in zip(sw["substitute"]["seen"]["p"], sw["substitute"]["seen"]["p"][1:]))
     f = sw["delete"]["unseen"]["f1"]
@@ -1137,7 +1223,8 @@ def test_encoder_context():
 def test_crf_head_vs_softmax_head():
     """On frozen states, an independent softmax head decodes invalid BIO sequences (over 5% of sentences, on both
     tests); constraining it (Thm 1) removes them and raises its F1, but the CRF head on the same states still leads by
-    more than 0.09 on both tests. The CRF heads decode invalid sequences in under 1% of sentences."""
+    more than 0.09 on both tests, and under type matching the two heads nearly tie. On this training run the CRF heads
+    decode invalid sequences in under 1.1% of sentences (1.8% on another)."""
     for t in TESTS:
         soft = evaluate(GRID["softmax on encoder"], t, False)
         crf = evaluate(GRID["encoder"], t, False)
@@ -1146,11 +1233,16 @@ def test_crf_head_vs_softmax_head():
         for n, m in GRID.items():
             if m.head == "crf":
                 assert all(evaluate(m, tt, u)["invalid"] < 0.011 for tt, u in readings(m))
+    # Under type matching the heads nearly tie on the held-out test (0.899 vs 0.915): the transitions place boundaries.
+    soft_u, crf_u = (evaluate(GRID[n], "unseen", False)["constrained"]["schemes"]["type"]
+                     for n in ("softmax on encoder", "encoder"))
+    assert 0 < crf_u - soft_u < 0.02
 
 
 def test_bioes_buys_nothing_here():
-    """Prop 2's equality case: the word features see the neighbors, so BIOES is no more expressive than BIO, and with
-    twice the tags it does not beat BIO on either test."""
+    """BIOES with deletion dropout does not beat BIO on either test on this training run (on another it leads one
+    test by 0.002). Prop 2's gap survives these features' two-word window (test_prop2_gap_survives_two_word_windows),
+    so the comparison cannot separate expressiveness from estimation."""
     for t in TESTS:
         assert (evaluate(GRID["words, deletion dropout, BIOES"], t, False)["constrained"]["f1"]
                 <= evaluate(GRID["words, deletion dropout"], t, False)["constrained"]["f1"])
@@ -1175,7 +1267,7 @@ def c_argmax(c: dict) -> float:
 
 
 def test_thm3_on_the_finance_taggers():
-    """F1-optimal decoding helps the miscalibrated substitution tagger by more than 0.09 on both tests and moves the
+    """On this training run: F1-optimal decoding helps the miscalibrated substitution tagger by more than 0.09 on both tests and moves the
     headline by less than 0.01. The models' own F* misjudge their realized F1 (the headline's F* is below it), and the
     realized F1 peaks above τ = 1/2 for the substitution tagger and below F*/2 for the headline: Thm 3 is optimal for
     the model's beliefs, not the truth. Each sweep's expected-F1 curve peaks at the grid point nearest
@@ -1188,9 +1280,28 @@ def test_thm3_on_the_finance_taggers():
         # Calibration shows in where the realized curve peaks: above 1/2 for the overconfident substitution tagger,
         # below F*/2 for the underconfident headline.
         assert c_argmax(sub) > 0.5 > sub["F_star"] / 2 + 0.15 and c_argmax(head) < head["F_star"] / 2
+        # F* misjudges for opposite reasons: the headline counts the gold spans about right (m ≈ |G|), the substitution
+        # tagger expects about twice as many as there are.
+        n_gold = sum(map(len, split(t).spans))
+        assert abs(head["m"] / n_gold - 1) < 0.02 and sub["m"] > 1.8 * n_gold  # 1.88 seen, 2.02 unseen
         for c in (sub, head):
             k = int(np.argmax(c["expected"]))
             assert abs(c["tau"][k] - c["F_star"] / 2) <= 0.01 + 1e-12 and max(c["expected"]) <= c["F_star"] + 1e-12
+
+
+def test_boundary_errors_are_organizations():
+    """Prop 3(b) as a diagnostic: the encoder CRF's strict-to-type gap on the held-out test (ids reading) is all
+    organizations, 317 of its 815 missed gold spans (found with the right type, wrong boundaries); the other 386
+    missed organizations overlap no predicted organization."""
+    golds, preds = list(split("unseen").spans), predictions(GRID["encoder"], "unseen", False)["constrained"]
+    for ty in TYPES:
+        G = [{g for g in S if g[2] == ty} for S in golds]
+        P_ = [{p for p in S if p[2] == ty} for S in preds]
+        if ty != "ORG":
+            assert prf(G, P_, "strict")["f1"] == prf(G, P_, "type")["f1"]
+    missed = [(g, Pd) for G, Pd in zip(golds, preds) for g in G if g not in Pd]
+    found = [g for g, Pd in missed if any(p[2] == g[2] and p[0] < g[1] and g[0] < p[1] for p in Pd)]
+    assert len(missed) == 815 and len(found) == 317 and all(g[2] == "ORG" for g in found)
 
 
 def test_prop3_on_the_finance_taggers():
