@@ -280,18 +280,21 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   labels, and full fine-tuning reaches 0.559 against bag-of-words LR 0.745, with a never-pretrained encoder at 0.536.
   Topic 19's aspect rows separate the methods (probe 0.761, random-init 0.951, pretrained 0.970–0.989); keep every polar
   row and 1,500 neutral ones (a 5k random subsample drops negated adjectives to 0.5), and read the mean final state over
-  the aspect span. The fine-tuned encoder reads "not ADJ" but calls Topic 19's deleted-"not" quadruple copies neutral
-  (training shows "T was ADJ this period" only with "not"); 310 counterfactual rows fix every seed. Seed spread is large
+  the aspect span. The fine-tuned encoder reads "not ADJ" but misreads Topic 19's deleted-"not" quadruple copies, about half the
+  time as if "not" were kept (ADJ₊ copy read negative; neutral is a majority on seed 0 only), because training shows
+  "T was ADJ this period" only with "not"; 310 counterfactual rows fix every seed. Read predicted classes, not accuracy. Seed spread is large
   (full fine-tuning 0.970–0.989), so headline comparisons need 3 seeds. LoRA on Wq/Wv at Adam's 10⁻² forgets more than
-  full fine-tuning (‖sAB‖ ≈ 45 against full's 2.7 on the same matrices); every LP-FT run Pareto-dominates every LoRA
-  run, while the weaker "LoRA forgets more than every full run" fails by 0.03. Full fine-tuning's ΔW is nearly low-rank
-  (rank-4 truncation keeps 0.977 of 0.989) where LoRA trained at r = 4 reaches only 0.95. Under Adam, α/√r holds the
+  full fine-tuning at 10⁻³ (‖sAB‖ ≈ 45 against full's 2.7 on the same matrices), but at every shared rate (10⁻³,
+  3·10⁻³, 10⁻²) LoRA learns less and forgets less in all nine seed pairs (Biderman's direction): compare methods at
+  the same rate. Every LP-FT run in the main grid Pareto-dominates every LoRA run there. Full fine-tuning's ΔW is nearly low-rank
+  (rank-4 truncation keeps 0.977 of 0.989 on seed 0, 0.935–0.977 over three) but spread over all 12 matrices; kept on
+  Wq/Wv only with a refit probe it reads 0.805–0.851, below LoRA at r = 4 (0.95): compare within a method's class. Under Adam, α/√r holds the
   first step level in r (sign step, bounded by σ(A₀)); under SGD only the mean is level, and a single draw sits
   √((k+1)/r) away. No count sketch with D ≤ 4,096 reaches d₉₀. For the NTK, per-example Jacobians come from single-row
   backward passes; take the training rows at one length, so each full-batch step is one batch. At the stable rate
   η = n/λ_max, GD barely trains in 300 steps (loss 0.620 → 0.599), while Adam memorizes 120 rows and leaves the
-  kernel (K moves 169%). Topic 20's harness runs ≈ 2¼ min: the README's 60 s rule was waived for that topic, by
-  Jonathan (and later for Topic 22).
+  kernel (K moves 169%). Topic 20's harness runs ≈ 3½ min (2¼ before its errata's 11 shared-rate runs): the README's 60 s rule was
+  waived for that topic, by Jonathan (and later for Topic 22).
 - Sequence labeling on corpus models (Topic 21). Topic 12's HMM is nearly deterministic (each state owns three tokens:
   Bayes tagging accuracy 0.995, flat learning curves); blend its emissions toward uniform (ε = 0.3 → Bayes 0.782). A
   world whose word comes from the *next* state (ρ = 0.5) misspecifies the HMM but keeps the Bayes tagger a chain: fold
@@ -525,7 +528,7 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `bayes_tone` are reusable. Topic 11's `mha_forward`'s broadcast `(B, 1, n, d) @ (1, H, d, dh)` products were ~40% of a
   fine-tuning step: Topic 20's `mha_forward`/`mha_backward`/`encode` do each projection as one flattened matmul, are pinned
   equal to Topics 11–12 at 10⁻¹¹, and cut a run from 4.2 to 2.4 s. Topic 20's `fine_tune(cfg)` takes ~1.8 s, plus ~0.6 s
-  for `evaluate`; its 31 runs, `ntk_experiment` (~10 s), and `doc_fine_tune` (~5 s each) make up the ≈ 2¼ min harness.
+  for `evaluate`; its 42 runs, `ntk_experiment` (~10 s), and `doc_fine_tune` (~5 s each) make up the ≈ 3½ min harness.
   `encoder_backward`, `aspect_loss_grad`, `lora_grads`, `first_step`, `balance`/`gd_drift`, `sketch_matrix`,
   `kernel_gd`, `tone_from`, and `doc_windows` are reusable. Topic 21's harness takes ~45 s (`world_curves` ~10 s per
   world, `memm_table` ~4 s, `fin_models` ~13 s for 3/10/30 documents); `chain_forward`/`chain_backward` (either
