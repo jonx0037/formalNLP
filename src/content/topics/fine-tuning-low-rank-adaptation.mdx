@@ -470,7 +470,7 @@ Sun, Huang, and Qiu (2019) gave the encoder the aspect as a second sentence. Our
 <RigorFlag>
 
 1. **Proved and checked.** Propositions 1, 3, 4, and 5, Corollary 1, Theorems 1 and 2, and the parts of Theorem 3 that we prove are proved here in full and checked by the harness on random instances. Proposition 2 is cited from formalML, and the out-of-distribution bound behind Theorem 3(c) is cited from Kumar and colleagues.
-2. **A toy encoder.** The encoder has $158{,}447$ parameters, pretrained from scratch on $69{,}000$ tokens of synthetic filings. The LoRA findings, including that it forgets more than full fine-tuning, describe this scale.
+2. **A toy encoder.** The encoder has $158{,}447$ parameters, pretrained from scratch on $69{,}000$ tokens of synthetic filings. The LoRA findings, including that it forgets more than full fine-tuning at ten times its rate and less at the same rate, describe this scale.
 3. **One meaning of forgetting.** Forgetting is held-out masked-LM loss on the same filings, not lost downstream capability. Each method's main runs used one rate for three epochs (LoRA at ten times full fine-tuning's), so "every LP-FT run beats every LoRA run" is this grid's result; at a shared rate, LoRA forgets less than full fine-tuning.
 4. **Theorem 1(d) is ours.** The published rank-stabilization theorem is proved for SGD as $r \to \infty$; ranks up to $64$ in dimension $64$ never reach that limit, and at a fixed rate neither scale wins on accuracy.
 5. **Gradient-descent facts, Adam runs.** Theorems 2 and 3(a) hold for gradient descent. Every main-grid encoder run uses Adam, which breaks both, as measured. Theorem 3(b) survives Adam.
