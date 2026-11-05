@@ -8,8 +8,9 @@ Every claim the topic makes has an executable check here, and every number its D
    base holds between the two entities (Def 2). Its errors split exactly into three sources: co-mentions that state
    nothing, facts the sentence entails without stating, and a second KB relation beside the stated one (Prop 1).
 2. What distant supervision learns. Under log-loss against the DS labels, the population optimum is the expected DS
-   label given the features: the chance the sentence states r plus the chance the KB holds r unstated (Thm 1). On a
-   context that states nothing it is the KB-related rate of that context's pairs, at every sample size (Cor 1).
+   label given the features: E[ℓ(r)·1[r stated] | φ] plus E[ℓ(r)·1[r unstated] | φ], each a 1/|L| share when the KB
+   holds several relations for the pair (Thm 1). On a context that states nothing it is the KB-related rate of that
+   context's pairs, at every sample size (Cor 1).
 3. At least one witness. Multi-instance learning labels bags (every mention of a pair), not sentences (Def 3). The
    noisy-OR bag likelihood's gradient is the expected instance gradient under each instance's posterior of being the
    witness (Thm 2), so once one instance is confident the others stop learning (Cor 2). Which instance labels the
@@ -18,8 +19,10 @@ Every claim the topic makes has an executable check here, and every number its D
    mentions pile up, so it suits a model trained under it, MIL, and overcounts for sentence-trained ones (Prop 3).
 4. An incomplete KB is positive-unlabeled. If the KB knows each entity pair independently with probability c (Def 5),
    the DS optimum is c times the complete-KB optimum on every relation (Thm 3; Elkan and Noto 2008), argmax keeps a
-   stating template only while c > 1/2, and scoring predictions against such a KB reports c times their precision
-   (Prop 4).
+   stating template whose DS label is its relation alone only while c > 1/2 (an ACQUIRED template, labeled
+   {ACQUIRED, PARENT_OF}, only while c > 2/3), and scoring predictions against such a KB reports c times their
+   precision (Prop 4). The fitted relation mass tracks the share of related training mentions one KB draw keeps,
+   not c itself.
 5. Finance case study: names held out. Topic 22's headline tagger finds the spans, exact string matching links them
    to the KB, an entity-blind classifier reads the relation, and the facts aggregate (Def 6). A triple can be right
    only if both its arguments were found (Prop 5). The extracted KB is what Topic 24 embeds.
@@ -410,6 +413,18 @@ def kept_kb(c: float, stream: int = 3600) -> frozenset:
     return frozenset(f for f in WORLD.triples if u[tuple(sorted((f[0], f[2])))] < c)
 
 
+@lru_cache(maxsize=None)
+def kept_mention_share(c: float) -> float:
+    """The share of training candidates of world-related pairs whose pair the KB of keep rate c (stream 3600) knows:
+    the realized keep rate the DS classifier actually trains on. Def 5 makes its expectation c, but one draw lands
+    off it (0.365 at c = 0.4 here; 0.541 on stream 3900), and the fitted relation mass follows the draw."""
+    if c >= 1:
+        return 1.0
+    u = _pair_uniforms()
+    rel = [tuple(sorted((x.h, x.t))) for x in instances("train") if kb_between(WORLD.triples, x.h, x.t)]
+    return sum(u[q] < c for q in rel) / len(rel)
+
+
 def feature_rows(name: str, sents, insts, feats: str) -> list[list[str]]:
     return [lexical_features(sents[x.sent], x.i, x.j, feats == "lexical+args", feats != "lexical-unconjoined")
             for x in insts]
@@ -644,7 +659,8 @@ def corpus_identifiability() -> dict:
 # level): the DS target becomes ℓ_c(r) = s·ℓ(r) for r ≠ NA, with s ~ Bernoulli(c) independent of φ given the pair, so
 # q*_c(r | φ) = c·q*(r | φ) on every relation and dividing by c recovers the complete-KB optimum. Their estimator of c
 # averages g = 1 − q_c(NA | x) over labeled positives of a validation set, which is exact only when the complete-KB
-# target is 1 on those positives; Thm 1 says it is not (co-mentions), so the estimate runs low.
+# target is 1 on those positives; Thm 1 says it is not (co-mentions), so the estimate runs low, and dividing by it
+# at c = 1 costs DS sentence F1 (0.867 → 0.818).
 
 KEEP_GRID = (1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3)
 
@@ -680,6 +696,7 @@ def incomplete_kb(c: float) -> dict:
     e1 = c_estimate(c)
     F = facts(ins, P, "max")
     return {"kb_facts": len(kept_kb(c)), "mass_ratio": float((1 - P[:, 0]).sum() / (1 - P1[:, 0]).sum()), "e1": e1,
+            "kept_share": kept_mention_share(c),
             "raw": sentence_scores("seen", P), "by_c": sentence_scores("seen", corrected(P, c)),
             "by_e1": sentence_scores("seen", corrected(P, e1)),
             "facts_world": fact_scores(F, ins), "facts_kb": fact_scores(F, ins, kept_kb(c)),
@@ -801,7 +818,9 @@ MIN_TEMPLATE = 30  # Cor 1's corpus check: co-mention templates with at least th
 @lru_cache(maxsize=1)
 def example_instance() -> int:
     """The lab's candidate: the first seen-test "P has spoken publicly about X" co-mention of a KB-related pair (P an
-    officer of X) that the DS classifier labels with a relation and the MIL classifier labels NA."""
+    officer of X) that the DS classifier labels with a relation and the MIL classifier labels NA. Which reading DS
+    gives it is a property of this training run: on generate_corpus(300, 3) the template falls below Cor 1's line
+    (NA 0.378 > CFO_OF 0.313) and this search finds nothing; on seed 5 DS reads Hollis–Pellucid as CEO_OF."""
     sents, ins, kinds = corpus("seen"), instances("seen"), instance_kind("seen")
     ds, mil = predict(LAB_SPECS["DS"], "seen"), predict(LAB_SPECS["MIL"], "seen")
     for n, x in enumerate(ins):
@@ -912,6 +931,25 @@ def test_prop1_ds_errors_split_into_three_sources():
     assert min(v["precision"] for v in e["per_relation"].values()) == e["per_relation"]["ACQUIRED"]["precision"]
 
 
+def test_prop1_overlaps_state_parent_of():
+    """Prop 1's overlap class runs one way: every overlap is a sentence stating PARENT_OF whose pair the KB also
+    records as ACQUIRED (29). The reverse, an acquisition sentence labeled PARENT_OF, is entailed (ACQUIRED ⇒
+    PARENT_OF), and accounts for 35 of the 137 entailed labels."""
+    sents = corpus("train")
+    over, acq = Counter(), 0
+    for x in instances("train"):
+        g = gold_label(sents, x)
+        for r in ds_labels(x):
+            if r in ("NA", g):
+                continue
+            if (x.h, r, x.t) in closure(stated_facts(sents[x.sent])):
+                acq += (g, r) == ("ACQUIRED", "PARENT_OF")
+            elif g != "NA":
+                over[(g, r)] += 1
+    assert over == Counter({("PARENT_OF", "ACQUIRED"): 29}) and acq == 35
+    assert ds_error_sources("train")["entailed"] == 137
+
+
 def test_soft_objective_is_topic17s():
     """At one-hot targets the soft-label objective and its gradient are Topic 17's lr_objective."""
     rng = _rng(3603)
@@ -953,6 +991,11 @@ def test_thm1_ds_optimum_is_the_expected_ds_label():
             assert _toy_risk(Z0 + 0.1 * D, Pphi, PL, menu) > base
         rho = 1 - PL[:, 0]  # menu[0] is {NA}
         assert np.allclose(qstar[:, 0], 1 - rho)
+    # The decomposition's terms are 1/|L| shares, not probabilities, once a pair holds two relations: every training
+    # sentence stating ACQUIRED carries the DS label {ACQUIRED, PARENT_OF}, so its stated term is 1/2.
+    sents = corpus("train")
+    acq = [ds_labels(x) for x in instances("train") if gold_label(sents, x) == "ACQUIRED"]
+    assert len(acq) == 35 and all(set(L) == {"ACQUIRED", "PARENT_OF"} for L in acq)
 
 
 def test_cor1_ds_learns_each_templates_base_rate():
@@ -1110,19 +1153,55 @@ def test_prop3_noisy_or_dominates_max():
 
 
 def test_mil_leads_at_the_fact_level():
-    """MIL trails DS on sentences of the seen test but leads it on facts on both tests (each by its own aggregator)."""
+    """MIL trails DS on sentences of the seen test (0.823 vs 0.867) and leads on the held-out one (0.896 vs 0.887). At
+    the fact level (each by its own aggregator) it leads on both tests on this training run, decisively held out (0.978
+    vs 0.825) and narrowly seen (0.935 vs 0.928); the seen lead reverses on generate_corpus(300, 3) (0.922 vs 0.928),
+    while the held-out lead is 0.15–0.18 on all three corpora checked."""
     for name in TESTS:
         ins = instances(name)
         d = fact_scores(facts(ins, predict(LAB_SPECS["DS"], name), "max"), ins)
         m = fact_scores(facts(ins, predict(LAB_SPECS["MIL"], name), "noisy-or"), ins)
         assert m["f1"] > d["f1"] and m["p"] > d["p"]
-    assert (sentence_scores("seen", predict(LAB_SPECS["MIL"], "seen"))["f1"]
-            < sentence_scores("seen", predict(LAB_SPECS["DS"], "seen"))["f1"])
+        if name == "unseen":
+            assert m["f1"] > d["f1"] + 0.1
+    sent = {t: [sentence_scores(t, predict(LAB_SPECS[k], t))["f1"] for k in ("MIL", "DS")] for t in TESTS}
+    assert sent["seen"][0] < sent["seen"][1] and sent["unseen"][0] > sent["unseen"][1]
+
+
+@lru_cache(maxsize=None)
+def mil_free_misses(name: str) -> dict:
+    """The free-template stated mentions MIL mislabels on a test corpus, how many of them belong to a fact MIL's
+    noisy-OR still recovers (score > 1/2), and the co-mentioned world facts it does not recover."""
+    ci = corpus_identifiability()
+    sents, ins = corpus(name), instances(name)
+    P = predict(LAB_SPECS["MIL"], name)
+    F = facts(ins, P, "noisy-or")
+    missed = kept = 0
+    for x, p in zip(ins, P):
+        g = gold_label(sents, x)
+        if g == "NA" or context_class(sents[x.sent], x.i, x.j) in ci[g]["forced"] or LABELS[int(p.argmax())] == g:
+            continue
+        missed += 1
+        kept += F.get((x.h, g, x.t), 0.0) > 0.5
+    pairs = {(x.h, x.t) for x in ins}
+    gold = {f for f in WORLD.triples if (f[0], f[2]) in pairs}
+    return {"missed": missed, "in_recovered": kept, "facts": len(gold),
+            "lost": sorted(f for f in gold if F.get(f, 0.0) <= 0.5)}
+
+
+def test_mil_gives_up_mentions_whose_facts_it_recovers():
+    """Most free-template mentions MIL misses belong to facts it recovers anyway (147 of 180 seen, 82 of 94 held out);
+    held out it loses 2 of 47 facts, both SUBSIDIARY_OF."""
+    s, u = mil_free_misses("seen"), mil_free_misses("unseen")
+    assert (s["missed"], s["in_recovered"]) == (180, 147) and (u["missed"], u["in_recovered"]) == (94, 82)
+    assert u["facts"] == 47 and len(u["lost"]) == 2 and all(r == "SUBSIDIARY_OF" for _, r, _ in u["lost"])
 
 
 def test_argument_words_let_ds_memorize_the_kb():
     """With the arguments' own words as features (or Topic 12 states at the entity starts), DS labels most related
-    co-mentions of seen pairs with their KB relation, and far fewer once the names are new."""
+    co-mentions of seen pairs with a relation (sentence_scores counts any relation; with their own KB relation the
+    encoder's shares are 0.779 and 0.250), and far fewer once the names are new. Gold + encoder costs the held-out
+    test 0.030 of F1 on this run (0.023 and 0.014 on generate_corpus(300, 3) and (300, 5))."""
     for spec in ("DS + argument words", "DS + encoder"):
         s = sentence_scores("seen", predict(LAB_SPECS[spec], "seen"))
         u = sentence_scores("unseen", predict(LAB_SPECS[spec], "unseen"))
@@ -1148,16 +1227,23 @@ def test_thm3_pair_level_scar_scales_the_ds_optimum_by_c():
                             for w, L, k in zip(weights, labels, keep))
         assert np.allclose(avg[1:], c * full[1:]) and abs(avg.sum() - 1) < 1e-12
     for c in KEEP_GRID[1:]:
-        ratio = incomplete_kb(c)["mass_ratio"]
-        assert ratio < c and (c < 0.4 or c - ratio < 0.05), (c, ratio)  # the L2 prior shrinks the rarer signal
+        res = incomplete_kb(c)
+        # The mass follows the draw's realized keep share, not c: the gap below c is the draw, not the L2 prior (the
+        # mass sits slightly above the share at every c; on stream 3900 the share is 0.541 at c = 0.4, mass 0.534).
+        assert 0 < res["mass_ratio"] - res["kept_share"] < 0.02, (c, res["mass_ratio"], res["kept_share"])
 
 
 def test_thm3_correction_and_the_e1_estimate():
-    """Thm 3(b): argmax keeps a stating template's relation only while c > 1/2 (q_c(r) = c against NA's 1 − c), so the
-    uncorrected classifier's recall holds above 0.9 down to c = 0.7 and collapses below; dividing by the true c restores
-    the complete-KB recall within 0.03 down to c = 0.6. A smaller c first helps: co-mention templates fall below the
-    argmax threshold before stating ones do, so raw sentence F1 at c = 0.8 beats c = 1. Elkan and Noto's e1 runs below
-    c at c = 1, because DS's own target is below 1 on co-mention positives (Thm 1)."""
+    """Thm 3(b): in the population, argmax keeps a template whose DS label is its relation alone only while c > 1/2
+    (q_c(r) = c against NA's 1 − c; an ACQUIRED template, at 1/2 each with PARENT_OF, only while c > 2/3). The fit on
+    this KB draw (stream 3600) loses recall sooner: it holds above 0.9 down to c = 0.7 and is 0.664 at c = 0.6;
+    dividing by the true c restores the complete-KB recall within 0.03 down to c = 0.6. A smaller c first helps:
+    co-mention templates fall below the argmax threshold before stating ones do, so raw sentence F1 at c = 0.8 beats
+    c = 1. All three are draw-specific: on streams 3700–4000 and on generate_corpus(300, 3), raw recall at c = 0.6 is
+    0.543–0.782, corrected recall at c ≥ 0.6 bottoms at 0.832, and the F1 rise peaks somewhere in c ∈ {0.9, 0.8, 0.7}
+    at 0.882–0.932 (stream 3700 lowers F1 at c = 0.8 itself). On this draw every max-aggregated fact the classifier
+    predicts is true from c = 0.8 down (on the other draws, from c = 0.4). Elkan and Noto's e1 runs below c at c = 1,
+    because DS's own target is below 1 on co-mention positives (Thm 1), and dividing by it lowers F1."""
     r1 = incomplete_kb(1.0)["raw"]["r"]
     for c in KEEP_GRID:
         res = incomplete_kb(c)
@@ -1167,6 +1253,13 @@ def test_thm3_correction_and_the_e1_estimate():
         assert res["by_c"]["r"] > res["raw"]["r"] - 1e-12
     assert incomplete_kb(0.8)["raw"]["f1"] > incomplete_kb(1.0)["raw"]["f1"] + 0.05
     assert c_estimate(1.0) < 0.95
+    r1 = incomplete_kb(1.0)
+    assert r1["by_e1"]["f1"] < r1["raw"]["f1"] - 0.03
+    assert incomplete_kb(0.9)["facts_world"]["p"] < 0.9
+    assert all(incomplete_kb(c)["facts_world"]["p"] == 1.0 for c in KEEP_GRID if c <= 0.8)
+    sents = corpus("train")  # the population premise of the c > 2/3 threshold
+    assert all(target(ds_labels(x))[LABEL_ID["ACQUIRED"]] == 0.5
+               for x in instances("train") if gold_label(sents, x) == "ACQUIRED")
 
 
 def test_prop4_heldout_evaluation_reports_c_times_precision():
@@ -1188,13 +1281,19 @@ def test_prop4_heldout_evaluation_reports_c_times_precision():
 
 def test_prop5_triple_recall_is_bounded_by_argument_recall():
     """Prop 5: end-to-end triple recall never exceeds the share of gold triples whose two arguments were found, the
-    gold-trained classifier reaches the bound exactly, and the bound is below 1 on both tests."""
+    gold-trained classifier reaches the bound exactly, and the bound is below 1 on both tests. DS also meets the bound
+    on the held-out test (its held-out sentence recall on gold spans is 1.000) and falls below it only on the seen
+    one; MIL is below it on both."""
     for name in TESTS:
         for labels in ("gold", "ds", "mil"):
             res = pipeline(labels, name, "predicted")
             assert res["r"] <= res["bound"] + 1e-12
         assert pipeline("gold", name, "predicted")["r"] == pipeline("gold", name, "predicted")["bound"] < 1
         assert pipeline("gold", name, "gold")["f1"] == 1.0
+        assert pipeline("mil", name, "predicted")["r"] < pipeline("mil", name, "predicted")["bound"] - 0.1
+    assert sentence_scores("unseen", predict(LAB_SPECS["DS"], "unseen"))["r"] == 1.0
+    assert pipeline("ds", "unseen", "predicted")["r"] == pipeline("ds", "unseen", "predicted")["bound"]
+    assert pipeline("ds", "seen", "predicted")["r"] < pipeline("ds", "seen", "predicted")["bound"]
 
 
 def test_held_out_names_cost_the_entity_blind_classifier_nothing():
@@ -1247,6 +1346,9 @@ def summary() -> dict:
         m = mil_recall_by_identifiability(t)
         out[f"MIL [{t}] recall on forced / free templates (n)"] = (
             f"{m['forced']:.6f} {m['free']:.6f} ({m['n_forced']} {m['n_free']})")
+        fm = mil_free_misses(t)
+        out[f"MIL [{t}] free mentions missed, of them in recovered facts | facts, lost"] = (
+            f"{fm['missed']} {fm['in_recovered']} | {fm['facts']} {len(fm['lost'])}")
     for tpl in comention_templates():
         out[f"Cor 1 {tpl['template'][0]} {tpl['template'][2]}: n rho pi fitted"] = (
             f"{tpl['n']} {_fmt(tpl['rho'], tpl['pi'], tpl['fitted'])}")
@@ -1259,6 +1361,7 @@ def summary() -> dict:
         out[f"c = {c:g}: facts, mass ratio, e1 | raw R F1 | by c R F1 | by e1 F1"] = (
             f"{res['kb_facts']} {_fmt(res['mass_ratio'], res['e1'])} | {_fmt(res['raw']['r'], res['raw']['f1'])} | "
             f"{_fmt(res['by_c']['r'], res['by_c']['f1'])} | {res['by_e1']['f1']:.6f}")
+        out[f"c = {c:g}: kept share of related training mentions"] = f"{res['kept_share']:.6f}"
         out[f"c = {c:g}: fact P world, vs KB, vs independent KB"] = _fmt(
             res["facts_world"]["p"], res["facts_kb"]["p"], res["facts_indep"]["p"])
     for t in TESTS:
