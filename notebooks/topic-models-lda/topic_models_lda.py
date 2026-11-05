@@ -25,7 +25,8 @@ Every claim the topic makes has an executable check here, and every number its D
    document draws half its content nouns from its sector and half from the shared one. That is Prop 4's situation:
    the identifiable truth is six topics, and the anchor search finds one anchor per sector and none for the shared
    vocabulary. The right single-membership model beats LDA at document completion, but EM from random starts cannot
-   find it. ``topic_mixtures`` is the stage the capstone imports.
+   find it. CAVI stalls too, but randomness is not what escapes: from the sampler's own first assignment,
+   deterministic CVB0 finds the sectors while CAVI and the hard argmax update stall. ``topic_mixtures`` is the stage the capstone imports.
 
 Cross-checks: exact enumeration (Thm 2, Cor 1, Thm 4, Prop 5), linear programs for hull membership (Thm 1),
 quadrature and central differences (Lemma 2, Thm 4), a direct convex solve (Prop 2), and scikit-learn's batch
@@ -48,6 +49,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy import integrate, optimize, sparse
+from scipy.stats import rankdata
 from scipy.special import digamma, gammaln, logsumexp, xlogy
 
 _HERE = Path(__file__).resolve().parent
@@ -918,6 +920,87 @@ def fin_cavi_warm(seed: int) -> CaviRun:
                 track=False)
 
 
+def sampler_start(docs: list[list[int]], K: int, seed: int) -> list[list[int]]:
+    """Algorithm 2's own first assignment for ``gibbs(..., seed=seed)``: the same uniform draws, before any sweep."""
+    rnd = random.Random(seed)
+    return [[rnd.randrange(K) for _ in doc] for doc in docs]
+
+
+def cvb0(docs: list[list[int]], V: int, K: int, alpha: float, beta: float, iters: int,
+         z0: list[list[int]]) -> tuple[np.ndarray, np.ndarray]:
+    """CVB0 (Rem 2; Asuncion et al. 2009, Eq. 13): Thm 2's conditional with every count replaced by its expectation
+    under the token-level responsibilities, the token's own soft share removed from all three counts. Deterministic.
+    Tokens of one word in one document share their responsibility; a document's entries are updated together.
+    Starts from the one-hot responsibilities of the assignment ``z0``. Returns (n_dk, n_kw) expected counts."""
+    ent = []
+    for doc, zd in zip(docs, z0):
+        w, inv = np.unique(doc, return_inverse=True)
+        g = np.zeros((len(w), K))
+        np.add.at(g, (inv, np.asarray(zd)), 1.0)
+        c = g.sum(1)
+        ent.append([w, c, g / c[:, None]])
+    ndk = np.array([(c[:, None] * g).sum(0) for w, c, g in ent])
+    nkw = np.zeros((K, V))
+    for w, c, g in ent:
+        np.add.at(nkw.T, w, c[:, None] * g)
+    nk = nkw.sum(1)
+    for _ in range(iters):
+        for d, e in enumerate(ent):
+            w, c, g = e
+            new = (ndk[d][None] - g + alpha) * (nkw[:, w].T - g + beta) / (nk[None] - g + V * beta)
+            new /= new.sum(1, keepdims=True)
+            delta = c[:, None] * (new - g)
+            ndk[d] += delta.sum(0)
+            np.add.at(nkw.T, w, delta)
+            nk += delta.sum(0)
+            e[2] = new
+    return ndk, nkw
+
+
+def icm(docs: list[list[int]], V: int, K: int, alpha: float, beta: float, z0: list[list[int]],
+        max_sweeps: int = 200) -> np.ndarray:
+    """The hard, deterministic version of Algorithm 2: each token takes the argmax of Thm 2's conditional, until a
+    sweep changes nothing. Returns n_dk."""
+    Z = [list(z) for z in z0]
+    ndk, nkw = count_tables(docs, Z, K, V)
+    nk = nkw.sum(1)
+    for _ in range(max_sweeps):
+        changed = 0
+        for d, doc in enumerate(docs):
+            for i, w in enumerate(doc):
+                k = Z[d][i]
+                ndk[d, k] -= 1
+                nkw[k, w] -= 1
+                nk[k] -= 1
+                j = int(np.argmax((ndk[d] + alpha) * (nkw[:, w] + beta) / (nk + V * beta)))
+                changed += j != k
+                Z[d][i] = j
+                ndk[d, j] += 1
+                nkw[j, w] += 1
+                nk[j] += 1
+        if changed == 0:
+            break
+    return ndk
+
+
+@lru_cache(maxsize=1)
+def fin_escape() -> dict:
+    """What finds the sectors: randomness, or the collapsed update? From the sampler's own first assignment (seeds
+    as in FIN_SEEDS), sector NMI of CAVI warm-started from its topic counts, of deterministic CVB0 (300 iterations), and
+    of the hard argmax version (ICM)."""
+    data = fin_data("restaurant")
+    out = {"cavi": [], "cvb0": [], "icm": []}
+    for s in FIN_SEEDS:
+        z0 = sampler_start(data["docs"], 6, 3860 + s)
+        _, nkw = count_tables(data["docs"], z0, 6, data["V"])
+        c = cavi(data["X"], 6, FIN_ALPHA, FIN_BETA, 100, s, lam0=nkw + FIN_BETA, track=False)
+        out["cavi"].append(nmi(data["sector"], c.gam.argmax(1)))
+        ndk, _ = cvb0(data["docs"], data["V"], 6, FIN_ALPHA, FIN_BETA, 300, z0)
+        out["cvb0"].append(nmi(data["sector"], ndk.argmax(1)))
+        out["icm"].append(nmi(data["sector"], icm(data["docs"], data["V"], 6, FIN_ALPHA, FIN_BETA, z0).argmax(1)))
+    return out
+
+
 @lru_cache(maxsize=None)
 def fin_mou(vocab_name: str, K: int) -> dict:
     """Mixture of unigrams by EM: the best of FIN_RESTARTS random starts by training log-likelihood, and the run
@@ -946,11 +1029,13 @@ def cavi_phi(run: CaviRun) -> np.ndarray:
 @lru_cache(maxsize=1)
 def fin_anchors() -> dict:
     """Algorithm 1 on the restaurant vocabulary: anchors for K = 6 and K = 7, recovery of the six ψ_s, and how far
-    each frequent word's Q̄ row sits (Euclidean) from the hull of the six sector anchors' rows."""
+    each frequent word's Q̄ row sits (Euclidean) from the hull of the six sector anchors' rows. Candidates follow
+    Algorithm 1's rule, words in at least ANCHOR_DF of the documents (15 of 300): the page first ran this with a fixed
+    df ≥ 10, the rule it warns against, which picked other anchors and recovered the topics to 0.590 instead of 0.437."""
     data = fin_data("restaurant")
     X = data["X"]
     Qbar, p = normalize_rows(cooccurrence(X))
-    cand = np.nonzero((X > 0).sum(0) >= 10)[0]
+    cand = np.nonzero((X > 0).sum(0) >= ANCHOR_DF * X.shape[0])[0]
     a6 = fast_anchor_words(Qbar, 6, cand)
     a7 = fast_anchor_words(Qbar, 7, cand)
     Phi6, C = recover_l2(Qbar, p, a6)
@@ -1010,10 +1095,31 @@ def fin_templates() -> dict:
         data = fin_data(name)
         g = gibbs(data["docs"], data["V"], 6, FIN_ALPHA, FIN_BETA, 150, seed=3865, keep=FIN_KEEP)
         top = g.theta.argmax(1)
+        name_ids = [j for j, w in enumerate(data["vocab"]) if w in _NAME_WORDS]
+        eightk = (data["doc_type"] == 2).astype(int)
+        k8 = int(np.argmax([auc(eightk, g.theta[:, k]) for k in range(6)]))
         out[name] = {"sector": nmi(data["sector"], top), "doc_type": nmi(data["doc_type"], top),
                      "tone": nmi(data["tone"], top), "max_theta": float(np.median(g.theta.max(1))),
-                     "top_words": [[data["vocab"][j] for j in np.argsort(-g.phi[k])[:8]] for k in range(6)]}
+                     "top_words": [[data["vocab"][j] for j in np.argsort(-g.phi[k])[:8]] for k in range(6)],
+                     "eightk_topic": k8, "eightk_auc": auc(eightk, g.theta[:, k8]),
+                     "eightk_dominant": int((top == k8).sum()),
+                     "name_mass": [float(g.phi[k, name_ids].sum()) for k in range(6)],
+                     "tone_auc": max(auc((data["tone"] == t).astype(int), g.theta[:, k])
+                                     for t in (-1, 0, 1) for k in range(6))}
     return out
+
+
+_NAME_WORDS = frozenset(w for n in fc._PUBLIC for w in fc._tokens(n))
+
+
+def auc(y: np.ndarray, score: np.ndarray) -> float:
+    """Area under the ROC curve of ``score`` for the binary labels ``y`` (Mann–Whitney, ties averaged), read in the
+    direction that separates: max(AUC, 1 − AUC)."""
+    r = rankdata(score)
+    n1 = int(y.sum())
+    n0 = len(y) - n1
+    a = (r[y == 1].sum() - n1 * (n1 + 1) / 2) / (n1 * n0)
+    return float(max(a, 1 - a))
 
 
 @lru_cache(maxsize=1)
@@ -1063,6 +1169,7 @@ def barycentric(Qbar: np.ndarray, anchors: list[int]) -> np.ndarray:
 
 
 GV_M, GV_SWEEPS, GV_ITERS = 500, 150, 60
+GV_LONG = 600   # the sparse-prior chain is still moving at GV_SWEEPS; at 600 (and 3,000) it settles near 0.62–0.64
 GV_BETAS = (1.0, 0.01)   # the world's own topic prior (Dir(𝟏) off the anchors), and a sparse misspecified one
 
 
@@ -1078,6 +1185,15 @@ def gibbs_vs_vi(beta: float) -> dict:
     for name, ph in (("gibbs", g.phi), ("cavi", cavi_phi(c))):
         out[f"{name}_l1"] = np.abs(ph[align_topics(ph, gold)] - gold).sum(1)
     return out
+
+
+@lru_cache(maxsize=1)
+def gibbs_sparse_long() -> float:
+    """The lab's β = 0.01 Gibbs run (same seed and corpus) at GV_LONG sweeps instead of GV_SWEEPS: mean L1."""
+    X = anchor_corpus(True)[0][:GV_M]
+    gold = anchor_phi(True)
+    g = gibbs(tokens_of(X), ANCHOR_V, ANCHOR_K, ANCHOR_ALPHA, GV_BETAS[1], GV_LONG, seed=3892, keep=50)
+    return float(np.abs(g.phi[align_topics(g.phi, gold)] - gold).sum(1).mean())
 
 
 VIZ_JSON = _HERE.parent.parent / "src" / "components" / "viz" / "data" / "topic-model-lab.json"
@@ -1416,6 +1532,15 @@ def test_finance_anchors_one_per_sector_none_shared():
     home = fin_data("restaurant")["home"]
     assert sorted(int(home[a]) for a in fa["a6"]) == list(range(6))
     assert all(int(home[a]) != 6 for a in fa["a7"])
+    assert int(home[fa["a7"][6]]) == fc.SECTORS.index("industrials")      # the seventh pick: a second industrials word
+    assert fa["l1"].mean() < float(np.mean(fin_table()["gibbs"]["l1"]))     # 0.437 < the sampler's 0.548
+
+
+def test_the_collapsed_update_escapes_without_randomness():
+    # From the sampler's own first assignment: CAVI stalls; deterministic CVB0 finds the sectors; the hard argmax
+    # version stalls. Randomness is not what escapes.
+    e = fin_escape()
+    assert max(e["cavi"]) < 0.65 and min(e["cvb0"]) > 0.9 and max(e["icm"]) < 0.5, e
 
 
 def test_mou_oracle_beats_lda_but_em_cannot_find_it():
@@ -1457,11 +1582,21 @@ def test_the_prior_ranks_the_engines():
     assert right["gibbs_l1"].mean() < right["cavi_l1"].mean()
     assert wrong["gibbs_l1"].mean() > wrong["cavi_l1"].mean()
     assert right["gibbs_l1"].mean() < wrong["gibbs_l1"].mean()
+    # The β = 0.01 chain is still moving at 150 sweeps (0.787); at 600 it settles lower (0.632), and the order holds.
+    assert gibbs_sparse_long() < wrong["gibbs_l1"].mean() - 0.1
+    assert gibbs_sparse_long() > wrong["cavi_l1"].mean()
 
 
 def test_templates_hide_tone_and_document_type():
+    # Dominant-topic NMI hides document type, but the all-words fit has an 8-K topic that is no document's dominant
+    # topic; no topic is a function-word topic (five carry company-name mass); no topic separates the tones.
     for name, v in fin_templates().items():
         assert v["doc_type"] < 0.05 and v["tone"] < 0.05, (name, v)
+        assert v["tone_auc"] < 0.65, (name, v["tone_auc"])
+    v = fin_templates()["all"]
+    assert v["eightk_auc"] > 0.99 and v["eightk_dominant"] == 0, v
+    others = [m for k, m in enumerate(v["name_mass"]) if k != v["eightk_topic"]]
+    assert min(others) > 0.05 and v["name_mass"][v["eightk_topic"]] < 0.01, v["name_mass"]
 
 
 def test_topic_mixtures_reads_held_out_sectors():
@@ -1490,13 +1625,17 @@ def summary() -> dict:
             if m in v:
                 out[f"{k} {m} mean"] = float(np.mean(v[m]))
                 out[f"{k} {m} range"] = f"{min(v[m]):.6f} .. {max(v[m]):.6f}"
+    for k, v in fin_escape().items():
+        out[f"escape {k} nmi range"] = f"{min(v):.6f} .. {max(v):.6f}"
+    out["anchors l1"] = float(fin_anchors()["l1"].mean())
+    out["gibbs beta 0.01 at GV_LONG"] = gibbs_sparse_long()
     out["sklearn nmi"] = fin_sklearn()["nmi"]
     out["sklearn elbo"] = fin_sklearn()["elbo"]
     mou = fin_mou("restaurant", 6)
     out["mou oracle loglik"] = mou["oracle"]["loglik"]
     out["mou best restart loglik"] = max(mou["restart_logliks"])
     for k, v in fin_templates().items():
-        for m in ("sector", "doc_type", "tone", "max_theta"):
+        for m in ("sector", "doc_type", "tone", "max_theta", "eightk_auc", "eightk_dominant", "tone_auc"):
             out[f"{k} {m}"] = v[m]
     return out
 

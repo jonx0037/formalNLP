@@ -398,24 +398,33 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   vocabulary is 2,908 words, 13,382 training tokens (3,735 held out); industrials covers 142 of 300 documents. Every
   document draws its nouns ½ from its sector and ½ from the shared restaurant (`SECTOR_SHARE`), so R = E[θθᵀ] is rank 6
   and the shared vocabulary is unidentifiable (Prop 4): score against the six ψ_s (each sector's documents' word
-  distribution), never the seven restaurants. Planted words have one home, so the vocabulary is separable, and
-  FastAnchorWords finds one anchor per sector and never a shared word. Deterministic optimizers stall here: CAVI from
+  distribution), never the seven restaurants. Planted words have one home (except *reserves*, banking and energy,
+  dropped), so the vocabulary is separable, and FastAnchorWords finds one anchor per sector and never a shared word; run
+  it at Algorithm 1's 5% candidate rule (df ≥ 15): the page first used df ≥ 10 and got other anchors and L1 0.590 vs 0.437. Deterministic optimizers stall here: CAVI from
   scikit-learn's Gamma(100, 0.01) noise reaches sector NMI 0.186 (ELBO* −93,556) where the same updates warm-started from
   Gibbs's counts reach 0.963 (−88,822), and MoU EM's best of 20 random starts has log-likelihood −80,675 vs −77,168 from
   the gold sectors; diagnose a stall by warm-starting from another engine's answer and comparing the objective. The
+  stall is not slowness (ELBO* fixed by iteration ≈ 50, identical at 1,000; scikit-learn's moves < 1 nat from 100 to
+  1,000 iterations), and the escape is not randomness: from the sampler's own first assignment (`sampler_start`),
+  deterministic CVB0 (`cvb0`) finds the sectors while CAVI and the hard argmax update (`icm`) stall (`fin_escape`). The
+  page first credited "the stochastic sampler". The
   E-step schedule changes which optimum CAVI reaches (a cap of 30 local steps moved finance NMI 0.16 → 0.40): use
   scikit-learn's (per document, mean |Δγ| < 10⁻³, ≤ 100 steps) and vectorize it across documents with sparse scatter
   matrices (exact block steps, so Cor 2 holds; it reproduces the per-document loop exactly). Check the closed-form bound
   against `sk._approx_bound(X, sk.transform(X, normalize=False), False)` with `sk.components_` as λ (10⁻⁸ relative).
   Collapsed Gibbs in pure Python costs 0.03–0.07 s per sweep on all 63k tokens: no vectorized substitute needed. The
-  prior ranks the engines (dense Dir(𝟏) world: Gibbs best at β = 1, CAVI at β = 0.01). Anchor-recovery worlds need dense
+  prior ranks the engines (dense Dir(𝟏) world: Gibbs best at β = 1, CAVI at β = 0.01), but the β = 0.01 chain is still
+  moving at 150 sweeps (0.787; 0.632 at 600, 0.62–0.64 at 3,000): check a sampler's budget before ranking it. Anchor-recovery worlds need dense
   topics (sparse Dir(0.1) topics are already nearly separable, so a "no anchors" twin recovers as well) and an M-scaled
   candidate threshold (words in ≥ 5% of documents; a fixed df ≥ 10 lets noisy rare rows win the farthest-point
   search). An LP hull distance in V = 2,908 dimensions costs ~55 ms: read distances off RecoverL2's residuals. Over 128
   enumerated states a sampler's total variation has a Monte Carlo floor ≈ 0.02 at 40k sweeps: test per-token
   marginals. Thm 4(c)'s divergence test needs a document with one topic's anchors only (anchors of both make the
   integral over [ε, 1] itself infinite), integrated over geometric segments (`quad` warns otherwise, fatal under
-  `-W error`). On all words LDA keys on company names (sector NMI 0.943) and never finds tone or document type (≤ 0.023).
+  `-W error`). On all words LDA keys five topics on company names (sector NMI 0.943 on seed 3865; 0.79–0.90 on four others) and
+  the sixth is 8-K boilerplate (AUC 0.998, dominant for no document; 0.84 and 0.70 on other seeds): dominant-topic NMI
+  (≤ 0.023) hides document type. No topic separates the tones (best AUC < 0.65). The page first called the sixth a
+  function-word topic and said document type never surfaces. 49/80 and 53/80 (simplex tab) are exact ties: quote counts.
 - Collocations on corpus models (Topic 26). Provenance comes free: subclass `fc._CorpusGen`, override `word`/`phrase` to
   wrap each restaurant draw in sentinels (`\x01…\x02`, `\x03` between a compound's halves) and make the same RNG calls;
   the stripped text equals `generate_corpus(300, 0)` byte for byte (assert it), so every token is a draw (D), entity (E),
@@ -555,9 +564,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   `loss_grad` (four models, one backward pass), `realistic_rank` (Def 2), `evaluate` (batched filtered ranks),
   `direction_accuracy`, `phase_residuals`, `abelian_ratio`, `s3_kg`/`dihedral_fit`, `pattern_split`, and
   `completion_problem` are reusable.
-  Topic 25's harness takes ≈ 45 s (one restaurant-vocabulary Gibbs run ~2.3 s, the all-words run at 150 sweeps ~5 s,
-  each CAVI run ~1 s on finance and ~10 s on the V = 400 world); `gibbs` (pure-Python collapsed sampler, `visit` hook),
-  `cavi`/`elbo`/`elbo_star`, `fold_in`, `completion` (plug-in document completion), `mixture_of_unigrams`/`mou_posterior`,
+  Topic 25's harness takes ≈ 60 s (one restaurant-vocabulary Gibbs run ~2.3 s, the all-words run at 150 sweeps ~5 s,
+  each CAVI run ~1 s on finance and ~10 s on the V = 400 world, `fin_escape` ~5 s, `gibbs_sparse_long` ~6 s); `gibbs` (pure-Python collapsed sampler, `visit` hook),
+  `cavi`/`elbo`/`elbo_star`, `cvb0`/`icm`/`sampler_start`, `auc`, `fold_in`, `completion` (plug-in document completion), `mixture_of_unigrams`/`mou_posterior`,
   `cooccurrence`/`normalize_rows`/`fast_anchor_words`/`recover_l2`, `hull_distance` (LP), `align_topics` (Hungarian
   on L1), `toy_marginals`, `nmi`, `umass_coherence`/`npmi_coherence`, and `fin_data` are reusable; `topic_mixtures(docs)`
   is the capstone's topic stage (six sector-aligned proportions, held-out sector accuracy 0.930).
