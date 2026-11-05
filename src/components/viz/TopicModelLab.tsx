@@ -5,7 +5,8 @@ import * as d3 from 'd3';
 // views make (test_simplex_tab_noise_shrinks_with_length, test_thm1_anchor_rows_are_the_vertices,
 // test_anchor_recovery_improves_with_documents, test_the_prior_ranks_the_engines,
 // test_finance_anchors_one_per_sector_none_shared, test_mou_oracle_beats_lda_but_em_cannot_find_it,
-// test_cavi_stalls_where_its_own_bound_is_lower, test_templates_hide_tone_and_document_type).
+// test_cavi_stalls_where_its_own_bound_is_lower, test_the_collapsed_update_escapes_without_randomness,
+// test_templates_hide_tone_and_document_type).
 // Change the .py, regenerate, never the reverse. Positions the views only draw (a point in a triangle, a line) are
 // placed here from payload coordinates; every printed number is a payload value.
 import payload from './data/topic-model-lab.json';
@@ -341,7 +342,7 @@ function GibbsViView() {
       <Caption>Two engines and the anchors on one separable world (V = 400, K = 5, 500 documents)</Caption>
       <Row>
         <Label>topic prior β</Label>
-        <Pill active={beta === '1'} onClick={() => setBeta('1')} data={{ 'data-beta': '1' }}>1 (the world's own)</Pill>
+        <Pill active={beta === '1'} onClick={() => setBeta('1')} data={{ 'data-beta': '1' }}>1 (near the world's own)</Pill>
         <Pill active={beta === '0.01'} onClick={() => setBeta('0.01')} data={{ 'data-beta': '0.01' }}>0.01 (misspecified)</Pill>
       </Row>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
@@ -354,7 +355,7 @@ function GibbsViView() {
           ...g.l1.gibbs.map((_, k) => ({ key: `t${k}`, cells: [`${k + 1}`, ...ENGINES.map((e) => f3(g.l1[e][k]))] })),
           { key: 'mean', strong: true, cells: ['mean', ...ENGINES.map((e) => f3(g.mean[e]))] },
         ]} />
-      <Note>The two traces are different quantities: the sampler's log joint wanders at its posterior's level, while the ELBO only rises (Corollary 2). The anchors do not depend on β. At the world's own prior the sampler recovers the topics best; at a sparse, misspecified one the order reverses, which is Asuncion et al.'s point that smoothing explains most differences between engines.</Note>
+      <Note>The two traces are different quantities: the sampler's log joint wanders at its posterior's level, while the ELBO only rises (Corollary 2). The anchors do not depend on β. Near the world's own prior the sampler recovers the topics best; at a sparse, misspecified one the order reverses (the sparse-prior chain is still moving at 150 sweeps; at 600 the gap narrows and the order holds), which is Asuncion et al.'s point that smoothing explains most differences between engines.</Note>
     </figure>
   );
 }
