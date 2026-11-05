@@ -331,7 +331,8 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   encoder was pretrained on the full roster (35 of 49 held-out name words are in its vocabulary); the encoder cannot
   delete, so dropped tokens enter as [UNK], and that pays only if unseen words are read as [UNK] at test too ("train as
   you test": 0.884 by id, 0.979 as [UNK]); without dropout the [UNK] reading lowers the score. Read each sentence alone
-  with a trailing [SEP] (sentences are ≤ 31 tokens). `fc._tokens` lowercases: take case from the raw text with
+  with a trailing [SEP] (sentences are ≤ 31 tokens on `generate_corpus(300, 0)`; seed 4's run has a longer one and
+  breaks `encoder_block`). `fc._tokens` lowercases: take case from the raw text with
   `re.findall(r"[A-Za-z]+", text[s:e])`, which aligns with it token for token; one "cap" feature reaches 0.920 on the
   held-out test. On frozen states a softmax head decodes invalid BIO in 10–15% of sentences and trails the CRF by
   0.09–0.11 even constrained; BIOES gained nothing on one run (+0.002 on another), but Prop 2's gap survives ±2-word windows ("a b b b" vs "c b b b"), so that is no evidence of equal expressiveness. Overlapping spans are exclusive
@@ -357,8 +358,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   falls (0.711) on templates no bag forces (context class = types, order, between string, right word). Aggregate
   facts by max for sentence-trained models: noisy-OR overcounts a pair's repeated co-mentions (DS fact P 0.719 vs
   0.892; held-out 0.331 vs 0.701). Hide KB facts by unordered entity pair (all of a pair's facts together), or the
-  c-scaling of the DS target fails on multi-relation pairs (PARENT_OF + ACQUIRED); the fitted mass lands just below c
-  (L2), raw F1 *rises* at c = 0.8 (co-mention templates cross the threshold first), and Elkan–Noto's e1 runs low
+  c-scaling of the DS target fails on multi-relation pairs (PARENT_OF + ACQUIRED); the fitted mass tracks the draw's
+  realized share of kept related mentions (`kept_mention_share`, just above it), not c or L2, raw F1 *rises* at c = 0.8
+  on stream 3600 (draw-specific: rerun other streams before quoting incomplete-KB numbers) (co-mention templates cross the threshold first), and Elkan–Noto's e1 runs low
   (0.910 at c = 1). Topic 22's `split(test)` sentences align token for token with `fc` sentences in `sl.bio_sentences`
   order, and exact string linking (`fc._tokens` of names and aliases, type checked) reproduces every gold link; with
   the headline tagger's spans the triple-recall bound is 0.730 seen (rarely covered training-roster names) vs 0.920

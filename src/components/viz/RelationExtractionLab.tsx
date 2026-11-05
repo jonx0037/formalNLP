@@ -303,7 +303,8 @@ function LabelsView() {
       <Note>
         Co-mentions state nothing; entailed labels follow from what the sentence states by the knowledge base&rsquo;s rules
         (BASED_IN from &ldquo;headquartered in Toronto, Canada&rdquo;) and count as errors only because the annotation
-        guideline marks them unstated; overlaps are a second relation of the same pair (ACQUIRED beside PARENT_OF).
+        guideline marks them unstated; overlaps are a KB relation beside the stated one (ACQUIRED where a sentence states
+        PARENT_OF; the reverse is entailed).
       </Note>
     </figure>
   );
@@ -400,7 +401,7 @@ function WitnessView() {
     <figure style={{ margin: 0 }}>
       <Caption>One confident witness silences the rest of the bag</Caption>
       <Sub>
-        the bag of ({wb.h}, {wb.t}) for {wb.relation}: MIL&rsquo;s P({wb.relation}), the posterior w that the mention is
+        the seen test&rsquo;s bag of ({wb.h}, {wb.t}) for {wb.relation}: MIL&rsquo;s P({wb.relation}), the posterior w that the mention is
         the witness, and Corollary 2&rsquo;s coefficient Π(1 − p_j)/P(∃) on it
       </Sub>
       <div data-panel="bag" style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -493,9 +494,9 @@ function IncompleteView() {
         <Readout label="fact recall (world)" value={f3(r.facts_world_r)} id="fact-r" />
       </Readouts>
       <Note>
-        Theorem 3: relation probabilities shrink by c, so a template that always states its relation survives argmax only
-        while c &gt; 1/2, and co-mention templates near Corollary 1&rsquo;s threshold drop out first. Proposition 4: scored
-        against a KB that also forgets, true facts read as c times their precision. One random KB per c.
+        Theorem 3: relation probabilities shrink by c, so in the population a template whose distant label is its relation
+        alone survives argmax only while c &gt; 1/2, and co-mention templates near Corollary 1&rsquo;s threshold drop out first. Proposition 4: scored
+        against a KB that also forgets, true facts read as c times their precision. One random KB per c: the fitted mass follows the share it keeps, and another draw moves these numbers.
       </Note>
     </figure>
   );
