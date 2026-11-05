@@ -372,17 +372,21 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   DistMult/ComplEx; head queries use the inverse map), so one backward pass serves all four, and training uses every
   corruption (the exact expectation of uniform negative sampling, deterministic given the init). Skip the loss value
   during training steps (two `log_expit` passes over the score matrix were most of a step: 1.0 → 0.3 s per 1,000).
-  Hidden facts are training negatives: on the full KB RotatE's phases solve Thm 1 to 3 decimals (COMPETES_WITH at
-  {0, π}, median 0.000), but with one direction of each competitor pair hidden they move off (0.485) and held-out
-  symmetry MRR is the worst of four (0.272), while DistMult, symmetric by construction, scores 1.000. An exact rotation
-  scores a pair and its reversal identically, so only phases off {0, π} can push the hidden twin down. DistMult's
-  f(h,r,t) and f(t,r,h) differ in the last bits (computed in different orders): direction accuracy read 0.514 until a
-  10⁻⁹ relative tie tolerance made it 0.5. Tune on another hiding averaged over 3 seeds (one seed picked RotatE γ = 3
-  at 500 steps, composition 0.731; three picked γ = 6 at 1,500, 0.912), read step counts off one run's checkpoints,
+  On the full KB RotatE's phases solve Thm 1's symmetry and inverse equations to 3 decimals (composition 0.023), but
+  with one direction of each competitor pair hidden they never reach {0, π} (0.485, from 0.605 at init) and held-out
+  symmetry MRR is the worst of four (0.272), while DistMult, symmetric by construction, scores 1.000. The negatives are
+  not the cause: a hidden fact is a negative only if it corrupts a training triple (15/25 competitor, 2/13 inverse),
+  and `Config(negatives="world")` (no true fact negated) moves RotatE only 0.272 → 0.291 but ComplEx 0.502 → 0.832.
+  Test a named mechanism by removing it (the page first said the negatives drove RotatE). DistMult's
+  f(h,r,t) and f(t,r,h) differ in the last bits (computed in different orders): direction accuracy read 0.525 (0.507–0.542 by
+  seed) until a 10⁻⁹·(1 + |s|) tie tolerance made it 0.5. Tune on another hiding averaged over 3 seeds (alone, seed 0 picks RotatE γ = 3
+  at 250 steps, composition 0.689, and seed 2 γ = 9 at 1,500, 0.876; three seeds pick γ = 6 at 1,500, 0.912), read step counts off one run's checkpoints,
   and expect picks at a grid edge (every step pick sat at an end of 250/500/1,000/1,500). COMPETES_WITH is N-to-N with
   8 triangles (degrees 1 × 6, 2 × 10, 3 × 8), so Thm 2(c)'s odd-cycle collapse binds. "Inheritance" (subsidiaries share
   the parent's sector) is no `closure` rule; TransE wins it (0.815) by N-to-1 collapse. TransE's best S₃ run in the plane
-  put all six entities at one point (ratio exactly 1). Halvorsen Industrial is the only parent with two subsidiaries
+  put all six entities at one point (ratio exactly 1) on seeds (0, 1) only (0.915 and 0.882 on (2, 3) and (4, 5));
+  most S₃ bests sit at the top margin, 4, and margins to 16 reach 2.160. Thm 2's bounds force a collapse only when ε
+  is small: TransE holds IN_SECTOR within 0.101, RotatE (γ = 6) only within 4.18. Halvorsen Industrial is the only parent with two subsidiaries
   (Northgate Energy has one). At τ = 0.5, `extracted_kb()` leaves 28 WORLD facts about the 20 held-out entities missing
   (26 COMPETES_WITH, 2 SUBSIDIARY_OF whose PARENT_OF was extracted at 0.688/0.685); every held-out entity has an extracted
   fact. `tests/scaffold.test.ts` rejects the word "architectures" anywhere in a topic, references included. Topic 24's

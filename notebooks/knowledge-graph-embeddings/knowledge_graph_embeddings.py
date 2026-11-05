@@ -12,7 +12,8 @@ Every claim the topic makes has an executable check here, and every number its D
    drives Bordes et al.'s margin loss to zero on any embedding that separates its triples (Prop 2).
 3. Rotation. Multiplying a complex number by e^{iθ} rotates the plane by θ (Lemma 1). RotatE embeds entities in ℂᵏ
    and relations as unit-modulus vectors, scoring −‖h ∘ r − t‖ (Def 4). A relation is symmetric iff every phase is
-   0 or π, two are inverses iff their phases are negatives, and r₃ = r₁ ∘ r₂ iff the phases add (Thm 1).
+   0 or π, two are inverses iff their phases are negatives, and r₃ = r₁ ∘ r₂ iff the phases add, each given that
+   the facts it starts from hold exactly (Thm 1).
 4. Relations as group actions. Both models act on entity space by a group of isometries, ℝᵏ by translation and the
    torus U(1)ᵏ by coordinatewise rotation (Def 5). Under any isometric action, facts that hold within ε pull an
    N-to-1 relation's heads within 2ε, a symmetric pair's double action within 2ε of the identity, and the
@@ -21,7 +22,7 @@ Every claim the topic makes has an executable check here, and every number its D
    graph exactly (Cor 1).
 5. The bilinear foil. DistMult scores ⟨h, r, t⟩ and ComplEx Re⟨h, r, t̄⟩ (Def 6). DistMult scores every relation
    symmetrically (Prop 3); ComplEx's antisymmetric part is −2 Σ Im rᵢ Im(hᵢ t̄ᵢ) (Prop 4); and RotatE's squared
-   distance is ComplEx's score with unit-modulus relations, plus the two entity norms (Prop 5).
+   distance is the two entities' squared norms minus twice ComplEx's score with unit-modulus relations (Prop 5).
 6. Finance case study. The finance KB (``fc.WORLD``) carries each pattern: COMPETES_WITH is symmetric,
    PARENT_OF/SUBSIDIARY_OF are inverses, BASED_IN = HQ_IN ∘ LOCATED_IN. Pattern-wise held-out facts measure what
    each model infers; Topic 23's extracted KB about the held-out companies is then completed by embedding it beside
@@ -229,7 +230,9 @@ def score_matrix(model: str, Q: np.ndarray, E: np.ndarray, gamma: float) -> tupl
 class Config:
     """One training run. k is the complex dimension: every model gets 2k real numbers per entity (TransE and
     DistMult embed in ℝ²ᵏ). RotatE keeps k phases per relation, the others 2k reals. gamma is the distance models'
-    margin, lam the bilinear models' L2 penalty."""
+    margin, lam the bilinear models' L2 penalty. negatives = "closed" excludes only the training KG's known answers
+    from a query's negatives (the closed world); "world" also excludes every WORLD answer, so no true fact is ever a
+    negative (the ablation of the case study's mechanism)."""
     model: str
     k: int = 16
     gamma: float = 0.0
@@ -238,6 +241,7 @@ class Config:
     lr: float = 0.02
     seed: int = 0
     checkpoints: tuple[int, ...] = ()
+    negatives: str = "closed"
 
 
 @dataclass(frozen=True)
@@ -257,7 +261,7 @@ class Problem:
 
 
 @lru_cache(maxsize=None)
-def problem(kg: KG) -> Problem:
+def problem(kg: KG, negatives: str = "closed") -> Problem:
     eid, rid = kg.eid, kg.rid
     H = np.array([eid[h] for h, _, _ in kg.triples])
     Rr = np.array([rid[r] for _, r, _ in kg.triples])
@@ -268,6 +272,11 @@ def problem(kg: KG) -> Problem:
     for b, (h, r, t) in enumerate(kg.triples):
         known[b, [eid[x] for x in tails[(h, r)]]] = True
         known[B + b, [eid[x] for x in heads[(t, r)]]] = True
+    if negatives == "world":  # every true answer of a training query leaves its negatives too
+        wt, wh = known_answers(WORLD.triples)
+        for b, (h, r, t) in enumerate(kg.triples):
+            known[b, [eid[x] for x in wt.get((h, r), ())]] = True
+            known[B + b, [eid[x] for x in wh.get((t, r), ())]] = True
     pos = np.zeros((2 * B, n))
     pos[np.arange(B), T] = 1
     pos[B + np.arange(B), H] = 1
@@ -341,7 +350,7 @@ class Fit:
 def fit(cfg: Config, kg: KG) -> Fit:
     """Full-batch Adam (β = 0.9, 0.999); TransE's entities are projected back onto the unit sphere after every step
     (Bordes et al.'s constraint)."""
-    P = problem(kg)
+    P = problem(kg) if cfg.negatives == "closed" else problem(kg, cfg.negatives)
     E, R = init(cfg, P.n, P.m)
     mo = [np.zeros_like(E), np.zeros_like(R)]
     ve = [np.zeros_like(E), np.zeros_like(R)]
@@ -389,15 +398,16 @@ def evaluate(cfg: Config, kg: KG, E, R, tests, truth=WORLD.triples) -> list[floa
 ANTISYMMETRIC = tuple(r for r in RELATIONS if r != "COMPETES_WITH")
 
 
-def direction_accuracy(cfg: Config, kg: KG, E, R, facts) -> float:
-    """The share of antisymmetric facts the model scores above their reversal, ties counting 1/2."""
+def direction_accuracy(cfg: Config, kg: KG, E, R, facts, tie: float = TIE) -> float:
+    """The share of antisymmetric facts the model scores above their reversal, ties counting 1/2 (scores within
+    tie · (1 + |s|) of each other tie; tie = 0 compares the floats exactly)."""
     eid, rid = kg.eid, kg.rid
     acc = []
     for h, r, t in facts:
         if r in ANTISYMMETRIC:
             a = triple_score(cfg.model, E, R, cfg.gamma, eid[h], rid[r], eid[t])
             b = triple_score(cfg.model, E, R, cfg.gamma, eid[t], rid[r], eid[h])
-            tol = TIE * (1 + abs(a))
+            tol = tie * (1 + abs(a))
             acc.append(0.5 if abs(a - b) <= tol else float(a > b))
     return float(np.mean(acc))
 
@@ -563,15 +573,18 @@ def dihedral_fit() -> dict:
 S3_K = (1, 2, 8)  # complex dimensions for the abelian runs
 S3_GAMMAS = (1.0, 2.0, 4.0)
 S3_SEEDS = (0, 1)
+S3_MORE_SEEDS = ((2, 3), (4, 5))  # the collapse check: other seed pairs
+S3_WIDE_GAMMAS = (1.0, 2.0, 4.0, 8.0, 16.0)  # the grid-edge check: most bests sit at γ = 4, the top of S3_GAMMAS
 
 
 @lru_cache(maxsize=None)
-def s3_best(model: str, k: int) -> dict:
-    """The largest γ_min/ε over S3_GAMMAS × S3_SEEDS for an abelian model on the Cayley graph (2,000 steps each)."""
+def s3_best(model: str, k: int, seeds: tuple = S3_SEEDS, gammas: tuple = S3_GAMMAS) -> dict:
+    """The largest γ_min/ε over gammas × seeds (default S3_GAMMAS × S3_SEEDS) for an abelian model on the Cayley
+    graph (2,000 steps each)."""
     kg = s3_kg()
     best = None
-    for g in S3_GAMMAS:
-        for seed in S3_SEEDS:
+    for g in gammas:
+        for seed in seeds:
             cfg = Config(model, k=k, gamma=g, steps=2000, seed=10 + seed)
             f = fit(cfg, kg)
             res = abelian_ratio(model, f.E, f.R, kg) | {"gamma": g, "seed": seed, "loss": f.loss, "fit": f}
@@ -640,20 +653,42 @@ def _mean_pattern_mrr(cfg: Config, kg: KG, E, R, test: dict) -> float:
 
 
 @lru_cache(maxsize=None)
-def tuning(model: str) -> dict:
-    """Mean pattern MRR on split 1, averaged over SEEDS, for every grid value and step count; the chosen config
-    maximizes it."""
+def tuning_table(model: str, seeds: tuple) -> dict:
+    """Mean pattern MRR on split 1, averaged over seeds, for every grid value and step count."""
     kg, test = pattern_split(1)
     key, values = GRID[model]
     table = defaultdict(list)
     for v in values:
-        for seed in SEEDS:
+        for seed in seeds:
             cfg = Config(model, steps=max(STEP_GRID), seed=seed, checkpoints=STEP_GRID, **{key: v})
             for s, E, R in fit(cfg, kg).snapshots:
                 table[(v, s)].append(_mean_pattern_mrr(cfg, kg, E, R, test))
-    table = {vs: float(np.mean(x)) for vs, x in table.items()}
+    return {vs: float(np.mean(x)) for vs, x in table.items()}
+
+
+@lru_cache(maxsize=None)
+def tuning(model: str) -> dict:
+    """The validation table over SEEDS; the chosen config maximizes it."""
+    table = tuning_table(model, SEEDS)
+    key, _ = GRID[model]
     v, s = max(table, key=table.get)
     return {"table": table, "chosen": Config(model, steps=s, **{key: v})}
+
+
+@lru_cache(maxsize=None)
+def single_seed_tuning(model: str, seed: int) -> dict:
+    """The pick when validation uses one seed instead of three, and its split-0 MRR per pattern over SEEDS."""
+    table = tuning_table(model, (seed,))
+    key, _ = GRID[model]
+    v, s = max(table, key=table.get)
+    kg, test = pattern_split(0)
+    mrr = defaultdict(list)
+    for fs in SEEDS:
+        cfg = Config(model, steps=s, seed=fs, **{key: v})
+        f = fit(cfg, kg)
+        for p in PATTERNS:
+            mrr[p].append(metrics(evaluate(cfg, kg, f.E, f.R, test[p]))["mrr"])
+    return {"value": v, "steps": s, "mrr": {p: float(np.mean(x)) for p, x in mrr.items()}}
 
 
 def chosen(model: str, seed: int = 0) -> Config:
@@ -695,6 +730,75 @@ def competitor_graph() -> dict:
     tri = sorted({tuple(sorted((a, b, c))) for a in adj for b in adj[a] for c in adj[b] if c in adj[a] and c != a})
     return {"adj": {k: tuple(sorted(v)) for k, v in adj.items()}, "triangles": tri,
             "degrees": Counter(len(v) for v in adj.values())}
+
+
+# Why RotatE misses the hidden competitors. A hidden fact is a training negative only if it corrupts some training
+# triple, i.e. shares a query (h, r, ·) or (·, r, t) with one. Keeping every WORLD fact out of the negatives
+# (Config.negatives = "world") barely moves RotatE's symmetry MRR or its phases: one direction per pair simply never
+# asks for r ∘ r = 1, and the phases, uniform at initialization, drift toward {0, π} without reaching them. The
+# negatives cost ComplEx instead.
+
+def hidden_negatives(split: int = 0) -> dict:
+    """Per pattern: (hidden facts that corrupt some training triple, hidden facts)."""
+    kg, test = pattern_split(split)
+    tails, heads = known_answers(kg.triples)
+    return {p: (sum(((h, r) in tails) or ((t, r) in heads) for h, r, t in test[p]), len(test[p])) for p in PATTERNS}
+
+
+ABLATION_MODELS = ("TransE", "RotatE", "ComplEx")
+
+
+@lru_cache(maxsize=None)
+def negatives_ablation(model: str, split: int = 0) -> dict:
+    """Per seed, symmetry MRR on the split's hidden competitor facts with the closed-world negatives and with every
+    WORLD fact kept out of them; for RotatE also the median COMPETES_WITH phase residual at initialization and after
+    each training."""
+    kg, test = pattern_split(split)
+    out = defaultdict(list)
+    for seed in SEEDS:
+        for neg in ("closed", "world"):
+            cfg = replace(chosen(model, seed), negatives=neg)
+            f = fit(cfg, kg)
+            out[neg].append(metrics(evaluate(cfg, kg, f.E, f.R, test["symmetry"]))["mrr"])
+            if model == "RotatE":
+                out[f"phase_{neg}"].append(float(np.median(phase_residuals(f.R, kg.rid)["symmetry"])))
+        if model == "RotatE":
+            _, R0 = init(chosen(model, seed), len(kg.entities), len(kg.relations))
+            out["phase_init"].append(float(np.median(phase_residuals(R0, kg.rid)["symmetry"])))
+    return dict(out)
+
+
+@lru_cache(maxsize=None)
+def untied_direction(model: str) -> tuple:
+    """Direction accuracy on split 0 per seed with no tie tolerance (scores compared as floats)."""
+    kg, _ = pattern_split(0)
+    out = []
+    for seed in SEEDS:
+        cfg = chosen(model, seed)
+        f = fit(cfg, kg)
+        out.append(direction_accuracy(cfg, kg, f.E, f.R, sorted(WORLD.triples), tie=0.0))
+    return tuple(out)
+
+
+@lru_cache(maxsize=1)
+def collapse_on_full_kb() -> dict:
+    """Thm 2 on the full-KB fits (seed 0): IN_SECTOR's worst fact distance ε and its same-sector heads' largest and
+    median distance, and the longest side of any COMPETES_WITH triangle. A bound in ε forces a collapse only when
+    the model makes ε small."""
+    eid = FULL_KG.eid
+    out = {}
+    for model, f in _isometric_fits():
+        facts = [(h, t) for h, r, t in WORLD.triples if r == "IN_SECTOR"]
+        eps = max(_fact_distance(model, f, h, "IN_SECTOR", t) for h, t in facts)
+        by_tail = defaultdict(list)
+        for h, t in facts:
+            by_tail[t].append(h)
+        hd = [float(np.linalg.norm(f.E[eid[a]] - f.E[eid[b]])) for hs in by_tail.values()
+              for a, b in itertools.combinations(hs, 2)]
+        tri = [float(np.linalg.norm(f.E[eid[a]] - f.E[eid[b]])) for t in competitor_graph()["triangles"]
+               for a, b in itertools.combinations(t, 2)]
+        out[model] = {"eps": eps, "heads_max": max(hd), "heads_median": float(np.median(hd)), "triangle_max": max(tri)}
+    return out
 
 
 # Completion. The KB knows every WORLD fact among the training roster's entities (and the shared GPE and SECTOR
@@ -916,8 +1020,8 @@ def test_thm1_rotation_patterns_are_phase_equations():
 
 
 def test_thm1_trained_phases_obey_the_equations_and_incompleteness_breaks_them():
-    """On the full KB the trained phases sit on Thm 1's solutions; on split 0, whose hidden facts are negatives
-    during training, the symmetric and inverse phases move off them."""
+    """On the full KB the trained phases sit on Thm 1's solutions; on split 0, where one direction of every
+    competitor pair and one fact of every parent pair are hidden, the symmetric and inverse phases never reach them."""
     full = {k: float(np.median(v)) for k, v in phase_residuals(rotate_full().R, FULL_KG.rid).items()}
     assert full["symmetry"] < 0.001 and full["inverse"] < 0.001 and full["composition"] < 0.05
     assert full["implication"] < 0.1
@@ -988,8 +1092,14 @@ def test_thm3_abelian_models_cannot_separate_s3s_corruptions():
         for k in S3_K:
             b = s3_best(model, k)
             assert b["ratio"] <= 5 and b["gamma_min"] <= 5 * b["eps"]
-    t1 = s3_best("TransE", 1)  # its best plane run collapses all six entities: every distance is ‖w‖ = 2
+    t1 = s3_best("TransE", 1)  # seeds (0, 1): its best plane run collapses all six entities, every distance ‖w‖ = 2
     assert np.ptp(t1["fit"].E, axis=0).max() < 1e-3 and abs(t1["eps"] - 2) < 1e-3 and abs(t1["ratio"] - 1) < 1e-3
+    for pair in S3_MORE_SEEDS:  # the collapse is that seed pair's best run, not a necessity
+        tp = s3_best("TransE", 1, pair)
+        assert tp["ratio"] < 0.99 and np.ptp(tp["fit"].E, axis=0).max() > 0.1
+    wide = {(m, k): s3_best(m, k, S3_SEEDS, S3_WIDE_GAMMAS)["ratio"] for m in DISTANCE for k in S3_K}
+    assert max(wide.values()) < 5 and max(wide, key=wide.get) == ("RotatE", 8)
+    assert abs(wide[("RotatE", 8)] - 2.16) < 0.005
     # The proof's chain, per x, on a trained model: d(g_B e_{xa}, e_{xba}) ≤ 5ε.
     b = s3_best("RotatE", 8)
     f, eid = b["fit"], kg.eid
@@ -1049,11 +1159,16 @@ def test_pattern_results_the_page_reports():
     assert min(MODELS, key=lambda m: mrr[m]["symmetry"]) == "RotatE"
     assert max(mrr["DistMult"]["inheritance"], mrr["ComplEx"]["inheritance"]) < 0.1
     assert mrr["TransE"]["composition"] < mrr["RotatE"]["composition"] - 0.3  # Prop 1's exactness is not learned
+    untied = untied_direction("DistMult")  # without the tie tolerance, rounding fakes a direction signal
+    assert all(x > 0.5 for x in untied) and abs(float(np.mean(untied)) - 0.525) < 0.001
 
 
 def test_completing_the_extracted_kb():
     cp = completion_problem(0.5)
     assert (len(cp["extracted"]), cp["true"], cp["known"], cp["about"]) == (45, 45, 188, 66)
+    held = held_entities()  # seven extracted facts are city-in-region facts the KB already knows: 188 + 45 − 7
+    old = [x for x in cp["extracted"] if x[0] not in held and x[2] not in held]
+    assert len(old) == 7 and {r for _, r, _ in old} == {"LOCATED_IN"} and len(cp["kg"].triples) == 226
     assert Counter(r for _, r, _ in cp["missing"]) == {"COMPETES_WITH": 26, "SUBSIDIARY_OF": 2}
     assert cp["uncovered"] == ()  # every held-out entity has at least one extracted fact
     for m in ("RotatE", "DistMult", "ComplEx"):  # the inverse of an extracted PARENT_OF, ranked first
@@ -1062,12 +1177,46 @@ def test_completing_the_extracted_kb():
     assert max(h10, key=h10.get) == "TransE"
     noisy = completion_problem(0.1)
     assert (len(noisy["extracted"]), noisy["true"]) == (64, 47)
+    false = [x for x in noisy["extracted"] if x not in WORLD.triples]  # 8 officer, 7 city-or-region, 2 reversed
+    assert Counter(r for _, r, _ in false) == {"CEO_OF": 4, "CFO_OF": 4, "HQ_IN": 5, "BASED_IN": 2, "LOCATED_IN": 1,
+                                               "IN_SECTOR": 1}
+    assert all((t, r, h) in WORLD.triples for h, r, t in false if r in ("LOCATED_IN", "IN_SECTOR"))
     assert Counter(r for _, r, _ in noisy["missing"]) == {"COMPETES_WITH": 26}
     h10n = {m: mean_sd([x["h10"] for x in completion_results(m, 0.1)["COMPETES_WITH"]])[0] for m in MODELS}
-    assert h10n["TransE"] < h10["TransE"] - 0.1  # false triples cost TransE most
+    assert h10n["TransE"] < h10["TransE"] - 0.1  # on this training corpus, false triples cost TransE most
     assert h10n["TransE"] - h10["TransE"] == min(h10n[m] - h10[m] for m in MODELS)
     h, r, t = lab_example()
     assert r == "SUBSIDIARY_OF" and 0.3 < extracted()[(h, r, t)] < 0.5
+
+
+def test_hidden_negatives_do_not_explain_rotates_symmetry():
+    """Only hidden facts that corrupt a training triple are negatives; keeping every WORLD fact out of the negatives
+    barely moves RotatE (its phases still miss {0, π}, toward which they drift from initialization) and lifts
+    ComplEx on every seed."""
+    assert hidden_negatives(0) == {"symmetry": (15, 25), "inverse": (2, 13), "composition": (17, 18),
+                                   "inheritance": (13, 13)}
+    rot = negatives_ablation("RotatE")
+    assert 0 < np.mean(rot["world"]) - np.mean(rot["closed"]) < 0.05
+    assert all(x > 0.3 for x in rot["phase_world"]) and all(x > 0.3 for x in rot["phase_closed"])
+    assert all(a > b for a, b in zip(rot["phase_init"], rot["phase_closed"]))
+    cx = negatives_ablation("ComplEx")
+    assert np.mean(cx["world"]) - np.mean(cx["closed"]) > 0.2 and all(w > c for w, c in zip(cx["world"], cx["closed"]))
+    tr = negatives_ablation("TransE")
+    assert abs(np.mean(tr["world"]) - np.mean(tr["closed"])) < 0.01
+
+
+def test_thm2_bounds_force_a_collapse_only_when_epsilon_is_small():
+    c = collapse_on_full_kb()
+    assert c["TransE"]["eps"] < 0.11 and c["TransE"]["heads_max"] < 0.15 and c["TransE"]["triangle_max"] < 0.01
+    assert c["RotatE"]["eps"] > 4 and c["RotatE"]["heads_median"] > 6
+    assert all(v["heads_max"] <= 2 * v["eps"] for v in c.values())
+
+
+def test_one_seed_tuning_picks_differ():
+    picks = {s: single_seed_tuning("RotatE", s) for s in SEEDS}
+    assert [(p["value"], p["steps"]) for p in picks.values()] == [(3.0, 250), (6.0, 1500), (9.0, 1500)]
+    comp = [p["mrr"]["composition"] for p in picks.values()]
+    assert abs(comp[0] - 0.689) < 0.001 and abs(comp[1] - 0.912) < 0.001 and abs(comp[2] - 0.876) < 0.001
 
 
 # --------------------------------------------------------------------------------------------
@@ -1115,6 +1264,25 @@ def summary() -> dict:
                 out[f"completion tau={tau:g} {m} [{r}]: MRR (sd) H@10"] = (
                     f"{mean_sd([x['mrr'] for x in v])[0]:.6f} ({mean_sd([x['mrr'] for x in v])[1]:.6f}) "
                     f"{mean_sd([x['h10'] for x in v])[0]:.6f}")
+    out["hidden facts that are training negatives (sym inv comp inh)"] = " ".join(
+        f"{a}/{b}" for a, b in hidden_negatives(0).values())
+    for m in ABLATION_MODELS:
+        a = negatives_ablation(m)
+        out[f"{m} symmetry MRR: closed-world negatives, none true"] = _fmt(np.mean(a["closed"]), np.mean(a["world"]))
+    a = negatives_ablation("RotatE")
+    out["RotatE COMPETES_WITH phase median: init, closed, none true (seed 0)"] = _fmt(
+        a["phase_init"][0], a["phase_closed"][0], a["phase_world"][0])
+    out["DistMult direction accuracy with no tie tolerance (per seed)"] = _fmt(*untied_direction("DistMult"))
+    for seed in SEEDS:
+        p = single_seed_tuning("RotatE", seed)
+        out[f"RotatE tuned on seed {seed} alone: gamma, steps | composition MRR"] = (
+            f"{p['value']:g} {p['steps']} | {p['mrr']['composition']:.6f}")
+    for m, v in collapse_on_full_kb().items():
+        out[f"{m} full KB: IN_SECTOR eps, heads max, heads median, triangle max"] = _fmt(
+            v["eps"], v["heads_max"], v["heads_median"], v["triangle_max"])
+    for pair in S3_MORE_SEEDS:
+        out[f"S3 TransE k=1 seeds {pair}: ratio"] = _fmt(s3_best("TransE", 1, pair)["ratio"])
+    out["S3 best ratio with margins up to 16 (RotatE k=8)"] = _fmt(s3_best("RotatE", 8, S3_SEEDS, S3_WIDE_GAMMAS)["ratio"])
     h, r, t = lab_example()
     out["lab example: fact, extracted score"] = f"({h}, {r}, {t}) {extracted()[(h, r, t)]:.6f}"
     return out

@@ -324,7 +324,7 @@ function PhasesView() {
       <Note>
         {which === 'full'
           ? 'On the full knowledge base the phases solve all three equations: COMPETES_WITH sits at 0 or π, PARENT_OF is the negative of SUBSIDIARY_OF, and BASED_IN is the sum of HQ_IN and LOCATED_IN.'
-          : 'With one direction of every competitor pair hidden, each hidden direction is a training negative. A rotation with phases at 0 or π scores it exactly like its twin, so training moves the phases off: RotatE learns the antisymmetry the incomplete knowledge base teaches.'}
+          : 'With one direction of every competitor pair hidden, each pair appears once and nothing asks for symmetry. The phases drift toward 0 or π from their random start but stay off it, so RotatE scores each pair one way. Keeping the hidden facts out of the negatives barely changes this.'}
       </Note>
     </figure>
   );
