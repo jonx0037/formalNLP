@@ -341,7 +341,7 @@ function PowerView() {
       <Key items={POWER.metrics.map((mt) => ({ label: METRIC_NAMES[mt], color: METRIC_COLORS[mt] }))} />
       <Table id="power" head={['metric', ...POWER.n.map((v) => `n = ${v}`)]}
         rows={POWER.metrics.map((mt) => ({ key: mt, cells: [METRIC_NAMES[mt], ...POWER.curves[`${a}|${b}|${mt}`].map(f3)] }))} />
-      <Note>Every reversed fact lowers fact F1, so each subset's null hypothesis is false and the rejection rate is power. Each point is 200 subsets drawn without replacement from the 90 filings, each tested with 499 random swaps at level 0.05. A reversed verb changes a few characters, and chrF averages over all of them.</Note>
+      <Note>Every reversed fact lowers fact F1, so each subset's null hypothesis is false and the rejection rate is power. Each point is 200 subsets drawn without replacement from the 90 filings, each tested with 499 random swaps at level 0.05. What lines the metrics up is mostly how many filings a reversed fact moves, and which way: at a 10% flip rate, fact F1 moves on 25 of the 90 filings, all the right way, and chrF on 25, 9 of them the wrong way.</Note>
     </figure>
   );
 }
@@ -538,7 +538,7 @@ function MatrixView() {
           key: k, strong: k === metric,
           cells: [`${NAMES[sa]} vs. ${NAMES[sb]}, ${k === 'bleu' ? 'BLEU' : 'fact F1'}`, f4(MAT[k].d[sel]), fp(MAT[k].p[sel]), fp(MAT[k].holm[sel])],
         }))} />
-      <Note>{`Click a cell to read its pair. Disagreement means significant on one metric only, or on both in opposite directions (raw p-values). The corrections change no verdict here: the p-values sit at the floor of 0.0001 or far above 0.05.`}</Note>
+      <Note>{`Click a cell to read its pair. Disagreement means significant on one metric only, or on both in opposite directions (raw p-values). The corrections change no verdict here: every rejected p-value is at most 0.0004, below Holm's strictest threshold, 0.05/45.`}</Note>
     </figure>
   );
 }

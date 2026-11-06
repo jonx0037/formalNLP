@@ -18,7 +18,7 @@ tags:
   - "financial-text"
 domain: "nlp-evaluation"
 financeCaseStudy: true
-rigorFlag: "Every test on this page conditions on one trained model per system and one test set, and Theorem 4 shows that no test-set test can say whether a training procedure is better. Randomization is exact for the sharp null that each segment's two outputs are exchangeable, a stronger hypothesis than equal expected scores. The bootstrap's validity is asymptotic: at 10 prompts the recentered rule's A/A size is 0.069, at the brevity penalty's kink the bootstrap is inconsistent, and with a handful of matched 4-grams the delta method is off by 11%. Connor's sample size is a normal approximation, one-sided in the original and two-sided here. Bickel and Freedman's multivariate bootstrap theorem is cited without a theorem number, which we could not verify. The systems, classifiers, and readers are synthetic, so the numbers illustrate the theorems rather than measure field practice. A significant gap of 0.0068 BLEU is not an important one, and significance belongs to the metric: corpus BLEU and fact F1 reach different verdicts on 17 of 45 summarizer pairs."
+rigorFlag: "Every test on this page conditions on one trained model per system and one test set, and Theorem 4 shows that no test-set test can say whether a training procedure is better. Randomization is exact for the sharp null that each segment's two outputs are exchangeable, a stronger hypothesis than equal expected scores. The bootstrap's validity is asymptotic: at 10 prompts the recentered rule's A/A size is 0.069, at the brevity penalty's kink the bootstrap is inconsistent, and with a handful of matched 4-grams the delta method is off by 11% to 32%. Connor's sample size is a normal approximation, one-sided in the original and two-sided here. Bickel and Freedman's multivariate bootstrap theorem is cited without a theorem number, which we could not verify. The systems, classifiers, and readers are synthetic, so the numbers illustrate the theorems rather than measure field practice. A significant gap of 0.0068 BLEU is not an important one, and significance belongs to the metric: corpus BLEU and fact F1 reach different verdicts on 17 of 45 summarizer pairs."
 videoId: null
 notebookPath: "notebooks/significance-testing-for-nlp/01_significance_testing_for_nlp.ipynb"
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/significance-testing-for-nlp.mdx"
@@ -268,7 +268,7 @@ $$
 
 This is Riezler and Maxwell's procedure (2005, Fig. 1), which they credit to Noreen (1989): each sentence's statistic tuple is shuffled between the two systems with probability one half. The swap patterns form a group, $G = (\mathbb{Z}/2)^n$ under coordinatewise addition, and $G$ acts on the paired data.
 
-The two pictures put their clouds in different places. The bootstrap cloud of $\delta^*$ sits around the observed $\hat\delta$; the randomization cloud of $\delta_\varepsilon$ sits around $0$, because a random swap pattern scrambles which system is which. The lab's **Two clouds** tab draws both for five pairs of the overlap topic's systems. For the writer against noisy-0.1 on all 90 filings, the observed gap is $0.0068$, and randomization gives $p = 0.0005$. For the extract against TextRank, the gap is $0.0061$ and $p = 0.2017$. Gaps of the same size, opposite verdicts. The first pair shares its whole surface and differs only in reversed verbs, so its gap barely varies from filing to filing; the second pair differs everywhere.
+The two pictures put their clouds in different places. The bootstrap cloud of $\delta^*$ sits around the observed $\hat\delta$; the randomization cloud of $\delta_\varepsilon$ sits around $0$, because a random swap pattern scrambles which system is which. The lab's **Two clouds** tab draws both for five pairs of the overlap topic's systems. For the writer against noisy-0.1 on all 90 filings, the observed gap is $0.0068$, and randomization gives $p = 0.0005$. For the extract against TextRank, the gap is $0.0061$ and $p = 0.2017$. Gaps of the same size, opposite verdicts. The first pair shares its whole surface and differs only in reversed direction words (*fell* for *rose*, *weaker* for *stronger*): their BLEU statistics differ on 18 of the 90 filings, so the gap barely varies from resample to resample. The second pair differs on every filing.
 
 ---
 
@@ -307,9 +307,9 @@ Nothing in the proof uses the form of $T$: it holds for corpus BLEU, F1, or any 
 | prompts | 10 | 20 | 47 | 94 | 188 |
 |---|---|---|---|---|---|
 | experiments | 2,304 | 1,152 | 512 | 256 | 128 |
-| rejection rate | $0.049$ | $0.041$ | $0.039$ | $0.051$ | $0.062$ |
+| rejection rate | $0.049$ | $0.041$ | $0.039$ | $0.051$ | $0.0625$ |
 
-of them, each inside the binomial band around $0.05$. The p-values are superuniform, not uniform: with 10 prompts many swaps change nothing (two empty samples swap into themselves), so the p-values have atoms, and the share below $0.5$ falls short of $0.5$. Theorem 1 promises exactly this inequality and no more. The lab's **A/A** tab shows the histograms.
+of them, each inside the binomial band around $0.05$. The p-values are superuniform, not uniform: with 10 prompts the share at or below $0.5$ is $0.459$. The atom is not pairs that swap into themselves: those are $12.6\%$ of the pairs (both samples empty in only $0.4\%$), and dropping them moves the share outside the blocks below only from $0.484$ to $0.487$. It is the $5.1\%$ of 10-prompt blocks in which neither corpus matches a 4-gram, so that corpus BLEU is $0$ for every swap, $\delta \equiv 0$, and $p = 1$. Theorem 1 promises exactly this inequality and no more. The lab's **A/A** tab shows the histograms.
 
 Right-or-wrong outcomes make the cube small enough to sum over by hand.
 
@@ -335,7 +335,7 @@ Koehn's rule reads the bootstrap cloud directly: count the resamples where $A$ d
 
 <TheoremBlock type="proposition" number={2} title="The two rules invert two intervals">
 
-Let $\delta^*_{(1)} \le \dots \le \delta^*_{(B)}$ be the ordered bootstrap gains, and for $\alpha \in (0, 1)$ let $q_\alpha = \delta^*_{(\lfloor \alpha B \rfloor + 1)}$ and $q_{1 - \alpha} = \delta^*_{(B - \lfloor \alpha B \rfloor)}$. For the one-sided alternative that $A$ is better:
+Let $\delta^*_{(1)} \le \dots \le \delta^*_{(B)}$ be the ordered bootstrap gains, and for $\alpha \in (0, 1)$ let $q_\alpha = \delta^*_{(\lfloor \alpha B \rfloor + 1)}$ and $q_{1 - \alpha} = \delta^*_{(B - \lfloor \alpha B \rfloor)}$. For the one-sided alternative that $A$ is better (Koehn does not say one-sided; reading his rule as a one-sided p-value is ours):
 
 (a) Koehn's p-value $p_K = \#\lbrace b : \delta^*_b \le 0 \rbrace / B$ satisfies $p_K \le \alpha$ if and only if $q_\alpha \gt 0$: zero lies below the lower end of the one-sided **percentile** interval.
 
@@ -361,13 +361,13 @@ When do they differ? For the writer against noisy-0.1 on all 90 filings, $p_K = 
 
 | prompts | 10 | 20 | 47 | 94 | 188 |
 |---|---|---|---|---|---|
-| Koehn | $0.037$ | $0.060$ | $0.064$ | $0.047$ | $0.062$ |
+| Koehn | $0.037$ | $0.060$ | $0.064$ | $0.047$ | $0.0625$ |
 | recentered ($2\delta$) | $0.069$ | $0.060$ | $0.061$ | $0.059$ | $0.055$ |
-| randomization | $0.049$ | $0.041$ | $0.039$ | $0.051$ | $0.062$ |
+| randomization | $0.049$ | $0.041$ | $0.039$ | $0.051$ | $0.0625$ |
 
-At 10 prompts the recentered rule rejects $0.069$ of true nulls, outside the band (its edge is $0.064$) that randomization stays inside. From 94 prompts both bootstrap rules are back inside. Riezler and Maxwell (2005, §4.3) found the same direction on real MT systems: the bootstrap rejected more often than randomization on systems they considered equivalent.
+At 10 prompts the recentered rule rejects $0.069$ of true nulls, outside the band (its edge is $0.0636$) that randomization stays inside. That is the only size in either table outside its band: from 20 prompts up, all three rules are inside. Riezler and Maxwell (2005, §4.3) found the same direction on real MT systems: the bootstrap rejected more often than randomization on systems they considered equivalent.
 
-A degenerate case shows how far the rules can part. On 10 filings, the extract and TextRank match no 4-gram between them, so corpus BLEU is $0$ on most resamples and the bootstrap cloud is mostly a spike. There $p_{2\delta} = 0.0005$, while randomization gives $p = 0.8545$.
+A degenerate case shows how far the rules can part. On the cloud tab's 10 filings, TextRank matches no 4-gram and the extract exactly one, in one filing. TextRank's corpus BLEU is $0$ on every resample and the extract's on every resample that misses that filing, a share $0.9^{10} = 0.349$: the bootstrap cloud is a spike at $0$ and a tail. There $p_{2\delta} = 0.0005$, while randomization gives $p = 0.8545$.
 
 ---
 
@@ -403,9 +403,9 @@ For (c), Bickel and Freedman (1981) show that conditional on the data, $\sqrt n(
 
 </TheoremBlock>
 
-Geometrically: near the center of the simplex the surface $M_w$ is a plane, and the bootstrap cloud, which shrinks like $n^{-1/2}$, sees only the plane. The scalar case is formalStatistics' [Efron–Bickel–Freedman theorem](https://www.formalstatistics.com/topics/bootstrap) (Theorem 3 there). Theorem 2 also explains the two clouds' common spread: to first order a swap pattern changes $\delta$ by a sum of signed influences, with the same variance as the bootstrap sum.
+Geometrically: near the center of the simplex the surface $M_w$ is a plane, and the bootstrap cloud, which shrinks like $n^{-1/2}$, sees only the plane. The scalar case is formalStatistics' [Efron–Bickel–Freedman theorem](https://www.formalstatistics.com/topics/bootstrap) (Theorem 3 there). Theorem 2 also explains why the two clouds have about the same spread: to first order a swap pattern changes $\delta$ by a sum of signed per-segment differences, the uncentered version of the bootstrap's sum of influences. On the cloud tab's five pairs at 90 filings, the randomization cloud's spread is within $14\%$ of the bootstrap's.
 
-On the finance systems, the bootstrap standard deviation of the gap matches the linearization within $5\%$ whenever both systems pool at least 50 matched 4-grams: $0.0022$ against $0.0022$ for the writer and noisy-0.1. The extractors pool only 3 to 7 matched 4-grams over 90 filings, $\log m_4$ is far from linear on that scale, and the two differ by $11\%$ ($0.0050$ against $0.0045$). In the bootstrap world, where the 90 filings are the population, the remainder $\sqrt m\, |\delta^* - \hat\delta - \bar\psi^*|$ shrinks from $0.0032$ to $0.00096$ to $0.00032$ as resamples grow from 30 to 300 to 3,000 segments, the $m^{-1/2}$ rate of (b).
+On the finance systems, the bootstrap standard deviation of the gap matches the linearization within $5\%$ whenever both systems pool at least 50 matched 4-grams: $0.0022$ against $0.0022$ for the writer and noisy-0.1. The extractors pool only 3 to 7 matched 4-grams over 90 filings, $\log m_4$ is far from linear on that scale, and the two differ by $11\%$ for the extract against TextRank ($0.0050$ against $0.0045$) and by $32\%$ for TextRank against random-3, which pool 5 and 3. For the writer against noisy-0.3, in the bootstrap world, where the 90 filings are the population, the remainder $\sqrt m\, |\delta^* - \hat\delta - \bar\psi^*|$ shrinks from $0.0032$ to $0.00096$ to $0.00032$ as resamples grow from 30 to 300 to 3,000 segments, the $m^{-1/2}$ rate of (b).
 
 The theorem excluded $E c = E r$. That case is not exotic: it is exactly where a well-tuned system sits.
 
@@ -415,7 +415,7 @@ Write $\log \mathrm{BP} = \min(0, u(\bar Z))$ with $u(z) = 1 - z_r/z_c$, and sup
 
 (a) $\sqrt n \log \mathrm{BP}(\bar Z) \to \min(0, aW)$ with $W \sim \mathcal N(0, 1)$, a law with an atom of $\tfrac12$ at $0$, not a Gaussian;
 
-(b) the paired bootstrap is not consistent for it: for every $t \gt 0$ there is an event of probability bounded away from $0$ on which the bootstrap distribution function at $t$ stays at least $1 - \Phi(t/a)$ below the limit's.
+(b) the paired bootstrap is not consistent for it: for every $t \gt 0$ there is an event of probability bounded away from $0$ on which the bootstrap distribution function at $t$ tends to $\Phi(t/a)$, while the limit's is $1$.
 
 </TheoremBlock>
 
@@ -439,15 +439,15 @@ How badly does it fail? The harness takes the reduced form $\varphi(\bar x) = \m
 
 | $h$ | share with $\hat\varphi = 0$ | percentile cover | basic cover |
 |---|---|---|---|
-| $-5$ | $0.000$ | $0.886$ | $0.887$ |
-| $-1$ | $0.169$ | $0.885$ | $0.632$ |
-| $-0.5$ | $0.298$ | $0.893$ | $0.544$ |
-| $0$ | $0.521$ | $0.945$ | $0.944$ |
-| $1$ | $0.834$ | $0.996$ | $0.996$ |
+| $-5$ | $0.0000$ | $0.8865$ | $0.8870$ |
+| $-1$ | $0.1690$ | $0.8855$ | $0.6325$ |
+| $-0.5$ | $0.2980$ | $0.8935$ | $0.5440$ |
+| $0$ | $0.5215$ | $0.9445$ | $0.9435$ |
+| $1$ | $0.8335$ | $0.9955$ | $0.9960$ |
 
 Nominal coverage is $0.90$. Far from the kink both intervals behave. Just on the linear side, the basic interval, the one the recentered rule inverts (Proposition 2), covers barely half the time; at the kink and beyond it, both over-cover. The bootstrap's own atom, the share of resamples with $\varphi^* = \hat\varphi$, averages $0.393$ at $h = 0$ but varies from dataset to dataset with standard deviation $0.391$ at $n = 100$ and $0.381$ at $n = 400$: a random law that does not settle, which is (b) in numbers.
 
-The kink is live on the finance testbed. Every system that shares the writer's surface sits at pooled $c/r = 1.0077$, almost on it. Within that family the two systems of a pair have identical lengths on every resample, so their brevity penalties cancel from the gap (the harness checks this). The kink bites when two systems differ in length near the reference length, as a well-tuned system and its slightly terser rival do.
+The kink is live on the finance testbed. Every system that shares the writer's surface sits at pooled $c/r = 1.0077$, almost on it. Within that family the two systems of a pair have identical lengths on every resample, so their brevity penalties are equal (the harness checks this) and factor out of the gap, $\delta = \mathrm{BP}\,(G_A - G_B)$: a corner scaled by a small gap. The kink bites when two systems differ in length and one of them sits at the reference length, as a well-tuned system and its slightly terser rival can. At the kink exactly, the gap's directional derivative is not linear, and by Fang and Santos's theorem the bootstrap is inconsistent for it; near the kink, the damage is the finite-sample one of the table above.
 
 ---
 
@@ -463,7 +463,7 @@ When segments fall into clusters (documents, or sentences holding several aspect
 
 <TheoremBlock type="theorem" number={3} title="The design effect">
 
-Let $n = Km$ segment scores fall into $K$ independent clusters of $m$, each with variance $\sigma^2$ and correlation $\rho$ between any two segments of one cluster. Then
+Let $n = Km$ segment scores fall into $K$ independent clusters of $m$, each with the same mean, variance $\sigma^2$, and correlation $\rho$ between any two segments of one cluster. Then
 
 (a) $\displaystyle \mathrm{Var}(\bar x) = \frac{\sigma^2}{n}\big(1 + (m - 1)\rho\big)$, and $\rho \ge -1/(m - 1)$;
 
@@ -485,7 +485,7 @@ Let $n = Km$ segment scores fall into $K$ independent clusters of $m$, each with
 
 The factor $1 + (m - 1)\rho$ is the survey statistician's **design effect**. It can be less than one, and the overlap topic's neighbor, the [aspect-sentiment topic](/topics/aspect-based-sentiment), supplies an extreme case. Its 14,179 test aspects sit in 12,921 sentences in 1,500 filings, and every two-aspect sentence pairs opposite polarities. A reader blind to which aspect it is asked about is right on exactly one aspect of every such sentence, so within those sentences $\rho = -1$, and with sentences as clusters its design effect is $0.823$.
 
-Documents push the other way. For the stand-in lexicon reader (accuracy $0.785$), the within-document correlation is $0.057$, and with about 9.5 aspects per filing the design effect is $1.555$: the cluster bootstrap's standard error is $0.0043$ against the segment bootstrap's $0.0035$. A confidence interval for one reader's accuracy is a fifth too narrow if it treats aspects as independent. But the **paired difference** between the two readers has a within-document correlation of $-0.012$ and a design effect of $0.931$. Whatever makes a filing hard is hard for both readers, and pairing cancels it, as formalRAG's Theorem 1 on pairing predicts. Comparisons survive clustering better than single scores do.
+Documents push the other way. For the stand-in lexicon reader (accuracy $0.785$), the within-document correlation is $0.057$, and the measured design effect is $1.555$ (Theorem 3(a) at the average 9.45 aspects per filing gives $1.48$; the filings are unequal and the correlation is an estimate): the cluster bootstrap's standard error is $0.0043$ against the segment bootstrap's $0.0035$. A confidence interval for one reader's accuracy is a fifth too narrow if it treats aspects as independent. But the **paired difference** between the two readers has a within-document correlation of $-0.012$ and a design effect of $0.931$. Whatever makes a filing hard is hard for both readers, and pairing cancels it, as formalRAG's Theorem 1 on pairing predicts. Comparisons survive clustering better than single scores do.
 
 ---
 
@@ -553,7 +553,7 @@ Connor's original is one-sided ($z_{1-\alpha}$); the two-sided form above is the
 
 On the finance tone classifiers of Topic 17 (1,500 test filings), the near-tie between the NB-weighted bigram model ($0.776$) and the bigram logistic regression ($0.771$) has 108 and 101 discordant filings and an exact McNemar p-value of $0.678$. Its power at 1,500 filings is $0.067$, and 80% power would take $50{,}215$ filings. The test set cannot resolve a half-point gap; "not significant" here means "not measured."
 
-The second hazard is choosing after looking. The overlap topic computed six metrics; an author who reports whichever one rejects has run six tests.
+The second hazard is choosing after looking. The overlap topic computed six metrics; an author who reports whichever one rejects has run several tests and reported one.
 
 <TheoremBlock type="proposition" number={5} title="Metric shopping">
 
@@ -567,7 +567,7 @@ The union bound: $P(\bigcup_j R_j) \le \sum_j P(R_j) \le k\alpha$ (formalCalculu
 
 </TheoremBlock>
 
-On the exact A/A null with 10 prompts, testing corpus BLEU alone rejects $0.050$ of the time; adding the overlap topic's six segment metrics one at a time raises the size to $0.090$, $0.099$, $0.108$, $0.109$, $0.137$, and $0.161$. The metrics are positively dependent, so the size stays well below the independent case's $0.302$, but it more than triples. Holm's step-down and Benjamini and Hochberg's step-up procedures (formalStatistics, [Multiple Testing and False Discovery](https://www.formalstatistics.com/topics/multiple-testing-and-false-discovery), Theorems 3 and 5) control the family-wise error and the false discovery rate when many pairs or metrics are tested at once.
+On the exact A/A null with 10 prompts, on the two sample streams that carry every metric (1,152 experiments), testing corpus BLEU alone rejects $0.050$ of the time; adding the overlap topic's six segment metrics one at a time, seven tests in all, raises the size to $0.090$, $0.099$, $0.108$, $0.109$, $0.137$, and $0.161$. The metrics are positively dependent, so the size stays well below the independent case's $0.302$, but it more than triples. Holm's step-down and Benjamini and Hochberg's step-up procedures (formalStatistics, [Multiple Testing and False Discovery](https://www.formalstatistics.com/topics/multiple-testing-and-false-discovery), Theorems 3 and 5) control the family-wise error and, for independent or positively dependent p-values, the false discovery rate when many pairs or metrics are tested at once.
 
 ---
 
@@ -586,13 +586,13 @@ Two comparisons from earlier topics, now with tests.
 | NB-weighted vs. LR, bigrams | $0.776$ / $0.771$ | 108 / 101 | $0.678$ | 50,215 |
 | NB-weighted, bigrams vs. unigrams | $0.776$ / $0.719$ | 119 / 33 | $\lt 10^{-6}$ | 240 |
 
-The last column is Proposition 4's sample size at the observed discordance rates. Three gaps are settled at 1,500 filings; the fourth would need thirty times as many.
+The last column is Proposition 4's normal-approximation sample size at the observed discordance rates (the exact power there is $0.76$ to $0.80$). Three gaps are settled at 1,500 filings; the fourth would need about 33 times as many.
 
-**Summarizers.** The overlap topic's ten systems produce 45 pairs. Approximate randomization (two-sided, 9,999 draws) on corpus BLEU and on fact F1, the exact share of a filing's facts a summary gets right, rejects 38 BLEU gaps and 41 fact-F1 gaps at $0.05$, and Holm's and Benjamini–Hochberg's corrections change none of these verdicts: the p-values sit either at the floor of $10^{-4}$ or far above $0.05$.
+**Summarizers.** The overlap topic's ten systems produce 45 pairs. Approximate randomization (two-sided, 9,999 draws) on corpus BLEU and on fact F1 (per filing, the harmonic mean of the precision and recall of the stated facts against the gold ones; averaged over filings) rejects 38 BLEU gaps and 41 fact-F1 gaps at $0.05$, and Holm's and Benjamini–Hochberg's corrections change none of these verdicts: every rejected p-value is at most $0.0004$, below Holm's strictest threshold $0.05/45$. That depends on the draws: with 199 the floor is $0.005$, and Holm rejects nothing while Benjamini–Hochberg keeps every rejection.
 
-Significance belongs to the metric. In 9 pairs only one metric finds a difference: the writer beats the extract by $0.360$ BLEU ($p = 0.0001$) while both get every fact right, and the terse summary and the flipped one are indistinguishable on BLEU ($p = 0.303$) while the terse one is right on $0.667$ more of the facts. In 8 more pairs both metrics find a difference and disagree on its direction, among them the flipped summary against three of the four extractors: BLEU prefers the summary with every fact reversed, fact F1 the extract with every fact right, and both preferences are "significant." So corpus BLEU and fact F1 reach different verdicts on 17 of the 45 pairs. A test certifies that a gap in a metric is larger than its noise; whether the metric measures what we care about is the overlap topic's question, and no test answers it.
+Significance belongs to the metric. In 9 pairs only one metric finds a difference: the writer beats the extract by $0.360$ BLEU ($p = 0.0001$) while both get every fact right, and the terse summary and the flipped one are indistinguishable on BLEU ($p = 0.303$) while the terse one's fact F1 is $0.667$ higher (it states $53\%$ of the facts, all of them right). In 8 more pairs both metrics find a difference and disagree on its direction, among them the flipped summary against three of the four extractors: BLEU prefers the summary with every fact reversed, fact F1 the extractor (the extract gets every fact right; TextRank's summaries score $0.200$ and random-3's $0.277$), and both preferences are "significant." So corpus BLEU and fact F1 reach different verdicts on 17 of the 45 pairs. A test certifies that a gap in a metric is larger than its noise; whether the metric measures what we care about is the overlap topic's question, and no test answers it.
 
-**Power by metric.** Drawing random subsets of filings and testing the writer against versions of itself with 10%, 30%, and 50% of the facts reversed, where the truth is known, fact F1 detects a 10% flip rate in $0.52$ of 20-filing subsets and every 45-filing subset; corpus BLEU in $0.085$ and $0.84$; chrF in $0.045$ and $0.205$. A reversed verb changes a few characters, and chrF averages over all of them.
+**Power by metric.** Drawing random subsets of filings and testing the writer against versions of itself with 10%, 30%, and 50% of the facts reversed, where the truth is known, fact F1 detects a 10% flip rate in $0.52$ of 20-filing subsets and every 45-filing subset; corpus BLEU in $0.085$ and $0.84$; chrF in $0.045$ and $0.205$. What lines them up is mostly how many filings a 10% flip moves, and which way: fact F1 moves on 25 of the 90, all the right way; sentence BLEU+1 on 18, 16 the right way; chrF on 25, 9 of them the wrong way; ROUGE-L on only 6, too few for a 45-filing subset to reach $0.05$.
 
 </FinanceCaseStudy>
 
@@ -615,7 +615,7 @@ The tests built here sit beside formalRAG's [significance topic](https://www.for
 1. **Proved and checked.** Theorems 1–4 and Propositions 1–5 are proved here, with two cited steps: the multivariate bootstrap of a mean in Theorem 2(c) (Bickel and Freedman 1981, cited without a theorem number, which we could not verify) and the cluster bootstrap's consistency in Theorem 3(c). The harness checks Theorem 1 on an exact null and against SciPy's permutation test, Proposition 1 against SciPy's binomial test, Theorem 2 against finite differences, and every number on this page.
 2. **One model, one test set.** Every test here conditions on the trained systems, and Theorem 4 shows that no test-set test can say whether a training procedure is better.
 3. **A strong null.** Randomization is exact for the sharp null that each segment's two outputs are exchangeable, which is stronger than "equal expected BLEU."
-4. **Asymptotic bootstrap.** At 10 prompts the recentered rule's A/A size is $0.069$; at the brevity penalty's kink the bootstrap is inconsistent; with a handful of matched 4-grams the delta method is off by $11\%$.
+4. **Asymptotic bootstrap.** At 10 prompts the recentered rule's A/A size is $0.069$; at the brevity penalty's kink the bootstrap is inconsistent; with a handful of matched 4-grams the delta method is off by $11\%$ to $32\%$.
 5. **Approximate power.** Connor's sample size is a normal approximation, one-sided in the original and two-sided here, and a little optimistic in our checks.
 6. **Synthetic data.** The summarizers, classifiers, and readers are synthetic, so the numbers illustrate the theorems; they are not estimates of field practice.
 7. **Significance is not importance.** A significant gap of $0.0068$ BLEU is not an important one, and significance belongs to the metric: corpus BLEU and fact F1 reach different verdicts on 17 of 45 pairs. Report effect sizes beside p-values.

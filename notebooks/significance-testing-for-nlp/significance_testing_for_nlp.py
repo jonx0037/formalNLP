@@ -707,6 +707,103 @@ def power_curves() -> dict:
 
 
 # --------------------------------------------------------------------------------------------
+# Errata checks (2026-11-06): where the A/A atoms come from, the degenerate cloud, and the mechanisms the page names
+# for the spread of the two clouds, metric power, and the multiplicity corrections.
+# --------------------------------------------------------------------------------------------
+
+
+def aa_zero_blocks(n: int) -> dict:
+    """Thm 1's atoms at block size n. In a block where neither corpus matches a 4-gram, corpus BLEU is 0 for both
+    systems and for every swap, so δ ≡ 0 and p = 1. Reports that share, and P(p ≤ ½) over all experiments and outside
+    those blocks."""
+    p = aa_pvalues(n)["ar"]
+    zero = np.array([bleu_pooled(SA.sum(0)) == 0 and bleu_pooled(SB.sum(0)) == 0
+                     for SA, SB, _, _ in aa_experiments(n)])
+    return {"zero": float(zero.mean()), "zero_p_one": bool(np.all(p[zero] >= 1 - 1e-12)),
+            "le_half": float(np.mean(p <= 0.5)), "le_half_outside": float(np.mean(p[~zero] <= 0.5))}
+
+
+def aa_identical_pairs() -> dict:
+    """The share of (stream, prompt, j) pairs whose two samples have identical BLEU statistics (they swap into
+    themselves), and the share whose two samples are both empty."""
+    St = aa_data()["stats"]
+    ident = np.all(St[:, :, :AA_HALF] == St[:, :, AA_HALF:], axis=-1)
+    empty = (St[:, :, :AA_HALF, 0] == 0) & (St[:, :, AA_HALF:, 0] == 0)
+    return {"identical": float(ident.mean()), "both_empty": float(empty.mean())}
+
+
+@lru_cache(maxsize=None)
+def aa_distinct_twin(n: int) -> dict:
+    """The twin that removes only the pairs that swap into themselves: for each (stream, j), keep the prompts whose two
+    samples' statistics differ, re-block them in n, and run AR as aa_pvalues does (stream 5041). Reports P(p ≤ ½)
+    outside the blocks where neither corpus matches a 4-gram."""
+    St = aa_data()["stats"]
+    rng = _rng(5041)
+    p, zero = [], []
+    for a in range(St.shape[0]):
+        for j in range(AA_HALF):
+            keep = np.flatnonzero(~np.all(St[a, :, j] == St[a, :, j + AA_HALF], axis=1))
+            for b in range(len(keep) // n):
+                idx = keep[b * n:(b + 1) * n]
+                SA, SB = St[a, idx, j], St[a, idx, j + AA_HALF]
+                d = abs(float(bleu_pooled(SA.sum(0)) - bleu_pooled(SB.sum(0))))
+                p.append(mc_pvalue(d, np.abs(swap_deltas(bleu_pooled, SA, SB, swap_matrix(AA_B, n, rng)))))
+                zero.append(bleu_pooled(SA.sum(0)) == 0 and bleu_pooled(SB.sum(0)) == 0)
+    p, zero = np.array(p), np.array(zero)
+    return {"experiments": len(p), "zero": float(zero.mean()), "le_half_outside": float(np.mean(p[~zero] <= 0.5))}
+
+
+def degenerate_cloud() -> dict:
+    """The cloud tab's 10-filing extract vs textrank-3 cloud: each system's pooled matched 4-grams, the number of filings
+    holding the extract's, and the exact share of resamples that miss all of them, (1 − k/n)^n."""
+    F = fin_stats()
+    idx = _rng(5400).permutation(90)[:10]
+    m4 = {s: int(F[s]["bleu"][idx, 1 + N].sum()) for s in ("extract", "textrank-3")}
+    k = int((F["extract"]["bleu"][idx, 1 + N] > 0).sum())
+    return {"m4": m4, "filings": k, "miss": (1 - k / 10) ** 10}
+
+
+def cloud_spread_ratios(n: int = 90) -> dict:
+    """The randomization cloud's sd over the bootstrap cloud's, per cloud pair at n filings (to first order the swap sum
+    is the uncentered version of the bootstrap's influence sum)."""
+    return {(a, b): float(np.std(c["null"]) / c["sd_boot"]) for (a, b, m), c in clouds().items() if m == n}
+
+
+def flip_movers(b: str = "noisy-0.1") -> dict:
+    """How many of the 90 filings a flip system's output moves, per metric against the writer: (writer higher, writer
+    lower) for fact F1 and each segment metric, and the number of filings whose BLEU statistics differ."""
+    fs = om.finance_scores()
+    out = {}
+    for m in om.METRICS + ("f1",):
+        x = (fs["writer"]["f1"] - fs[b]["f1"]) if m == "f1" else (fs["writer"]["segment"][m] - fs[b]["segment"][m])
+        out[m] = (int((x > 1e-12).sum()), int((x < -1e-12).sum()))
+    F = fin_stats()
+    out["bleu-stats"] = int((~np.all(F["writer"]["bleu"] == F[b]["bleu"], axis=1)).sum())
+    return out
+
+
+@lru_cache(maxsize=None)
+def matrix_at(B: int) -> dict:
+    """The 45-pair matrix with B swap draws (pair_matrix's stream, 5300): raw, Holm, and BH rejections per metric. Fewer
+    draws raise the p-value floor 1/(B + 1); Holm's first step needs p ≤ 0.05/45."""
+    F = fin_stats()
+    pairs = list(itertools.combinations(om.SYSTEMS, 2))
+    rng = _rng(5300)
+    out = {}
+    for metric, g in (("bleu", bleu_pooled), ("f1", mean_pooled)):
+        p = np.array([ar_test(g, F[a][metric], F[b][metric], B, rng)["p"] for a, b in pairs])
+        thr = ck.bh_threshold(p, len(p), ALPHA)
+        out[metric] = (int((p <= ALPHA).sum()), int((holm_adjust(p) <= ALPHA).sum()), int(((p <= thr) & (thr > 0)).sum()))
+    return out
+
+
+def terse_stated_share() -> float:
+    """The mean share of a filing's gold facts the terse summary states (it states only true ones)."""
+    items = om.finance_items()
+    return float(np.mean([len(set(it.outputs["terse"][1])) / len(set(it.facts)) for it in items]))
+
+
+# --------------------------------------------------------------------------------------------
 # The lab's payload.
 # --------------------------------------------------------------------------------------------
 
@@ -822,8 +919,8 @@ SUPER_ALPHAS = (0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5)
 def test_thm1_aa_pvalues_are_superuniform():
     """Thm 1 says P(p ≤ α) ≤ α, not that p is uniform: at the smallest block size (2,304 independent experiments) the
     corpus-BLEU randomization p-values' empirical CDF stays inside the 3σ band above α at every α on a grid, and sits
-    below α at the larger ones (many swaps of a 10-prompt block change nothing, so p has atoms and the test is
-    conservative)."""
+    below α at the larger ones (p has atoms and the test is conservative: about 5% of the 10-prompt blocks match no
+    4-gram in either corpus, so δ ≡ 0 under every swap and p = 1; see aa_zero_blocks)."""
     p = aa_pvalues(AA_N[0])["ar"]
     for alpha in SUPER_ALPHAS:
         assert size(p, alpha) <= binomial_band(len(p), alpha), (alpha, size(p, alpha))
@@ -1084,6 +1181,47 @@ def test_power_rises_with_n_and_flip_rate():
             assert col[0] <= col[1] + 0.08 <= col[2] + 0.16, (metric, k, col)
 
 
+def test_errata_atoms_degenerate_and_mechanisms():
+    """The corrected claims (errata 2026-11-06): the A/A atoms come from blocks with no matched 4-gram, not from pairs
+    that swap into themselves; only the 2δ rule at 10 prompts leaves its band; the degenerate cloud's one matched
+    4-gram; the two clouds' spreads; the delta method's 11% and 32%; the measured vs formula design effect; which filings
+    a 10% flip moves; Holm's floor; and terse's stated share."""
+    z = aa_zero_blocks(10)
+    assert 0.04 < z["zero"] < 0.06 and z["zero_p_one"], z
+    assert z["le_half"] < z["le_half_outside"] < 0.5, z
+    i = aa_identical_pairs()
+    assert 0.12 < i["identical"] < 0.13 and i["both_empty"] < 0.005, i
+    t = aa_distinct_twin(10)
+    assert abs(t["le_half_outside"] - z["le_half_outside"]) < 0.02, (t, z)
+    for n in AA_N:
+        P = aa_pvalues(n)
+        edge = binomial_band(len(P["koehn"]), ALPHA)
+        assert size(P["ar"]) <= edge, n
+        assert (size(P["shift"]) > edge) == (n == 10), (n, size(P["shift"]), edge)
+        assert size(P["koehn"]) <= edge, (n, size(P["koehn"]), edge)
+    d = degenerate_cloud()
+    assert d["m4"] == {"extract": 1, "textrank-3": 0} and d["filings"] == 1 and abs(d["miss"] - 0.9 ** 10) < 1e-12, d
+    r = cloud_spread_ratios()
+    assert all(0.85 < v < 1.15 for v in r.values()), r
+    c = clouds()
+    assert abs(c[("extract", "textrank-3", 90)]["sd_boot"] / c[("extract", "textrank-3", 90)]["sd_lin"] - 1.11) < 0.01
+    assert c[("textrank-3", "random-3", 90)]["sd_boot"] / c[("textrank-3", "random-3", 90)]["sd_lin"] > 1.3
+    T = cluster_table()
+    P_ = aspect_panel()
+    mbar = len(P_["doc"]) / T["docs"]
+    assert design_effect(mbar, T["lexicon/doc"]["icc"]) < 1.5 < T["lexicon/doc"]["de"], (mbar, T["lexicon/doc"])
+    f = flip_movers()
+    assert f["f1"] == (25, 0) and f["chrf"] == (16, 9) and f["rouge-l"] == (6, 0) and f["rouge-2"] == (5, 1), f
+    assert f["bleu"] == (16, 2) and f["rouge-1"] == (7, 4) and f["bleu-stats"] == 18, f
+    M = pair_matrix()
+    for metric in ("bleu", "f1"):
+        rej = M[metric]["p"][M[metric]["p"] <= ALPHA]
+        assert rej.max() <= 0.0004 + 1e-12 < ALPHA / 45, (metric, rej.max())
+    m = matrix_at(199)
+    assert m["bleu"] == (38, 0, 38) and m["f1"] == (41, 0, 41), m
+    assert abs(terse_stated_share() - 0.533) < 0.001
+
+
 def test_viz_mirror_matches_payload():
     """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
     Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
@@ -1138,6 +1276,18 @@ def summary() -> dict:
         f"{len(v['one_only'])}, {len(v['opposite'])}, {v['both_agree']}, {v['neither']}")
     for (a, b, metric), c in power_curves().items():
         out[f"power {a} vs {b} {metric}"] = ", ".join(f"{x:.6f}" for x in c)
+    z = aa_zero_blocks(10)
+    out["errata A/A n=10: no-4-gram blocks, P(p≤½), outside them, twin outside"] = (
+        f"{z['zero']:.6f}, {z['le_half']:.6f}, {z['le_half_outside']:.6f}, {aa_distinct_twin(10)['le_half_outside']:.6f}")
+    i = aa_identical_pairs()
+    out["errata A/A pairs: identical statistics, both empty"] = f"{i['identical']:.6f}, {i['both_empty']:.6f}"
+    out["errata cloud spread ratios (AR sd / boot sd), n=90"] = ", ".join(f"{v:.6f}" for v in cloud_spread_ratios().values())
+    mbar = len(aspect_panel()["doc"]) / cluster_table()["docs"]
+    out["errata lexicon DE: formula at mean m, measured"] = (
+        f"{design_effect(mbar, cluster_table()['lexicon/doc']['icc']):.6f}, {cluster_table()['lexicon/doc']['de']:.6f}")
+    out["errata flip movers vs noisy-0.1 (up, down)"] = str(flip_movers())
+    out["errata matrix at B=199: (raw, Holm, BH) bleu, f1"] = str(matrix_at(199))
+    out["errata terse stated share"] = terse_stated_share()
     return out
 
 
