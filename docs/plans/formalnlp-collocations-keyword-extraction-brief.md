@@ -221,7 +221,7 @@ stripped text equals `generate_corpus(300, 0)` byte for byte and the sentences e
 bigram positions, 13,724 types: 877 *fixed* (only ever template–template or name–name), 3,054 *null* (only ever two
 adjacent draws, at least one from the shared vocabulary: independent given the sector), 1,000 *topical* (two adjacent
 draws planted in one sector: associated through the sector), 8,793 *boundary*. `fc._tokens` drops commas, so list
-neighbors ("freight, contracts") are adjacent draws too; both kinds are independent draws.
+neighbors ("freight, capacity") are adjacent draws too; both kinds are independent draws.
 
 **(b) Ranking every bigram** (precision@k against *fixed*, ties broken at random in expectation):
 
