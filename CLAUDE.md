@@ -470,8 +470,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Significance testing on corpus models (Topic 28). An exact A/A null: two of `om.sample_set(stream)`'s 64 trigram
   samples per prompt are exchangeable, so pair sample j with j + 32; disjoint prompt blocks are independent experiments
   (four streams: 2,304 of 10 prompts, enough to read a size to ±0.01). Randomization p-values on short blocks are
-  superuniform, not uniform (swaps of identical or empty outputs leave atoms): assert P(p ≤ α) ≤ α on an α grid, never
-  a KS test (it failed at D = 0.065). Share one swap draw across metrics within an experiment (7× fewer random numbers,
+  superuniform, not uniform (they have atoms): assert P(p ≤ α) ≤ α on an α grid, never
+  a KS test (it failed at D = 0.065). The atom is not swaps of identical outputs (dropping them moves P(p ≤ ½) outside the
+  zero blocks 0.484 → 0.487) but the 5.1% of 10-prompt blocks with no matched 4-gram in either corpus (δ ≡ 0, p = 1). Share one swap draw across metrics within an experiment (7× fewer random numbers,
   and the shopping dependence is the real one). Corpus BLEU is homogeneous of degree 0 in the pooled statistics, so
   resample as `W @ S` (a B × n weight or swap matrix times the n × 10 statistics) and vectorize BLEU over rows. The
   extractors pool 3–7 matched 4-grams over 90 filings: the delta method is off by 11%, and on 10 filings pooled m₄ = 0
@@ -480,14 +481,15 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   at h < 0 (h > 0 makes φ ≡ 0, and coverage trivially 1). The failure sits just on the linear side (basic interval
   0.544 at h = −0.5, nominal 0.90), while at the kink both intervals over-cover; the bootstrap's atom P*(φ* = φ̂) keeps
   an across-dataset sd of 0.38–0.39 at n = 100 and 400 (a random law). For scalar toys `x[rng.integers(0, n, (B, n))]`
-  beats multinomial counts. Flip-family systems share lengths, so BP cancels from their δ on every resample. Topic 19's
+  beats multinomial counts. Flip-family systems share lengths, so their BPs are equal and factor out of δ = BP·(G_A − G_B) (not "cancel"). Topic 19's
   blind reader is right on exactly one aspect of every contrast sentence (ρ = −1, sentence-cluster DE 0.823); the ANOVA
   ICC is meaningless with ≈ 1.1 rows per sentence (it gave −4): use the contrast-pair correlation. By documents, the
   lexicon reader's accuracy has DE 1.555 but the paired difference 0.931. Thm 4: Topic 17's bursty world with fixed NB
   α = 1 and LR λ = 10⁻², nested prefixes of one 1,024-document draw per training set; the rule-based crossover (n = 384,
   mean gap −0.0006 ± 0.0013) needed a 32-document grid (a 256/512 grid missed it by 6 SE). Rejection grows with the test
   set (0.175 at 3,000, 0.625 at 20,000), which is the theorem: show both. Exact McNemar power: sum n_d over a ±12σ
-  window (full sums to n = 200,000 took 7 s); at Connor's own n the exact power is 0.776–0.787. Pin a brief's narrated
+  window (full sums to n = 200,000 took 7 s); at Connor's own n the exact power is 0.776–0.787. Test a named mechanism by removing only it, and compare the twin on the same footing (the identical-pairs twin
+  first raised the zero-block share 0.051 → 0.066). Pin a brief's narrated
   counts in a test before writing them: "every flipped-vs-extractor pair disagrees in sign" was wrong (flipped vs
   lead-3 both have fact F1 0, so it is BLEU-only).
 - Capstone on corpus models (Topic 29). The test documents are Topic 22's two runs' earnings calls (66 seen / 60 unseen,

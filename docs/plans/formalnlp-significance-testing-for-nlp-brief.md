@@ -201,7 +201,7 @@ not touched.
   - The atom's sd at h = 0 is still 0.380998 at n = 400. It does not converge to a constant.
   - The basic interval, which the 2δ rule inverts, fails worst just on the linear side of the kink.
 - **Remark: the kink is live.** Every flip-family system sits at pooled c/r = 1.007741. Within a flip-family pair both
-  systems share lengths, so BP cancels on every resample (asserted). The kink bites when the two systems' lengths differ
+  systems share lengths, so their BPs are equal on every resample and factor out of δ (asserted; errata 2026-11-06: not "cancel"). The kink bites when the two systems' lengths differ
   near r.
 
 **Def 4 (cluster bootstrap).** Resample whole clusters (documents or sentences) with replacement.
