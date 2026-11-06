@@ -462,6 +462,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   effective_order=False)`; its "floor" smoothing differs from the obvious rule (0.035), so cross-check add-k and exp only;
   chrF averages P and R over the orders both strings reach (effective order) before one F. rouge-score 0.1.2's tokenizer
   agrees with `fc._tokens` text. Under `-W error`, ignore sacreBLEU's "effective_order" UserWarning by message.
+  The page first said the brevity penalty is why MBR beats the mode: true of the score (without BP the mode wins, 0.749
+  vs 0.417), but without BP in the utility MBR picks the mode on 113 of 188 prompts and beats it only through the empty
+  string (`bp_ablation`). Prop 5(c) first cited a lab reordering that doesn't exist (grep the lab before citing a view);
+  Thm 1's prefix tightness needs ≥ N words (t_N = 0 scores 0); the random-3 baseline is one draw (`random_k_expectation`
+  gives the exact 0.247); Cor 1's "about a quarter" was absolute recall (bound mean 0.225, realized 0.034, `flip_drops`).
 - Significance testing on corpus models (Topic 28). An exact A/A null: two of `om.sample_set(stream)`'s 64 trigram
   samples per prompt are exchangeable, so pair sample j with j + 32; disjoint prompt blocks are independent experiments
   (four streams: 2,304 of 10 prompts, enough to read a size to ±0.01). Randomization p-values on short blocks are

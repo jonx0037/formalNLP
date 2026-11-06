@@ -922,8 +922,8 @@ def flip_curve() -> dict[str, list[float]]:
 
 
 def flip_bound() -> dict:
-    """Cor 1 per document: flipping all m facts is m substitutions, so best-reference ROUGE-1 recall falls by at most
-    m/|r| and ROUGE-2 recall by at most 2m/(|r| − 1) against each reference."""
+    """Cor 1 per document: flipping all m facts is m substitutions, so ROUGE-1 recall falls by at most m/|r| and
+    ROUGE-2 recall by at most 2m/(|r| − 1) against each reference (checked against every reference, not the best)."""
     worst = {1: 0.0, 2: 0.0}
     for it in finance_items():
         y, z = it.outputs["writer"][0], it.outputs["flipped"][0]
@@ -993,6 +993,71 @@ def soft_flip_shift() -> dict:
             worst_p = max(worst_p, abs(p1 - p0) - k * dist / len(y))
             worst_r = max(worst_r, abs(r1 - r0) - k * dist)
     return {"excess_p": worst_p, "excess_r": worst_r}
+
+
+# --------------------------------------------------------------------------------------------
+# Errata checks (Topic 27's video): Cor 1's bound vs. the realized drop, the exact random baseline, and the brevity
+# penalty's two roles in minimum Bayes risk.
+# --------------------------------------------------------------------------------------------
+
+PAPINENI_REFS = (tuple("the cat is on the mat".split()), tuple("there is a cat on the mat".split()))  # their Example 2
+
+
+def flip_drops() -> dict:
+    """Cor 1 on the finance pairs: the bound m/|r| on the ROUGE-1 recall a summary loses when every fact is reversed
+    (absolute recall units), and the realized drop, per summary–reference pair."""
+    bound, drop = [], []
+    for it in finance_items():
+        y, z, m = it.outputs["writer"][0], it.outputs["flipped"][0], len(it.facts)
+        for r in it.refs:
+            bound.append(m / len(r))
+            drop.append(rouge_n(y, r, 1)[1] - rouge_n(z, r, 1)[1])
+    return {"bound_mean": float(np.mean(bound)), "bound_max": float(np.max(bound)),
+            "drop_mean": float(np.mean(drop)), "drop_max": float(np.max(drop))}
+
+
+def random_k_expectation(k: int = 3) -> float:
+    """The exact expected fact F1 of k sentences drawn uniformly at random: every k-subset of each document's
+    sentences, averaged per document, then over documents (the table's random-3 is one draw of this)."""
+    docs = {d.doc_id: d for d in fc.generate_corpus(100, 1)}
+    vals = []
+    for it in finance_items():
+        d = docs[it.doc_id]
+        vals.append(np.mean([fact_f1(doc_facts(d, list(c)), it.facts)
+                             for c in itertools.combinations(range(len(it.sentences)), k)]))
+    return float(np.mean(vals))
+
+
+def bp_ablation() -> dict:
+    """The brevity penalty's two roles on Topic 14's prompts (the page's sample stream). Score side: each decoder's
+    corpus BLEU with BP removed from the score. Decision side: BLEU-MBR rerun with BP removed from its utility — its
+    BLEU, how often it picks the exact mode, and its BLEU had it kept the mode's empty outputs."""
+    dec, refs = decoded(), references()
+    outs = {**dec, **mbr_outputs()}
+
+    def score(ys) -> float:
+        return bleu(pool(bleu_stats(y, R) for y, R in zip(ys, refs)))
+
+    def score_no_bp(ys) -> float:
+        p = precisions(pool(bleu_stats(y, R) for y, R in zip(ys, refs)))
+        return 0.0 if min(p) == 0 else math.exp(sum(math.log(v) for v in p) / N_MAX)
+
+    choice = []
+    for i, S in enumerate(samples()):
+        hyps = list(dict.fromkeys(list(S) + [dec[k][i] for k in ("mode", "beam-16", "norm-16")]))
+        U = utility_matrix(hyps, S)
+        cl = np.array([len(h) for h in hyps], dtype=float)
+        rl = np.array([len(s) for s in S], dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            bp = np.where(cl[:, None] > rl[None, :], 1.0, np.exp(1 - rl[None, :] / cl[:, None]))
+            V = U / bp
+        V[~np.isfinite(V)] = 0.0
+        choice.append(hyps[int(np.argmax(V.mean(1)))])
+    mode = dec["mode"]
+    kept = [m if not m else c for c, m in zip(choice, mode)]
+    return {"score_no_bp": {k: score_no_bp(outs[k]) for k in DECODING_SYSTEMS},
+            "mbr_no_bp": score(choice), "mbr_no_bp_is_mode": int(sum(c == m for c, m in zip(choice, mode))),
+            "mode_empty": int(sum(not m for m in mode)), "mbr_no_bp_keeping_empties": score(kept)}
 
 
 # --------------------------------------------------------------------------------------------
@@ -1086,7 +1151,7 @@ def test_prop1_clipping_is_a_maximum_matching():
         for n in (1, 2, 3):
             assert clipped(cand, refs, n) == matching_size(cand, refs, n)
     # repetition earns credit only as often as a reference holds the word
-    s = bleu_stats(("the",) * 7, [tuple("the cat sat on the mat".split())])
+    s = bleu_stats(("the",) * 7, list(PAPINENI_REFS))
     assert s.m[0] == 2 and precisions(s)[0] == 2 / 7
 
 
@@ -1352,6 +1417,39 @@ def test_prop7_bias_survives_averaging():
         assert curve[-1] < 1
 
 
+def test_errata_examples_drops_baselines_and_bp():
+    """Errata found while scripting Topic 27's video. Thm 1: a single prefix shorter than N words scores 0 (t_N = 0),
+    and with two references BLEU can reach 1 off the reference length. Prop 5(c) by example. Thm 4(b)'s mode shares
+    "margins" with seven variants. Prop 3's 0.933 counts extracts. The census's 15,000 is a geometric mean. Cor 1's
+    bound averages 0.225 (≤ 0.308) and the realized drop 0.034. The exact random-3 baseline (0.247) beats TextRank.
+    The brevity penalty: without it in the score the mode wins; without it in the utility MBR picks the mode on 113
+    of 188 prompts and beats it only through the empty string."""
+    ref = tuple("a b c d e f g h".split())
+    assert sentence_bleu(ref[:3], [ref]) == 0.0 and abs(sentence_bleu(ref[:4], [ref]) - brevity_penalty(4, 8)) < 1e-12
+    assert abs(sentence_bleu(ref[:6], [ref[:4], tuple("a b c d e f g h i j".split())]) - 1.0) < 1e-12
+    r = tuple("revenue rose and costs fell".split())
+    y, z = tuple("revenue rose sharply and costs fell".split()), tuple("and costs fell sharply revenue rose".split())
+    assert chunks(y, [r]) == [("revenue", "rose"), ("sharply",), ("and", "costs", "fell")]
+    assert bleu_stats(z, [r]) == bleu_stats(y, [r]) and lcs(y, r) == 5 and lcs(z, r) == 3
+    w = tuple("costs fell and revenue rose".split())
+    assert chunks(w, [r]) == [("costs", "fell"), ("and",), ("revenue", "rose")] and lcs(w, r) == 2
+    sup, p = toy_distribution()
+    share = sum(q * bleu_plus_one(sup[0], t) for t, q in zip(sup[1:], p[1:]))
+    assert sum("margins" in t for t in sup[1:]) == 7 and _r(share) == 0.044
+    assert abs(toy_mbr()["gains"][0] - 0.2 - share) < 1e-12
+    assert sum(st.m[3] == 0 for st in finance_scores()["extract"]["stats"]) == 84
+    assert round(10 ** chunk_census()["log10_orders"], -3) == 15000
+    f = flip_drops()
+    assert (_r(f["bound_mean"]), _r(f["bound_max"]), _r(f["drop_mean"])) == (0.225, 0.308, 0.034)
+    textrank = float(finance_scores()["textrank-3"]["f1"].mean())
+    assert _r(random_k_expectation(3)) == 0.247 and _r(textrank) == 0.2
+    a = bp_ablation()
+    assert (_r(a["score_no_bp"]["mode"]), _r(a["score_no_bp"]["mbr"])) == (0.749, 0.417)
+    assert _r(a["mbr_no_bp"]) == 0.137 and (a["mbr_no_bp_is_mode"], a["mode_empty"]) == (113, 37)
+    mode_bleu = decoding_table()["mode"]["bleu"]
+    assert a["mbr_no_bp_keeping_empties"] < mode_bleu < a["mbr_no_bp"] and _r(a["mbr_no_bp_keeping_empties"]) == 0.088
+
+
 def test_viz_mirror_matches_payload():
     """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
     Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
@@ -1395,6 +1493,13 @@ def summary() -> dict:
         out[f"Prop 5 {k}"] = v
     out["Prop 3 zero 4-gram share"] = ", ".join(f"{k} {v:.6f}" for k, v in zero_four_gram().items())
     out["Prop 2 discordant finance pairs"] = str(corpus_vs_sentence()["discordant"])
+    f = flip_drops()
+    out["Cor 1 bound mean / max, realized drop mean"] = f"{f['bound_mean']:.6f}, {f['bound_max']:.6f}, {f['drop_mean']:.6f}"
+    out["random-3 exact expected fact F1"] = random_k_expectation(3)
+    a = bp_ablation()
+    out["BP ablation: score without BP (mode, mbr)"] = f"{a['score_no_bp']['mode']:.6f}, {a['score_no_bp']['mbr']:.6f}"
+    out["BP ablation: MBR without BP (bleu, = mode, keeping empties)"] = (
+        f"{a['mbr_no_bp']:.6f}, {a['mbr_no_bp_is_mode']}, {a['mbr_no_bp_keeping_empties']:.6f}")
     return out
 
 
