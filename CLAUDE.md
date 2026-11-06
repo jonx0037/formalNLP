@@ -428,7 +428,7 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
 - Collocations on corpus models (Topic 26). Provenance comes free: subclass `fc._CorpusGen`, override `word`/`phrase` to
   wrap each restaurant draw in sentinels (`\x01…\x02`, `\x03` between a compound's halves) and make the same RNG calls;
   the stripped text equals `generate_corpus(300, 0)` byte for byte (assert it), so every token is a draw (D), entity (E),
-  or template (L). `fc._tokens` drops commas, so list neighbors ("freight, contracts") are adjacent draws too, independent
+  or template (L). `fc._tokens` drops commas, so list neighbors ("freight, capacity") are adjacent draws too, independent
   given the sector like compounds. Within-sentence bigrams: N = 57,052 positions, 13,724 types (877 fixed, 3,054 null,
   1,000 topical, 8,793 boundary); "percent in" is boundary because "percent" closes a PERCENT entity. Score rankings with
   tie-averaged precision (expected under random tie order): PMI ties its top 97 at log N and X² ties every perfect pair
@@ -442,7 +442,7 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   from the harness, never from a prototype's coarse grid (the brief first said r = 10). The notebook must use the
   harness's random streams (`thm2_draws()`), or its printed medians differ from the page. Keyness with entity words
   removed scores P@25 0.80–1.00 (names would win trivially); energy's misses are its own template ("thousand barrels per
-  day"). TextRank's Spearman with frequency is 0.80–0.85 and rises with d; a geometry preset with small margins puts every
+  day"; its misses are averaged, crude, day, per, thousand, while "barrels" is a planted hit). TextRank's Spearman with frequency is 0.80–0.85 and rises with d (0.66–0.72 already at d = 0.01: the one-step in-flow); a pair-count floor still selects on the outcome (B-H over a ≥ 3 rejects 5 of 10 nulls), a margin floor (r, c ≥ 20) does not; the page first said "freight contracts" (never occurs; "freight, capacity" is a list, "capacity shipments" a compound), "barrels" missed, "each" rejected null seen once (2,181 of 2,218), and 176 for Thm 4's bound (that is the worst case; own first step 169–171); a geometry preset with small margins puts every
   table in one corner of the tetrahedron, so lead with balanced ones ((100, 40, 50)). Contraction tests need a 10⁻¹³
   additive floor (‖xₜ − π‖ hits rounding at t ≈ 50, d = 0.5).
 - Overlap metrics on corpus models (Topic 27). Facts come straight from `doc.aspects` (no tagged generator): per

@@ -714,7 +714,7 @@ TR_D = (0.5, 0.85, 0.95, 0.99)
 def fin_textrank(k: int, d_grid: tuple[float, ...]) -> dict:
     """Per sector, TextRank (weighted and binary, window 2) on the sector's sentences with textrank_stop() removed:
     precision@k against the planted sector nouns at each d, Spearman with the filtered frequency, iterations to 10⁻¹²;
-    and keyness on the same candidates for comparison."""
+    and the precision@k of the filtered frequency on the same candidates."""
     home = ds.planted_labels()
     stop = textrank_stop()
     secs = doc_sectors()
@@ -759,6 +759,67 @@ def fin_edgar_keyness() -> dict:
     return {"top": [(str(kz["words"][i]), float(kz["g2"][i])) for i in order[:15]],
             "template_share": float(np.mean([labels.get(w) == {"L"} for w in top50])),
             "edgar_tokens": int(sum(edgar.values())), "synthetic_tokens": int(sum(syn.values()))}
+
+
+SEL_COUNT_FLOOR = 3  # Evert (2004, §4.3.3): pairs seen fewer than three times are excluded
+SEL_MARGIN_FLOOR = 20  # both words seen at least this often in their slot: a function of the margins only
+
+
+def selection_floors() -> dict:
+    """The "Many tests at once" remark on the D–D stratum: B-H at q = 0.05 over the observed pairs after a floor on the
+    pair's own count (a ≥ SEL_COUNT_FLOOR, still a selection on the outcome) and after a floor on both margins
+    (r, c ≥ SEL_MARGIN_FLOOR, a function of the margins only), as (n, rejected) per class; and, of the null pairs B-H
+    rejects over all observed pairs, (rejected, seen once)."""
+    s = dd_stratum()
+    out: dict = {}
+    for name, keep in (("count", s["a"] >= SEL_COUNT_FLOOR),
+                       ("margins", (s["r"] >= SEL_MARGIN_FLOOR) & (s["c"] >= SEL_MARGIN_FLOOR))):
+        p, cls = s["p"][keep], s["cls"][keep]
+        thr = bh_threshold(p, len(p), ALPHA)
+        rej = p <= thr if thr > 0 else np.zeros(len(p), dtype=bool)
+        out[name] = {k: (int((cls == k).sum()), int(rej[cls == k].sum())) for k in ("null", "topical")}
+    thr = bh_threshold(s["p"], len(s["p"]), ALPHA)
+    rej_null = (s["p"] <= thr) & (s["cls"] == "null")
+    out["rejected_null_seen_once"] = (int(rej_null.sum()), int((rej_null & (s["a"] == 1)).sum()))
+    return out
+
+
+TR_DAMPING = (0.01, 0.85)
+
+
+def textrank_damping(d_grid: tuple[float, ...]) -> dict:
+    """Per sector, TextRank on the weighted window-2 graph (as fin_textrank): Spearman with the filtered frequency at
+    each d, the iterations to 10⁻¹², and Thm 4's step count with the graph's own first step,
+    ⌈log(10⁻¹²/‖x₁ − x₀‖₁)/log d⌉ + 1 (the worst case, a first step of 2, gives 176 at d = 0.85). At d = 0.01 PageRank
+    is nearly the one-step in-flow Σ_u W_uw/s(u), which already favors frequent words."""
+    stop = textrank_stop()
+    secs = doc_sectors()
+    out = {}
+    for s in fc.SECTORS:
+        sents = [toks for sec, doc in zip(secs, tagged_documents()) if sec == s for toks, _ in doc]
+        freq = Counter(w for t in sents for w in t if w not in stop)
+        nodes, w = cooc_graph(sents, 2, True, stop)
+        f = np.array([freq[x] for x in nodes], dtype=float)
+        row = {}
+        for d in d_grid:
+            pr, steps = pagerank(w, d, 1e-12)
+            row[d] = {"spearman": float(stats.spearmanr(pr, f)[0]), "iterations": len(steps),
+                      "bound": math.ceil(math.log(1e-12 / steps[0]) / math.log(d)) + 1}
+        out[s] = row
+    return out
+
+
+def keyness_misses(sector: str, k: int) -> list[str]:
+    """The words in a sector's keyness top k (signed G², as fin_keyness) that are not its planted nouns, sorted."""
+    home = ds.planted_labels()
+    cnt = sector_counts()
+    rest = Counter()
+    for t in fc.SECTORS:
+        if t != sector:
+            rest.update(cnt[t])
+    kz = keyness(cnt[sector], rest)
+    top = kz["words"][np.argsort(-kz["g2"], kind="stable")[:k]]
+    return sorted(str(w) for w in top if home.get(str(w)) != sector)
 
 
 # --------------------------------------------------------------------------------------------
@@ -1141,6 +1202,34 @@ def test_textrank_tracks_frequency():
             assert v["iterations"] <= math.ceil(math.log(1e-12 / 2) / math.log(d)) + 1
 
 
+def test_errata_floors_misses_damping_and_bounds():
+    # A floor on the pair's own count still selects on the outcome; a floor on both margins does not.
+    sf = selection_floors()
+    assert sf["count"]["null"] == (10, 5) and sf["margins"]["null"][1] == 0
+    assert sf["rejected_null_seen_once"] == (2218, 2181)  # nearly all, not each, of the rejected nulls were seen once
+    # Energy's keyness misses are words of its own template; "barrels" and "production" are planted energy nouns (hits).
+    template = "crude production averaged thousand barrels per day".split()
+    misses = keyness_misses("energy", KEY_K)
+    assert misses == ["averaged", "crude", "day", "per", "thousand"] and set(misses) <= set(template)
+    assert ds.planted_labels()["barrels"] == ds.planted_labels()["production"] == "energy"
+    # TextRank tracks frequency even at strong damping, and more at weak damping; Thm 4's own-step bound.
+    td = textrank_damping(TR_DAMPING)
+    for s in fc.SECTORS:
+        assert 0.65 < td[s][0.01]["spearman"] < td[s][0.85]["spearman"], s
+        assert td[s][0.85]["iterations"] <= td[s][0.85]["bound"] <= 176, s
+    assert {td[s][0.85]["bound"] for s in fc.SECTORS} <= set(range(169, 172))
+    # X²'s top tie: every null or topical perfect pair was seen once (92 of the 196).
+    b = fin_bigrams()
+    perfect = (b["a"] == b["r"]) & (b["a"] == b["c"])
+    nt = perfect & np.isin(b["cls"], ["null", "topical"])
+    assert nt.sum() == 92 and np.all(b["a"][nt] == 1)
+    # The page's compound example occurs, with no comma between its words, and the old one never does.
+    ix = {g: i for i, g in enumerate(b["types"])}
+    assert int(b["a"][ix[("capacity", "shipments")]]) == 3 and ("freight", "contracts") not in ix
+    raw = " ".join(d.text for d in ds._generator_run()[0])
+    assert raw.count("capacity shipments") == 3
+
+
 def test_viz_mirror_matches_payload():
     """The Viz ↔ Python invariant, enforced: the lab's data file equals viz_payload() exactly.
     Regenerate with json.dumps(viz_payload(), separators=(',', ':')) after changing any number here."""
@@ -1198,6 +1287,16 @@ def summary() -> dict:
     ek = fin_edgar_keyness()
     out["EDGAR keyness template share of top 50"] = ek["template_share"]
     out["EDGAR keyness top 8"] = ", ".join(w for w, _ in ek["top"][:8])
+    sf = selection_floors()
+    out[f"BH observed, pair count >= {SEL_COUNT_FLOOR} (null n, rejected)"] = str(sf["count"]["null"])
+    out[f"BH observed, both margins >= {SEL_MARGIN_FLOOR} (null n, rejected)"] = str(sf["margins"]["null"])
+    out["BH observed null rejected (n, seen once)"] = str(sf["rejected_null_seen_once"])
+    out["energy keyness misses"] = ", ".join(keyness_misses("energy", KEY_K))
+    td = textrank_damping(TR_DAMPING)
+    sp01 = [td[s][0.01]["spearman"] for s in fc.SECTORS]
+    out["textrank spearman d=0.01 (min, max)"] = f"{min(sp01):.6f}, {max(sp01):.6f}"
+    bounds = [td[s][0.85]["bound"] for s in fc.SECTORS]
+    out["Thm 4 own-step bound d=0.85 (min, max)"] = f"{min(bounds)}, {max(bounds)}"
     return out
 
 

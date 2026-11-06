@@ -289,7 +289,7 @@ which gives the middle formula. The correlation of the indicators is $(\hat p_{1
 
 </TheoremBlock>
 
-So all four scores ask how far the table sits from the saddle. PMI looks at one cell's log ratio, $X^2$ at a squared correlation, and $G^2$ at a KL divergence. Near the surface they agree to second order. The rest of the page is about where they do not.
+So all four scores ask how far the table sits from the saddle. PMI looks at one cell's log ratio, $X^2$ at a squared correlation, and $G^2$ at a KL divergence. Near the surface $X^2$ and $G^2$ agree to second order (Theorem 2). The rest of the page is about where they do not.
 
 ---
 
@@ -460,7 +460,7 @@ Moore (2004, §2.1) made the family-wide point for pairs seen once: a pair of wo
 
 <TheoremBlock type="remark">
 
-**Many tests at once.** A vocabulary of $V$ types has $V^2$ candidate pairs. Bonferroni's correction (formalStatistics, [Multiple Testing](https://www.formalstatistics.com/topics/multiple-testing-and-false-discovery), Theorem 1) holds under any dependence. Benjamini–Hochberg's (Theorem 5) assumes independent or positively dependent $p$-values, which pairs sharing a word need not have. The field's practical response has been a frequency threshold: Church and Hanks (1990, §4) set aside pairs seen at most five times, and Evert (2004, §4.3.3) excludes pairs seen fewer than three times. A threshold fixed before looking shrinks the family to pairs whose chance of being seen is not negligible. The significance-testing topic later in the curriculum takes up testing for NLP systems.
+**Many tests at once.** A vocabulary of $V$ types has $V^2$ candidate pairs. Bonferroni's correction (formalStatistics, [Multiple Testing](https://www.formalstatistics.com/topics/multiple-testing-and-false-discovery), Theorem 1) holds under any dependence. Benjamini–Hochberg's (Theorem 5) assumes independent or positively dependent $p$-values, which pairs sharing a word need not have. The field's practical response has been a frequency threshold: Church and Hanks (1990, §4) set aside pairs seen at most five times, and Evert (2004, §4.3.3) excludes pairs seen fewer than three times. Those are floors on the pair's own count, which still select on the outcome: in the finance case study's stratum below, Benjamini–Hochberg over the pairs seen at least three times rejects $5$ of the $10$ truly null pairs among them. A floor on each word's frequency, fixed before looking, is a function of the margins alone and shrinks the family to pairs whose chance of being seen is not negligible: with both margins at least $20$, no null pair is rejected. The significance-testing topic later in the curriculum takes up testing for NLP systems.
 
 </TheoremBlock>
 
@@ -614,7 +614,7 @@ So with weak damping, TextRank on the weighted window-2 graph ranks each compone
 - **topical** ($1{,}000$): two adjacent draws planted in the same sector, associated only through the sector;
 - **boundary** ($8{,}793$): everything else, such as a template word next to a drawn noun.
 
-Adjacent draws come from noun compounds ("freight contracts") and, since the tokenizer drops commas, from neighbors in a list.
+Adjacent draws come from noun compounds ("capacity shipments") and, since the tokenizer drops commas, from neighbors in a list.
 
 **Ranking every bigram.** Precision at $k$ (formalRAG, [Set Metrics](https://www.formalrag.com/topics/set-metrics-precision-recall-map-mrr), Definition 1) against the fixed class, with ties broken at random in expectation:
 
@@ -627,7 +627,7 @@ Adjacent draws come from noun compounds ("freight contracts") and, since the tok
 | Fisher | $0.800$ | $0.940$ | $0.930$ | $0.896$ |
 | frequency | $0.700$ | $0.860$ | $0.880$ | $0.780$ |
 
-PMI's top $97$ pairs tie at $\log N$: they are Proposition 2's hapax pairs, $48$ null, $44$ topical, and $5$ fixed, so $0.948$ of PMI's top $50$ are pairs with no lexical association, seen once. $X^2$ ties its top $196$ at $N$, every pair whose words never occur apart (Proposition 3), and half of them are null or topical. $G^2$, the t-score, and Fisher's test put no null or topical pair in their top $500$. The top two by $G^2$, "percent in" and "for the," are counted as boundary because "percent" closes a percentage entity; they are fixed text in fact, so the class is conservative. Fisher's $p$-values must be computed in log space: for $46$ pairs the tail probability underflows to zero.
+PMI's top $97$ pairs tie at $\log N$: they are Proposition 2's hapax pairs, $48$ null, $44$ topical, and $5$ fixed, so $0.948$ of PMI's top $50$ are pairs with no lexical association, seen once. $X^2$ ties its top $196$ at $N$, every pair whose words never occur apart (Proposition 3), and $92$ of them are null or topical, every one a pair seen once. $G^2$, the t-score, and Fisher's test put no null or topical pair in their top $500$. The top two by $G^2$, "percent in" and "for the," are counted as boundary because "percent" closes a percentage entity; they are fixed text in fact, so the class is conservative. Fisher's $p$-values must be computed in log space: for $46$ pairs the tail probability underflows to zero.
 
 **Testing them: the selection.** Inside the stratum of adjacent draws ($N = 4{,}182$ positions, $4{,}059$ observed types, $2{,}128{,}632$ candidate pairs), the null pairs are independent by construction, and $0.975$ of all observed pairs are seen exactly once. One-sided exact tests with Benjamini–Hochberg at $q = 0.05$:
 
@@ -636,7 +636,7 @@ PMI's top $97$ pairs tie at $\log N$: they are Proposition 2's hapax pairs, $48$
 | the observed pairs | $2{,}218$ of $3{,}055$ | $863$ of $1{,}000$ |
 | all candidate pairs | $0$ of $3{,}055$ | $0$ of $1{,}000$ |
 
-Over the observed pairs alone, most truly null pairs pass. That is Proposition 5 on real counts: each was seen once, and its chance of being seen was small. Over all candidate pairs nothing passes, and Bonferroni, valid under any dependence, agrees. At the uncorrected level $0.05$, $0.762$ of the observed null pairs reject. On the pooled table of every bigram the picture is the same: Benjamini–Hochberg over the observed bigrams rejects $2{,}416$ of the $3{,}054$ null pairs. The topical pairs are genuinely associated, but at one sighting each, no valid procedure can find them. The honest finding is that the corpus is too small to say.
+Over the observed pairs alone, most truly null pairs pass. That is Proposition 5 on real counts: nearly every one ($2{,}181$ of the $2{,}218$ that pass) was seen once, and its chance of being seen was small. Over all candidate pairs nothing passes, and Bonferroni, valid under any dependence, agrees. At the uncorrected level $0.05$, $0.762$ of the observed null pairs reject. On the pooled table of every bigram the picture is the same: Benjamini–Hochberg over the observed bigrams rejects $2{,}416$ of the $3{,}054$ null pairs. The topical pairs are genuinely associated, but at one sighting each, no valid procedure can find them. The honest finding is that the corpus is too small to say.
 
 **Keyness by sector.** Each sector's documents against the other sectors', with entity words removed (company names would top every list trivially), scored by precision at $25$ against the nouns the generator planted in that sector:
 
@@ -649,7 +649,7 @@ Over the observed pairs alone, most truly null pairs pass. That is Proposition 5
 | retail | $27$ | $1.00$ | $1.00$ | $0.08$ |
 | healthcare | $19$ | $1.00$ | $1.00$ | $0.12$ |
 
-Energy's misses are its own template: "Crude production averaged … thousand barrels per day" occurs only in energy filings, so "barrels," "averaged," and "day" are key words of the sector, correctly, though not planted nouns. Raw frequency finds template words. Against the three EDGAR excerpts as reference, the synthetic corpus's top key words are "percent," "in," "management," "across," "demand," "was," "million," and "halvorsen," and $0.76$ of its top $50$ are template-only words: a reference corpus finds what makes the target unusual, and what makes this corpus unusual is its templates.
+Energy's misses are its own template: "Crude production averaged … thousand barrels per day" occurs only in energy filings, so "crude," "averaged," "thousand," "per," and "day" are key words of the sector, correctly, though not planted nouns ("barrels" and "production" are planted energy nouns, and hits). Raw frequency finds template words. Against the three EDGAR excerpts as reference, the synthetic corpus's top key words are "percent," "in," "management," "across," "demand," "was," "million," and "halvorsen," and $0.76$ of its top $50$ are template-only words: a reference corpus finds what makes the target unusual, and what makes this corpus unusual is its templates.
 
 **TextRank.** Per sector, on the sector's own text with the $100$ most frequent words and all entity words stopped, window $2$, $d = 0.85$:
 
@@ -662,7 +662,7 @@ Energy's misses are its own template: "Crude production averaged … thousand ba
 | retail | $0.32$ | $0.832$ | $0.16$ | $1.00$ |
 | healthcare | $0.40$ | $0.805$ | $0.36$ | $1.00$ |
 
-The first, third, and fourth columns are precision at $25$ against the planted sector nouns, on the weighted graph. TextRank's ranking correlates with frequency at $0.80$ to $0.85$ and beats raw frequency only modestly; keyness, which has a reference corpus, beats both in every sector. As Proposition 7 predicts, raising $d$ moves TextRank toward frequency: in industrials the rank correlation is $0.790$ at $d = 0.5$ and $0.880$ at $d = 0.99$. Power iteration reached steps below $10^{-12}$ in $142$ to $150$ iterations, inside Theorem 4's bound of $176$.
+The first, third, and fourth columns are precision at $25$ against the planted sector nouns, on the weighted graph. TextRank's ranking correlates with frequency at $0.80$ to $0.85$ and beats raw frequency only modestly; keyness, which has a reference corpus, beats both in every sector. As Proposition 7 predicts, raising $d$ moves TextRank toward frequency: in industrials the rank correlation is $0.790$ at $d = 0.5$ and $0.880$ at $d = 0.99$. Even at $d = 0.01$, where the surfer almost always jumps, the rank correlation is $0.663$ to $0.723$: PageRank is then nearly the one-step in-flow from a word's neighbors, which already favors frequent words, so the graph, built from counts, carries most of the tracking. Power iteration reached steps below $10^{-12}$ in $142$ to $150$ iterations, inside Theorem 4's bound with each graph's own first step ($169$ to $171$; a first step of at most $2$ gives $176$).
 
 </FinanceCaseStudy>
 
