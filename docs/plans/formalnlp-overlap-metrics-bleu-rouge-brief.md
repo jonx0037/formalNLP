@@ -78,7 +78,8 @@ Every slug cited above is `status: published` on main. formalStatistics' only "r
 **Def 1 (clipped count, modified precision).**
 - m_n(y, R) = Σ_g min(c_y(g), max_k c_{r_k}(g)).
 - p_n = m_n/t_n, where t_n = max(c − n + 1, 0).
-- Example first: "the" seven times against "the cat sat on the mat" has m₁ = 2, so p₁ = 2/7.
+- Example first: "the" seven times against Papineni et al.'s Example 2 references ("The cat is on the mat", "There is a cat
+  on the mat") has m₁ = 2, so p₁ = 2/7.
 
 **Prop 1 (clipping is a maximum matching).**
 - Statement:
@@ -214,7 +215,8 @@ Every slug cited above is `status: published` on main. formalStatistics' only "r
 - Callison-Burch et al. argue (a)–(b) in prose: reordering "will not reduce" the matches, and their footnote 2 concedes a
   permutation may raise them. Their Eq. (1) is a lower bound on the variant count, (k − b)!.
 - Harness, 200 random orders per summary:
-  - 7.322222 chunks per writer summary (mean log₁₀ of the order count: 4.175277, about 15,000 orders);
+  - 7.322222 chunks per writer summary (mean log₁₀ of the order count: 4.175277, a geometric mean of about 15,000 orders; seven pieces
+    have 5,040, eight 40,320);
   - 0.785167 of sampled orders keep every m_n exactly;
   - none lowers any m_n;
   - ROUGE-L takes more than one value for 0.988889 of summaries.

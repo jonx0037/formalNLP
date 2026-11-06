@@ -1,6 +1,6 @@
 ---
 title: "Overlap Metrics: BLEU and ROUGE"
-subtitle: "A candidate and a reference make a grid of matches. Clipping is a matching on it and ROUGE-L is the longest chain through it, so a one-word edit moves either by a few n-grams at most: overlap cannot tell a paraphrase from a reversed fact. Read as a decision rule, BLEU's brevity penalty is why minimum Bayes risk beats the mode."
+subtitle: "A candidate and a reference make a grid of matches. Clipping is a matching on it and ROUGE-L is the longest chain through it, so a one-word edit moves either by a few n-grams at most: overlap cannot tell a paraphrase from a reversed fact. Read as a decision rule, BLEU's brevity penalty is why the mode loses, and most of why minimum Bayes risk wins."
 status: "published"
 difficulty: "intermediate"
 prerequisites:
@@ -24,7 +24,7 @@ notebookPath: "notebooks/overlap-metrics-bleu-rouge/01_overlap_metrics_bleu_roug
 githubUrl: "https://github.com/jonx0037/formalNLP/blob/main/src/content/topics/overlap-metrics-bleu-rouge.mdx"
 datePublished: 2026-10-27
 estimatedReadTime: 35
-abstract: "Lay a candidate along one axis and a reference along the other, and mark every cell where the two hold the same word: every overlap metric is a function of that grid. BLEU's clipped count is the size of a maximum matching on it, so repeating a matched word earns nothing extra, and ROUGE-L's longest common subsequence is the longest chain of marks rising in both directions, a longest path the dynamic program finds. With one reference per segment BLEU lies under an envelope set by the length ratio alone, which peaks only at the reference length; corpus precisions are mediants, so a system can win every sentence and lose the corpus; a sentence with no matched 4-gram scores zero whatever else it gets right, and add-one smoothing is the n-gram topic's shrinkage with a prior at perfect precision; adding a reference can lower BLEU. The central fact is a Lipschitz bound: k substituted words move a clipped count by at most nk and the subsequence by at most k. On synthetic filings whose generator records every fact, a summary that states each fact once and gets every one backward outscores the document's own fact-bearing sentences on BLEU, ROUGE, chrF, and an embedding match, all six; word vectors make it worse, since 'fell' is the nearest neighbor of 'rose'. Read as a decision rule, exact match picks the mode and BLEU does not: on the decoding topic's prompts the trigram's mode is short, the brevity penalty punishes it, and minimum Bayes risk over 64 samples scores best. Averaged over documents, system scores converge to their bias, not their quality: Kendall's τ against fact accuracy climbs to a plateau near one half."
+abstract: "Lay a candidate along one axis and a reference along the other, and mark every cell where the two hold the same word: every overlap metric is a function of that grid. BLEU's clipped count is the size of a maximum matching on it, so repeating a matched word earns nothing extra, and ROUGE-L's longest common subsequence is the longest chain of marks rising in both directions, a longest path the dynamic program finds. With one reference per segment BLEU lies under an envelope set by the length ratio alone, which peaks only at the reference length; corpus precisions are mediants, so a system can win every sentence and lose the corpus; a sentence with no matched 4-gram scores zero whatever else it gets right, and add-one smoothing is the n-gram topic's shrinkage with a prior at perfect precision; adding a reference can lower BLEU. The central fact is a Lipschitz bound: k substituted words move a clipped count by at most nk and the subsequence by at most k. On synthetic filings whose generator records every fact, a summary that states each fact once and gets every one backward outscores the document's own fact-bearing sentences on BLEU, ROUGE, chrF, and an embedding match, all six; word vectors make it worse, since 'fell' is the nearest neighbor of 'rose'. Read as a decision rule, exact match picks the mode and BLEU does not: on the decoding topic's prompts the trigram's mode is short, the brevity penalty punishes it, and minimum Bayes risk over 64 samples scores best. Averaged over documents, system scores converge to their bias, not their quality: Kendall's τ against fact accuracy rises only to about one half."
 connections:
   - topic: "beam-search-decoding"
     relationship: "Its Theorem 4, the pull of the end mark, is why the exact mode is short; Theorem 1 here shows the brevity penalty punishing exactly that, and Theorem 4 here replaces the mode by the decision BLEU itself prefers."
@@ -168,7 +168,7 @@ The finance case study supplies what human ratings never do: an exact answer key
 
 Fix a **candidate** $y = (y_1, \dots, y_c)$ and a set of **references** $R = \lbrace r_1, \dots, r_K \rbrace$, each a sequence of tokens. An **n-gram** is a run of $n$ consecutive tokens, and $c_x(g)$ counts the occurrences of the n-gram $g$ in $x$.
 
-Before the definition, the example that motivated it. The candidate "the the the the the the the" contains seven unigrams, and every one of them occurs in the reference "the cat sat on the mat." Counting matched words naively gives a precision of $7/7$. The reference holds "the" only twice, so a fair count gives the candidate credit for two of its seven words.
+Before the definition, the example that motivated it. The candidate "the the the the the the the" contains seven unigrams, and every one of them occurs in the references of Papineni et al. "The cat is on the mat" and "There is a cat on the mat" (their Example 2). Counting matched words naively gives a precision of $7/7$. No single reference holds "the" more than twice, so a fair count gives the candidate credit for two of its seven words.
 
 <TheoremBlock type="definition" number={1} title="Clipped counts and modified precision">
 
@@ -220,9 +220,9 @@ with $N = 4$. BLEU is $0$ if any $P_n$ is $0$. **Sentence BLEU** is the same for
 
 </TheoremBlock>
 
-These are Papineni et al.'s choices (2002, §2.2.2 and §2.3): uniform weights, $N = 4$, and the reference length taken as the "best match length." The paper computes the brevity penalty over the whole corpus, because penalizing each short sentence on its own punishes it harshly. Our implementation equals sacreBLEU's (Post 2018) to $10^{-12}$, at the corpus and sentence level, under three smoothing rules.
+These are Papineni et al.'s choices (2002, §2.2.2 and §2.3): uniform weights, $N = 4$, and the reference length taken as the "best match length." The paper computes the brevity penalty over the whole corpus, because penalizing each short sentence on its own punishes it harshly. Our implementation equals sacreBLEU's (Post 2018) to $10^{-12}$ at the corpus level, and at the sentence level, for candidates of at least four words, under three smoothing rules.
 
-Precision alone rewards saying little: a one-word candidate that matches has precision $1$. Clipping and the brevity penalty together close both doors, short and long, and the result depends on the length ratio alone.
+Precision alone rewards saying little: a one-word candidate that matches has precision $1$. Clipping and the brevity penalty together close both doors, short and long, and with one reference per segment the result depends on the length ratio alone.
 
 <TheoremBlock type="theorem" number={1} title="The length envelope">
 
@@ -234,7 +234,7 @@ Write $x = c/r$.
 
 (c) With several references, $\mathrm{BLEU} \le \mathrm{BP} \cdot \min(1, \rho/c)^{1/N}$, where $\rho = \sum_i \sum_g \max_k c_{r_{ik}}(g)$ counts the references' unigram union.
 
-Both envelopes equal $1$ at $x = 1$ and are smaller at every other $x$. A candidate made of a reference's first words lies exactly on the left branch.
+Both envelopes equal $1$ at $x = 1$ and are smaller at every other $x$. A corpus of reference prefixes, or a single prefix of at least $N$ words, lies exactly on the left branch.
 
 </TheoremBlock>
 
@@ -242,7 +242,7 @@ Both envelopes equal $1$ at $x = 1$ and are smaller at every other $x$. A candid
 
 Every $P_n \le 1$, so their geometric mean is at most $1$ and $\mathrm{BLEU} \le \mathrm{BP}$, which is $e^{1 - 1/x}$ when $x \le 1$. That is the left branch in all three parts.
 
-For $x \gt 1$, $\mathrm{BP} = 1$. In (a), the clipped count of order $n$ is at most the number of n-grams in the reference, $r - n + 1$, so
+For $x \gt 1$, $\mathrm{BP} = 1$. In (a), the clipped count of order $n$ is at most the number of n-grams in the reference. If $r \lt n$ there are none, $p_n = 0$, and BLEU is $0$; otherwise there are $r - n + 1$, so
 
 $$
 p_n \le \frac{r - n + 1}{c - n + 1} \le \frac{r}{c},
@@ -250,11 +250,11 @@ $$
 
 where the second inequality is $c(r - n + 1) \le r(c - n + 1)$, which holds because $c \ge r$. A geometric mean of numbers at most $1/x$ is at most $1/x$. In (b) we bound only the unigram precision: each segment matches at most $r_i$ unigrams, so $P_1 \le r/c = 1/x$, while $P_n \le 1$ for $n \ge 2$, and the geometric mean is at most $(1/x)^{1/N}$. In (c) each segment matches at most $\sum_g \max_k c_{r_{ik}}(g)$ unigrams, which gives $P_1 \le \rho/c$ in the same way.
 
-The left branch increases to $1$ at $x = 1$, and both right branches decrease from $1$, so $x = 1$ is the only maximum. A prefix of a reference matches every one of its n-grams, so every $P_n = 1$ and $\mathrm{BLEU} = \mathrm{BP}$ exactly.
+The left branch increases to $1$ at $x = 1$, and both right branches decrease from $1$, so $x = 1$ is the only maximum. A prefix of a reference matches every one of its n-grams, so every $P_n = 1$ and $\mathrm{BLEU} = \mathrm{BP}$ exactly, provided it has at least one $N$-gram (a corpus of prefixes needs one among them): a single prefix shorter than $N$ words has $t_N = 0$, which Definition 2 scores as $P_N = 0$.
 
 </TheoremBlock>
 
-The arithmetic–geometric mean inequality (formalStatistics, [Expectation and Moments](https://www.formalstatistics.com/topics/expectation-moments), Example 7) says the geometric mean in BLEU is at most the average precision, so one weak order pulls BLEU down harder than an average would. In the lab's **Length envelope** tab, prefixes of each prompt's first reference trace the left branch: at $x = 0.249$ the corpus scores $0.049$, on the envelope. Appending unmatched words traces a curve below the right branch, and at $x = 2$ it scores $0.435$, under the corpus bound $0.841$ and the segment bound $0.500$. The decoding systems of Theorem 4 sit under the curve too. The exact mode, at $x = 0.329$, scores $0.087$.
+The arithmetic–geometric mean inequality (formalStatistics, [Expectation and Moments](https://www.formalstatistics.com/topics/expectation-moments), Example 7) says the geometric mean in BLEU is at most the average precision, so one weak order pulls BLEU down harder than an average would. In the lab's **Length envelope** tab, prefixes of each prompt's first reference trace the left branch: at $x = 0.249$ the corpus scores $0.049$, on the envelope. Appending unmatched words traces a curve below the right branch, and at $x = 2$ it scores $0.435$, under the corpus bound $0.841$ and the segment bound $0.500$. The decoding systems of Theorem 4 sit under the curve too. Against those first references the exact mode, at $x = 0.329$, scores $0.087$; against all of its references it scores $0.110$, as in the table of Theorem 4.
 
 The pooled precisions in Definition 2 also explain why a corpus score is not an average of sentence scores.
 
@@ -274,7 +274,7 @@ The pooled precisions in Definition 2 also explain why a corpus score is not an 
 
 </TheoremBlock>
 
-So the two common ways of reporting BLEU, the corpus score and the mean of sentence scores, can rank systems differently. On the finance systems below they disagree on two pairs of the weak extractive baselines.
+So the two common ways of reporting BLEU, the corpus score and the mean of sentence scores, can rank systems differently. On the finance systems below, corpus BLEU and the mean of smoothed sentence scores (BLEU+1, Proposition 3) disagree on two pairs of the weak extractive baselines.
 
 Sentence BLEU has a second problem: the zero-frequency catastrophe of the [n-gram topic](/topics/n-gram-models-smoothing), in a new place. Take the candidate "costs fell and revenue rose" against the reference "revenue rose and costs fell." All five words match, but no 4-gram does, so $p_4 = 0$ and sentence BLEU is $0$.
 
@@ -298,7 +298,7 @@ an interpolation between the observed precision and perfect precision, with weig
 
 </TheoremBlock>
 
-Part (b) is the n-gram topic's Proposition 3, shrinkage as interpolation, with a prior that puts all its mass on a perfect match. Lin and Och (2004, §4) add one to the hit and total counts for $n \gt 1$, which is $k = 1$; Chen and Cherry (2014, §2.2) call it Smoothing 2 and compare it with the NIST rule (their Smoothing 3), which gives the $j$-th order with no match a count of $1/2^j$. Without smoothing the finance summaries are often zeroed: $0.244$ of the reference-style summaries have no matched 4-gram, and $0.933$ of the copied document sentences do not.
+Part (b) is the n-gram topic's Proposition 3, shrinkage as interpolation, with a prior that puts all its mass on a perfect match. Lin and Och (2004, §4) add one to the hit and total counts for $n \gt 1$, which is $k = 1$; Chen and Cherry (2014, §2.2) call it Smoothing 2 and compare it with the NIST rule (their Smoothing 3), which gives the $j$-th order with no match a count of $1/2^j$. Without smoothing the finance summaries are often zeroed: $0.244$ of the reference-style summaries ($22$ of $90$) have no matched 4-gram, and neither do $0.933$ of the extracts ($84$ of $90$).
 
 More references should make a metric more forgiving. For the counts they do.
 
@@ -330,7 +330,7 @@ Lin (2004) defines ROUGE-N as recall (Eq. 1), ROUGE-L by its Eqs. 2–4 with a w
 
 <TheoremBlock type="theorem" number={2} title="The longest common subsequence is a longest path">
 
-(a) Common subsequences of $y$ and $r$ are exactly the **chains** of marked cells $(i_1, j_1), \dots, (i_k, j_k)$ with $i_1 \lt \dots \lt i_k$ and $j_1 \lt \dots \lt j_k$. So $\mathrm{LCS}(y, r)$ is the number of cells on a longest path in the directed acyclic graph whose edges go from each marked cell to every marked cell above and to the right of it, and the table
+(a) Common subsequences of $y$ and $r$ are exactly the **chains** of marked cells $(i_1, j_1), \dots, (i_k, j_k)$ with $i_1 \lt \dots \lt i_k$ and $j_1 \lt \dots \lt j_k$. So $\mathrm{LCS}(y, r)$ is the number of cells on a longest path in the directed acyclic graph whose edges go from each marked cell to every marked cell below and to the right of it (with $y$ down the side and $r$ across the top), and the table
 
 $$
 L[i, j] = \begin{cases} L[i-1, j-1] + 1 & \text{if } y_i = r_j, \\ \max\big(L[i-1, j],\ L[i, j-1]\big) & \text{otherwise}, \end{cases}
@@ -348,7 +348,7 @@ with $L[0, \cdot] = L[\cdot, 0] = 0$, gives $L[i, j] = \mathrm{LCS}(y_{1..i}, r_
 
 For the recursion, take a longest chain in the grid of the prefixes $y_{1..i}$ and $r_{1..j}$. Its last cell has the largest row and the largest column in the chain, so the chain can use row $i$ or column $j$ only at its last cell.
 
-Suppose $y_i = r_j$. If the last cell lies in row $i$ or column $j$, replace it with $(i, j)$, which is marked and still lies above and to the right of the cell before it. If it lies in neither, append $(i, j)$, which would give a longer chain, a contradiction. Either way, some longest chain ends at $(i, j)$, and removing that cell leaves a longest chain of $y_{1..i-1}$ and $r_{1..j-1}$.
+Suppose $y_i = r_j$. If the last cell lies in row $i$ or column $j$, replace it with $(i, j)$, which is marked and still lies below and to the right of the cell before it. If it lies in neither, append $(i, j)$, which would give a longer chain, a contradiction. Either way, some longest chain ends at $(i, j)$, and removing that cell leaves a longest chain of $y_{1..i-1}$ and $r_{1..j-1}$.
 
 Suppose $y_i \ne r_j$. Then $(i, j)$ is unmarked, so the chain's last cell misses row $i$ or misses column $j$, and the whole chain lies in one of the two smaller grids. Induction on $i + j$ finishes the proof.
 
@@ -398,7 +398,7 @@ Reversing $m$ facts is $m$ substitutions, so Theorem 3 bounds the change in reca
 
 </TheoremBlock>
 
-On the finance summaries, a summary of $3.6$ facts against a reference of $16$ words can lose at most about a quarter of its ROUGE-1 recall when every fact is reversed, and the harness checks the bound on all $360$ summary–reference pairs. The lab's **Flip vs. paraphrase** tab moves the share of reversed facts from $0$ to $1$: fact F1 falls from $1.000$ to $0.000$ while ROUGE-1 moves from $0.667$ to $0.638$.
+On the finance summaries, the bound $m/|r|$ on the ROUGE-1 recall lost when every fact is reversed averages $0.225$ over the $360$ summary–reference pairs, at most $0.308$, in recall's own units, and the harness checks it on every pair. The realized drop averages only $0.034$: a reversed word costs a match only where the reference used that same word, and the word put in can match a reference's word for another, true fact. The lab's **Flip vs. paraphrase** tab moves the share of reversed facts from $0$ to $1$: fact F1 falls from $1.000$ to $0.000$ while ROUGE-1 moves from $0.667$ to $0.638$.
 
 Order is the other thing overlap reads weakly. Callison-Burch, Osborne, and Koehn (2006, §3.1) observed that the pieces of a candidate between bigram mismatches can be shuffled without losing a match.
 
@@ -420,11 +420,11 @@ Cut $y$ between $y_i$ and $y_{i+1}$ wherever the bigram $(y_i, y_{i+1})$ occurs 
 
 (b) The length is unchanged, so $t_n$ and the brevity penalty are too, and BLEU is increasing in each $m_n$. The counts can grow only through n-grams that cross a new junction.
 
-(c) The lab's grid shows a reordering moving the longest chain.
+(c) Against the reference "revenue rose and costs fell," the candidate "revenue rose sharply and costs fell" cuts into "revenue rose," "sharply," and "and costs fell." The reordering "and costs fell sharply revenue rose" keeps every clipped count, and its longest common subsequence falls from $5$ to $3$. The candidate "costs fell and revenue rose" cuts into "costs fell," "and," and "revenue rose," and reordered as the reference its subsequence rises from $2$ to $5$.
 
 </TheoremBlock>
 
-Callison-Burch et al. make (a) and (b) in prose and count at least $(k - b)!$ reorderings (their Eq. 1), noting that one may raise the score (their footnote 2). On the finance summaries the cuts fall often, since four writers phrase each fact differently: a summary splits into $7.3$ pieces on average, about $15{,}000$ orderings. Of $200$ random orderings per summary, $0.785$ keep every clipped count exactly, none lowers one, and for $0.989$ of the summaries ROUGE-L takes more than one value.
+Callison-Burch et al. make (a) and (b) in prose and count at least $(k - b)!$ reorderings (their Eq. 1), noting that one may raise the score (their footnote 2). On the finance summaries the cuts fall often, since four writers phrase each fact differently: a summary splits into $7.3$ pieces on average (seven pieces have $5{,}040$ orderings and eight have $40{,}320$; the geometric mean of the counts is about $15{,}000$). Of $200$ random orderings per summary, $0.785$ keep every clipped count exactly, none lowers one, and for $0.989$ of the summaries ROUGE-L takes more than one value.
 
 ---
 
@@ -456,7 +456,7 @@ with F their harmonic mean. A word without a vector matches only itself.
 
 </TheoremBlock>
 
-This is BERTScore's form (Zhang et al. 2020, §3), with the trained skip-gram vectors of the [word2vec topic](/topics/word2vec-implicit-factorization) in place of contextual states, and without BERTScore's idf weights or rescaling. Each row of the grid now carries a shade instead of a mark, and the scores read the darkest shade in each row or column.
+This is BERTScore's form (Zhang et al. 2020, §3), with the trained skip-gram vectors of the [word2vec topic](/topics/word2vec-implicit-factorization) in place of contextual states, and without BERTScore's idf weights or rescaling. Each cell of the grid now carries a shade instead of a mark, and the scores read the darkest shade in each row or column.
 
 <TheoremBlock type="proposition" number={6} title="Soft matching moves less">
 
@@ -510,7 +510,7 @@ The expected utility of $h$ is $\sum_y p(y) U(h, y)$, and maximizing it is the d
 
 (a) Under exact match the sum is $p(h)$.
 
-(b) Take an output distribution that gives "margins held" probability $0.2$ and eight variants of a seven-word sentence $0.1$ each: seven with one word replaced, and the first six words alone. The two-word string is the mode, but it shares nothing with the variants, so its expected BLEU+1 is $0.244$, while the six-word variant shares most of its n-grams with all the others and reaches $0.550$.
+(b) Take an output distribution that gives "margins held" probability $0.2$ and eight variants of a seven-word sentence $0.1$ each: seven with one word replaced, and the first six words alone. The two-word string is the mode, but it shares only "margins" with seven of the variants, under a brevity penalty of at most $e^{-2}$, so its expected BLEU+1 is $0.244$, of which $0.2$ is matching itself, while the six-word variant shares most of its n-grams with all the others and reaches $0.550$.
 
 (c) For each $h$, the estimate is an average of $S$ independent values in $[0, 1]$. Hoeffding's inequality bounds the chance that it misses its mean by $\Delta/2$ or more by $2e^{-2S(\Delta/2)^2} = 2e^{-S\Delta^2/2}$. A union bound over $H$ (formalCalculus, [Probability and the Union Bound](https://www.formalcalculus.com/topics/probability-and-union-bound), Theorem 8) bounds the chance that any estimate misses by $2|H| e^{-S\Delta^2/2}$, which is at most $\delta$ under the stated $S$. If no estimate misses, the estimate for $h^\star$ is above its mean minus $\Delta/2$, and every other estimate is below its own mean plus $\Delta/2$, which is at most the mean of $h^\star$ minus $\Delta/2$.
 
@@ -528,7 +528,7 @@ On the decoding topic's $188$ prompts, each opening a held-out MD&A sentence, th
 | one sample | $0.149$ | $7.766$ | $0.005$ | $1.000$ |
 | BLEU-MBR | $0.254$ | $4.707$ | $0.000$ | $0.609$ |
 
-The mode is short, as the decoding topic's Theorem 4 predicts (once the end mark is the likeliest next token, stopping wins), and a fifth of the modes are empty strings. The brevity penalty multiplies its score by $0.147$. A single sample has the right length but poor precision. Minimum Bayes risk trades between them and wins. By part (a), the most frequent of the $64$ samples is the Monte Carlo estimate of the mode, and it equals the exact mode on $0.543$ of the prompts. The lab's **MBR vs. mode** tab shows five prompts whose mode is empty.
+The mode is short, as the decoding topic's Theorem 4 predicts (once the end mark is the likeliest next token, stopping wins), and a fifth of the modes are empty strings. The brevity penalty multiplies its score by $0.147$. Taken out of the score, the penalty would hand the mode the best BLEU, $0.749$ against $0.417$ for minimum Bayes risk. Taken out of the utility instead, minimum Bayes risk picks the exact mode on $113$ of the $188$ prompts and scores $0.137$: it still beats the mode only because BLEU scores the empty string zero, and had it kept the mode's $37$ empty outputs it would score $0.088$. A single sample has the right length but poor precision. Minimum Bayes risk trades between them and wins. By part (a), the most frequent of the $64$ samples is the Monte Carlo estimate of the mode, and it equals the exact mode on $0.543$ of the prompts. The lab's **MBR vs. mode** tab shows five prompts whose mode is empty.
 
 ---
 
@@ -544,7 +544,7 @@ $$
 s_{ij} = b\, q_{ij} + \beta_j + \varepsilon_{ij},
 $$
 
-with $b \gt 0$, a bias $\beta_j$ that depends on the system only, and independent noise of mean zero and finite variance. Write $\mu_j = b \bar q_j + \beta_j$, and suppose the $\mu_j$ are distinct. As the number of segments $n$ grows, the system means converge almost surely to the $\mu_j$, and system-level Kendall's τ between metric and quality converges to $\tau(\mu, \bar q)$. That limit equals $1$ if and only if
+with $b \gt 0$, a bias $\beta_j$ that depends on the system only, and independent noise of mean zero and finite variance. Write $\mu_j = b \bar q_j + \beta_j$, and suppose the $\mu_j$ are distinct, and so are the $\bar q_j$ (across tied qualities $\tau_b$ cannot reach $1$). As the number of segments $n$ grows, the system means converge almost surely to the $\mu_j$, and system-level Kendall's τ between metric and quality converges to $\tau(\mu, \bar q)$. That limit equals $1$ if and only if
 
 $$
 b\,(\bar q_k - \bar q_j) \gt \beta_j - \beta_k \quad \text{for every pair with } \bar q_j \lt \bar q_k.
@@ -569,7 +569,7 @@ So averaging can lift τ only to the ranking of the biases. In a model with five
 | chrF | $0.343$ | $0.523$ | $1.000$ |
 | soft F | $0.386$ | $0.568$ | $1.000$ |
 
-The first column averages τ over the $90$ documents and the second ranks the ten systems by their corpus scores. The third ranks only the five systems that share one surface and differ by how many facts they reverse, and there every metric is perfect. Scored on random subsets of $n$ documents, system-level τ for BLEU rises from $0.375$ at $n = 1$ to $0.523$ at $n = 90$, which is the plateau Proposition 7 describes. The lab's **Correlation** tab draws the curve for each metric. Every metric puts the all-reversed summary above the extract, and BLEU reverses ten pairs of systems in all.
+The first column averages τ over the $90$ documents and the second ranks the ten systems by their corpus scores. The third ranks only the five systems that share one surface and differ by how many facts they reverse, and there every metric is perfect. Scored on random subsets of $n$ documents, system-level τ for BLEU rises from $0.375$ at $n = 1$ to $0.523$ at $n = 90$, far below $1$, the ceiling the biases of Proposition 7 set (the curves rise overall, not at every step). Fact F1 ties two pairs of systems, so the ten-system $\tau_b$ could reach at most $0.978$. The lab's **Correlation** tab draws the curve for each metric. Every metric puts the all-reversed summary above the extract, and BLEU reverses ten pairs of systems in all.
 
 ---
 
@@ -608,7 +608,7 @@ R-1 and R-L are the best F over the four references, averaged over documents; ch
 
 **Within one surface, the metrics work.** From *writer* to *flipped*, every metric falls as facts are reversed, and the ranking of those five systems is perfect under all six. The failure is between surfaces, which is the bias of Proposition 7. Length is a surface too: *terse* is short, so under BLEU the brevity penalty puts it below *noisy 0.5* and *flipped* despite its fact F1 of $0.667$.
 
-**TextRank.** The sentence ranker picks fact-bearing sentences no better than chance: *random-3* has a higher fact F1 ($0.277$) than *textrank-3* ($0.200$), and corpus BLEU and mean sentence BLEU disagree on the order of these two (Proposition 2).
+**TextRank.** The sentence ranker picks fact-bearing sentences no better than chance: three sentences drawn at random have an expected fact F1 of $0.247$ (exact, over every triple), above the $0.200$ of *textrank-3*, and the table's *random-3* is one such draw ($0.277$). Corpus BLEU and mean sentence BLEU+1 disagree on the order of *textrank-3* and *random-3* (Proposition 2).
 
 </FinanceCaseStudy>
 
@@ -628,7 +628,7 @@ Smoothing from the [n-gram topic](/topics/n-gram-models-smoothing) reappears in 
 
 <RigorFlag>
 
-1. **Proved and checked.** Theorems 1–4, Corollary 1, and Propositions 1–7 are proved here in full. The harness checks Proposition 1 against SciPy's matching, Definitions 2–4 against sacreBLEU 2.6.0 and rouge-score 0.1.2 to $10^{-12}$, Theorem 2 against brute-force subsequences, Theorem 3 and Proposition 5 on random instances and every finance summary, and Theorem 4 on an exact toy distribution.
+1. **Proved and checked.** Theorems 1–4, Corollary 1, and Propositions 1–7 are proved here in full. The harness checks Proposition 1 against SciPy's matching, Definitions 2–4 against sacreBLEU 2.6.0 and rouge-score 0.1.2 to $10^{-12}$, Theorem 2 against brute-force subsequences, Theorem 3 on random instances, Corollary 1 and Proposition 5 on every finance summary, and Theorem 4 on an exact toy distribution.
 2. **No human judgments.** BLEU's agreement with human judgment is weak outside system-level machine translation (Reiter 2018), and Papineni et al.'s own correlations rest on five systems. The judgments here are exact fact F1 against a synthetic generator's aspect gold.
 3. **Templated references.** The references are written from the same facts as the candidates, so every fact hangs on one word by construction. Real references differ in content, not only in wording, and real metric failures are messier.
 4. **A static soft match.** The soft scores use skip-gram vectors, not BERTScore's contextual states, idf weights, or rescaling. Contextual vectors may separate "rose" from "fell" better than these do; this page does not test them.
