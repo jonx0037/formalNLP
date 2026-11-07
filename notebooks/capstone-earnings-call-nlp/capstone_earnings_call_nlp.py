@@ -40,6 +40,7 @@ from __future__ import annotations
 import itertools
 import json
 import math
+import re
 import sys
 from collections import Counter, defaultdict
 from functools import lru_cache
@@ -861,7 +862,7 @@ FIXED_NOUNS = frozenset(w for ws in fc.SECTOR_NOUNS.values() for w in ws) | froz
 @lru_cache(maxsize=None)
 def topic_stage(name: str, fixed_only: bool) -> float:
     """Topic 25's ``topic_mixtures`` on a run's calls, its dominant topic scored against the call's sector; fixed_only
-    folds in only the 80 seeded sector and common nouns, the words whose sector every generator run shares."""
+    folds in only the 79 seeded sector and common nouns, the words whose sector every generator run shares."""
     ds = [docs(name)[i] for i in calls(name)]
     if not fixed_only:
         theta, labels = lda.topic_mixtures(ds)
@@ -1204,10 +1205,11 @@ def test_tone_readers_compared():
     assert abs(acc["aspects"] - 108 / 126) < 1e-12
 
 
-def test_tone_share_is_mostly_the_bayes_floor():
+def test_tone_share_includes_the_bayes_floor():
     """The Bayes tone (Topic 19's Bayes rule on the gold polarities of the gold tone-bearing sentences) is what the
-    aspect reader outputs on every call, so the aspect reader's tone share is error no reader can remove: Topic 17's
-    ceiling (0.890) bounds every reader of this text. Only the part of a reader's share above it is fixable."""
+    aspect reader outputs on every call, so the aspect reader's tone share is the Bayes floor on these calls: error the
+    best possible reader of this text also makes (realized, and net). Only the part of a reader's share above it is
+    fixable."""
     for n in TESTS:
         assert aspect_tones(n, True, True) == aspect_tones(n, False, False)
     assert abs(float(reader_correct("aspects")[0].mean()) - 108 / 126) < 1e-12
@@ -1217,7 +1219,7 @@ def test_tone_share_is_mostly_the_bayes_floor():
 
 def test_topic_stage_needs_the_fixed_nouns():
     """On seed-1 calls Topic 25's fold-in reads each generator run's own pseudo-words with seed 0's sectors; folding
-    in only the 80 fixed nouns raises dominant-topic sector accuracy on both rosters."""
+    in only the 79 fixed nouns raises dominant-topic sector accuracy on both rosters."""
     for n in TESTS:
         assert topic_stage(n, True) > topic_stage(n, False) + 0.15
 
@@ -1225,6 +1227,137 @@ def test_topic_stage_needs_the_fixed_nouns():
 def test_corpus_fingerprint():
     """The shared corpus generator is the one every topic pins (numpy 2.5.4)."""
     assert fc.CORPUS_FINGERPRINT == "b40dd72b3eeba520"
+
+
+# Errata (Topic 29): the page's named mechanisms, re-tested by twins with controls.
+_FRAMES = (("parent", r"the parent company of"), ("subsidiary", r"a subsidiary of"), ("headoffice", r"head office in"),
+           ("acquire", r"agreed to acquire"), ("owns", r"\bowns\b"), ("compet", r"competitor"),
+           ("hq", r"headquartered in"), ("ceo", r"chief executive"), ("cfo", r"chief financial"),
+           ("sector", r"operates in the"), ("based", r"based in"))
+
+
+def _frame(text: str) -> str:
+    for k, pat in _FRAMES:
+        if re.search(pat, text):
+            return k
+    return "other"
+
+
+def _sentence_text(name: str, k: int) -> str:
+    di, si = sentence_index(name)[k]
+    d = docs(name)[di]
+    a, b = d.sentences[si]
+    return d.text[a:b]
+
+
+def fact_frames(name: str) -> dict:
+    """Per gold fact of a run's calls: the sentence frames that state it (gold mentions), joined with '+'."""
+    out: dict = defaultdict(set)
+    for k, s in enumerate(mentions(name, True)):
+        if s.doc in doc_ids(name, "calls"):
+            for i, r, j in s.gold:
+                out[(s.mentions[i].kb, r, s.mentions[j].kb)].add(_frame(_sentence_text(name, k)))
+    return {f: "+".join(sorted(v)) for f, v in out.items()}
+
+
+def within_cov(a: np.ndarray, b: np.ndarray, key) -> float:
+    """The part of P(A∩B) − P(A)P(B) left inside the groups of key (size-weighted)."""
+    key = np.asarray(key)
+    return float(sum((key == g).sum() * ((a & b)[key == g].mean() - a[key == g].mean() * b[key == g].mean())
+                     for g in set(key.tolist())) / len(key))
+
+
+def sentence_reads(name: str, gold_E: bool, fact: tuple) -> dict:
+    """The reader's probability for fact on each call sentence where the stage-E mentions offer its pair."""
+    ins, P = reader_probs(name, gold_E)
+    k = rex.LABELS.index(fact[1])
+    out: dict = {}
+    for n, x in enumerate(ins):
+        if (x.h, x.t) == (fact[0], fact[2]) and mentions(name, gold_E)[x.sent].doc in doc_ids(name, "calls"):
+            out[x.sent] = max(out.get(x.sent, 0.0), float(P[n, k]))
+    return out
+
+
+def swap_variance_ratio(a: str, b: str) -> tuple[float, float]:
+    """Var(company-swap null) / Var(McNemar null) = Σ net_c² / Σ m_c, and its value expected if every call were
+    independent with the observed direction rate: (1 − μ²) + μ² Σ m_c² / Σ m_c."""
+    ca, g = reader_correct(a)
+    cb, _ = reader_correct(b)
+    net = np.array([(ca & ~cb)[g == c].sum() - (~ca & cb)[g == c].sum() for c in sorted(set(g))], float)
+    m = np.array([(ca != cb)[g == c].sum() for c in sorted(set(g))], float)
+    mu = net.sum() / m.sum()
+    return float((net ** 2).sum() / m.sum()), float((1 - mu ** 2) + mu ** 2 * (m ** 2).sum() / m.sum())
+
+
+def test_errata_frames_pooling_floor_and_kb():
+    """Topic 29's errata: what each named mechanism turned out to be."""
+    assert len(FIXED_NOUNS) == 79  # "reserves" is seeded in two sectors
+    # A and B are correlated through sentence frames, not companies or name frequency.
+    inside = {"A": 0, "n": 0, "B": 0}
+    outside = {"A": 0, "n": 0}
+    for n in TESTS:
+        G = sorted(gold_facts(n))
+        a = np.array([f in stated(n, False) for f in G])
+        b = np.array([f in facts_out(n, True, False) for f in G])
+        cov = float((a & b).mean() - a.mean() * b.mean())
+        fr = fact_frames(n)
+        assert within_cov(a, b, [fr[f] for f in G]) < 0.1 * cov
+        assert within_cov(a, b, [owner(n, f) for f in G]) > 0.8 * cov
+        for f, x, y in zip(G, a, b):
+            if fr[f] in ("parent", "subsidiary", "parent+subsidiary"):
+                inside["n"] += 1; inside["A"] += int(x); inside["B"] += int(y)
+            else:
+                outside["n"] += 1; outside["A"] += int(x)
+    assert inside == {"A": 8, "n": 16, "B": 0} and outside == {"A": 132, "n": 144}
+    # Non-modularity: on every gap fact the tagger keeps only weaker sentences and drops the one above 0.5.
+    for n in TESTS:
+        gap = sorted((stated(n, False) & facts_out(n, True, False)) - facts_out(n, False, False))
+        assert len(gap) == (5 if n == "seen" else 0)
+        for f in gap:
+            gold, kept = sentence_reads(n, True, f), set(sentence_reads(n, False, f))
+            assert kept and max(gold.get(k, 0.0) for k in kept) < 0.5 < max(v for k, v in gold.items() if k not in kept)
+    # Brightwater: both directions' scores come from one sentence read in its two argument orders.
+    bw = ("Brightwater Analytics", "PARENT_OF", "Larch Data")
+    fwd, inv = sentence_reads("seen", True, bw), sentence_reads("seen", True, ("Larch Data", "SUBSIDIARY_OF", "Brightwater Analytics"))
+    top = max(fwd, key=fwd.get)
+    assert top == max(inv, key=inv.get) and "owns Larch Data outright" in _sentence_text("seen", top)
+    F = fact_scores("seen", True)
+    assert abs(1 - (1 - F[bw]) * (1 - F[("Larch Data", "SUBSIDIARY_OF", "Brightwater Analytics")]) - 0.810) < 1e-3
+    # The KB grid: merging, functional removals, and the rules' deletions.
+    cities = {h for h, r, t in WORLD.triples if r == "LOCATED_IN"}
+    for n in TESTS:
+        for gE in (True, False):
+            T = kb_table(n, gE)
+            for i, tau in enumerate(T["tau"]):
+                thr, mer = T["threshold"][i]["f1"], T["merged"][i]["f1"]
+                if tau >= 0.2:
+                    assert mer >= thr - 1e-12
+                if n == "unseen":
+                    assert mer == thr
+                rem = T["flips"][i]["removed"]
+                assert not rem or tau <= 0.1
+                assert not any(f in gold_facts(n) for f in rem)
+                assert not any(f[1] == "HQ_IN" and f[2] in cities for f in rem)
+    Fp, gold, i5 = fact_scores("seen", False), gold_facts("seen"), TAU_GRID.index(0.5)
+    deleted = set(kb_table("seen", False)["flips"][i5]["rule_removed"])
+    assert deleted == {("Chicago", "LOCATED_IN", "Illinois"), ("Denver", "LOCATED_IN", "Colorado"),
+                       ("Kingsbridge Financial", "HQ_IN", "Toronto"), ("Pennant Home Goods", "HQ_IN", "Columbus")}
+    for f in deleted:
+        assert f in gold
+        if f[1] == "LOCATED_IN":
+            legs = [(c, "BASED_IN", f[2]) for (c, r, x) in Fp if r == "HQ_IN" and x == f[0] and Fp[(c, r, x)] > 0.5]
+        else:
+            legs = [(f[0], "BASED_IN", y) for (x, r, y) in Fp if r == "LOCATED_IN" and x == f[2]]
+        assert any(leg not in gold and Fp.get(leg, 0.0) < 0.5 for leg in legs)
+    # Tone: the Bayes floor is about half of LR's share in error counts (36 of 66), realized on these calls.
+    assert abs(shapley(game("both", "LR", "err"))["T"] - 66) < 1e-9
+    assert abs(shapley(game("both", "aspects", "err"))["T"] - 36) < 1e-9
+    assert int((~reader_correct("aspects")[0]).sum()) == 18
+    # The company swap is mostly a coarser unit: the independent-calls baseline is most of the variance ratio.
+    r, base = swap_variance_ratio("LR", "dictionary")
+    assert 1.9 < r < 2.0 and 1.5 < base < 1.55
+    r2, base2 = swap_variance_ratio("aspects", "LR")
+    assert r2 < base2
 
 
 # --------------------------------------------------------------------------------------------

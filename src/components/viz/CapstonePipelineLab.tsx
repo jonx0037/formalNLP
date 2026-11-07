@@ -497,7 +497,7 @@ function ReadersView() {
       <Sub>Facts the held-out calls state and the pipeline misses</Sub>
       <Table id="completion" head={['fact', 'in the filings’ KB', 'RotatE ranks']}
         rows={P.completion.map((c) => ({ key: c.fact, cells: [c.fact, c.in_filings ? 'yes' : 'inverse is', c.ranks.join(', ')] }))} />
-      <Note>Swapping all of a company’s calls at once widens the LR-versus-dictionary p-value tenfold: the document-level readers err together on one company’s calls. Each generator run invents its own pseudo-words, so the topic stage folds in only the 80 seeded nouns. Every fact the calls miss is in the filings’ knowledge base or is the inverse of one that is.</Note>
+      <Note>Swapping all of a company’s calls at once widens the LR-versus-dictionary p-value tenfold, mostly because companies are a coarser unit than calls. Each generator run invents its own pseudo-words, so the topic stage folds in only the 79 seeded nouns. Every fact the calls miss is in the filings’ knowledge base or is the inverse of one that is.</Note>
     </figure>
   );
 }
