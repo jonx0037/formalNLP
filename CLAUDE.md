@@ -497,8 +497,9 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   only named splits (`ner.split`, `ner.chains`, `rex.predicted_corpus`: "seen"/"unseen"; `ab.rows`: "train"/"dev"/"test"),
   so build a pipeline on those splits, and map `rex.corpus` (it skips token-free sentences) back to doc sentences with a
   (document, sentence) index. On synthetic text the aspect matcher (`ab._TERM_RE`) is exact and the bigram reader is
-  perfect (1,209 of 1,209), so aspects are a null player in any oracle game. Tone's oracle gain is mostly the Bayes floor
-  (the aspect reader outputs the Bayes tone of the gold polarities on every call): oracle gain is not fixable error.
+  perfect (1,209 of 1,209), so aspects are a null player in any oracle game. Tone's oracle gain includes the Bayes floor
+  (the aspect reader outputs the Bayes tone of the gold polarities on every call; about half of LR's share, a third of
+  the dictionary's, realized and net): oracle gain is not fixable error.
   Score an oracle game in F1 and in error counts. F1's denominator couples stages (small spurious dividends ET, RT);
   error counts add exactly over stages that write disjoint triples. Report Shapley shares with the dividends, never one
   ceiling-analysis order. The shares need a cluster bootstrap by company: Shapley is linear, so φ* = M f1(W C) from
@@ -510,8 +511,11 @@ uv run --with numpy==2.5.4 --with scipy==1.18.1 --with jupyter --with ipykernel 
   × noisy-OR) raise AP (seen 0.744 → 0.851) but lose F1 at the hard τ = 0.5. F*/2 needs calibrated scores, and noisy-OR
   soft scores are underconfident: tune τ on the run's filings. `topic_mixtures` fails on a fresh generator run (seed-1
   pseudo-words carry seed 0's sectors in the fit: 0.273 / 0.583); fold in only `fc.SECTOR_NOUNS` + `fc.COMMON_NOUNS`
-  (0.682 / 0.750). The seen calls are not modular: end-to-end recall is 0.696 against P(A ∩ B) 0.739, since mis-tagged
-  neighbors change the between string. Publishing the last node: empty `planned` lists are fine (`paths.astro` widens
+  (0.682 / 0.750). The seen calls are not modular: end-to-end recall is 0.696 against P(A ∩ B) 0.739. The reader never sees other
+  mentions; A needs one sentence with both arguments while B pools all of a fact's sentences, and on all five gap facts
+  the tagger keeps the worst-read sentence. The A–B correlation is carried by sentence frames (parent/subsidiary
+  appositives), not by companies. Merging by noisy-OR counts Brightwater's one "owns … outright" sentence twice;
+  test a named mechanism with a twin and a control before writing it (Topic 29's errata: seven mechanisms, one held). Publishing the last node: empty `planned` lists are fine (`paths.astro` widens
   the type, `/paths` says "Track complete"), and the graph keeps 42 edges (`curriculum.test.ts:48` pins the count, so
   extra in-site dependencies go in `connections`).
 - Prereq calls cost time: Topic 6's `ds.selected()` takes ~5.5 s and Topic 7's

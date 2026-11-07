@@ -25,7 +25,7 @@ tagger, and Topic 23's MIL reader. It compares the readers with Topic 28's tests
 - **The LDA page's qualification** (`topic-models-lda.mdx`, the capstone's-stage paragraph).
 - **Phase B corrections.**
   - Three new asserts back prose claims:
-    - `test_tone_share_is_mostly_the_bayes_floor`;
+    - `test_tone_share_includes_the_bayes_floor` (renamed by the Topic 29 errata);
     - `test_soft_handoffs_keep_mass_on_missed_spans` (92 missed gold spans, 61 with marginal mass above 0.1);
     - `test_merge_by_noisy_or_not_by_log_odds`. The Brightwater inverse is 0.398, not 0.08, and the additive merge
       drops the fact at τ = 0.55.
